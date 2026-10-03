@@ -27,8 +27,14 @@ export const tokenStorage = {
   },
 };
 
+// Accepts "https://api.example.com", "https://api.example.com/" or ".../api" and always ends with "/api"
+function getApiBaseUrl() {
+  const url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+  return url.endsWith('/api') ? url : `${url}/api`;
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: getApiBaseUrl(),
   timeout: 20000,
 });
 
