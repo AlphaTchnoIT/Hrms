@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-slate-700 antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-slate-900;
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+  }
+
+  .form-label {
+    @apply mb-1.5 block text-[13px] font-medium text-slate-700;
+  }
+
+  .form-control {
+    @apply block h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 shadow-sm
+      placeholder:text-slate-400 transition
+      hover:border-slate-400
+      focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10
+      disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500;
+  }
+
+  textarea.form-control {
+    @apply h-auto py-2;
+  }
+
+  .form-control-error {
+    @apply border-red-400 hover:border-red-400 focus:border-red-500 focus:ring-red-500/10;
+  }
+
+  /* Custom arrow for native selects */
+  select.form-control {
+    @apply appearance-none pr-9;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.6rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25em 1.25em;
+  }
+
+  .link {
+    @apply font-medium text-brand-600 hover:text-brand-700 hover:underline;
+  }
+
+  .page-enter {
+    @apply animate-fade-in;
+  }
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Print only the payslip area */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
