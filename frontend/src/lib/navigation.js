@@ -1,26 +1,45 @@
 import {
   BadgeIndianRupee,
+  BookOpen,
+  Briefcase,
   Building2,
   CalendarCheck,
   CalendarClock,
   CalendarDays,
   CalendarRange,
+  ChartColumn,
   ClipboardCheck,
+  ClipboardList,
   Contact,
+  Crosshair,
   FileSpreadsheet,
+  Gauge,
+  GraduationCap,
+  Headphones,
+  HeartHandshake,
+  House,
   LayoutDashboard,
   Laptop,
+  LineChart,
+  ListChecks,
   Megaphone,
   Receipt,
   ReceiptText,
+  Scale,
   Settings,
+  ShieldAlert,
+  Star,
   Target,
+  Timer,
   UserCog,
   UserRound,
+  UserSearch,
   Users,
   WalletCards,
 } from 'lucide-react';
-import { APPROVER_ROLES, HR_ROLES, ROLES } from './constants';
+import { APPROVER_ROLES, AUDITOR_ROLES, HR_ROLES, ROLES } from './constants';
+
+const REPORT_ROLES = [...APPROVER_ROLES, ROLES.QA, ROLES.IT];
 
 /*
  * Sidebar menu. `roles` = who can see the item (omit for everyone).
@@ -35,22 +54,50 @@ export const NAVIGATION = [
     items: [
       { label: 'My Profile', href: '/profile', icon: UserRound },
       { label: 'Attendance', href: '/attendance', icon: CalendarCheck },
+      { label: 'My Roster', href: '/roster', icon: CalendarRange },
       { label: 'Leave', href: '/leave', icon: CalendarDays },
       { label: 'Payslips', href: '/payslips', icon: WalletCards },
       { label: 'Expenses', href: '/expenses', icon: Receipt },
-      { label: 'Performance', href: '/performance', icon: Target },
+      { label: 'Performance', href: '/performance', icon: Gauge },
+      { label: 'QA Feedback', href: '/quality', icon: Star },
+      { label: 'My Conduct', href: '/my-conduct', icon: ShieldAlert },
+      { label: 'Learning', href: '/learning', icon: GraduationCap },
+      { label: 'Internal Jobs', href: '/careers', icon: Briefcase },
     ],
   },
   {
-    title: 'Team',
+    title: 'Manager Workspace',
     roles: APPROVER_ROLES,
     items: [
-      { label: 'Team Attendance', href: '/team/attendance', icon: CalendarClock },
+      { label: 'My Team Home', href: '/team/home', icon: House },
+      { label: 'Team Performance', href: '/team/performance', icon: LineChart },
+      { label: 'Action Plans', href: '/team/action-plans', icon: ListChecks },
+      { label: 'Team Roster', href: '/team/roster', icon: CalendarClock },
+      { label: 'Login / AT Hours', href: '/team/login-hours', icon: Timer },
+      { label: 'Team Attendance', href: '/team/attendance', icon: CalendarCheck },
       { label: 'Attendance Report', href: '/team/attendance-report', icon: FileSpreadsheet },
       { label: 'Leave Approvals', href: '/team/leave-approvals', icon: ClipboardCheck },
       { label: 'Regularizations', href: '/team/regularizations', icon: CalendarRange },
       { label: 'Expense Approvals', href: '/team/expense-approvals', icon: ReceiptText },
       { label: 'Team Goals', href: '/team/goals', icon: Target },
+      { label: 'Employee Relations', href: '/relations', icon: Scale },
+    ],
+  },
+  {
+    title: 'Quality & Learning',
+    roles: AUDITOR_ROLES,
+    items: [
+      { label: 'QA Audits', href: '/qa-audits', icon: ClipboardList },
+      { label: 'Calibration', href: '/calibration', icon: Crosshair },
+      { label: 'Rating Approvals', href: '/ratings', icon: Star },
+      { label: 'Training Admin', href: '/training-admin', icon: BookOpen },
+    ],
+  },
+  {
+    title: 'Support',
+    items: [
+      { label: 'IT Helpdesk', href: '/helpdesk', icon: Headphones },
+      { label: 'Grievances & Ideas', href: '/support', icon: HeartHandshake },
     ],
   },
   {
@@ -65,9 +112,18 @@ export const NAVIGATION = [
     ],
   },
   {
+    title: 'Analytics',
+    roles: REPORT_ROLES,
+    items: [
+      { label: 'Management Dashboard', href: '/management', icon: ChartColumn, roles: HR_ROLES },
+      { label: 'Reports Centre', href: '/reports', icon: FileSpreadsheet },
+    ],
+  },
+  {
     title: 'Administration',
     roles: HR_ROLES,
     items: [
+      { label: 'Recruitment (ATS)', href: '/recruitment', icon: UserSearch },
       { label: 'Payroll', href: '/payroll', icon: BadgeIndianRupee },
       { label: 'Leave Policies', href: '/leave-types', icon: UserCog },
       { label: 'Settings', href: '/settings', icon: Settings, roles: [ROLES.ADMIN] },

@@ -36,6 +36,7 @@ import {
   HOLIDAYS,
   LEAVE_TYPES,
 } from './seedData.js';
+import { seedModules } from './seedModules.js';
 
 // Small deterministic random generator so every seed run gives the same data
 let randomSeed = 42;
@@ -120,6 +121,8 @@ async function seedLeaves(users, leaveTypes, today) {
     { user: 'employee@hrms.com', code: 'CL', from: addDays(today, 12), to: addDays(today, 12), status: 'pending', reason: 'Personal work' },
     { user: 'neha@hrms.com', code: 'SL', from: addDays(today, -5), to: addDays(today, -5), status: 'approved', reason: 'Doctor appointment' },
     { user: 'arjun@hrms.com', code: 'LOP', from: addDays(today, -25), to: addDays(today, -25), status: 'approved', reason: 'Personal emergency' },
+    { user: 'sneha@hrms.com', code: 'EML', from: addDays(today, -16), to: addDays(today, -16), status: 'approved', reason: 'Family emergency' },
+    { user: 'employee@hrms.com', code: 'SL', from: addDays(today, -60), to: addDays(today, -59), status: 'approved', reason: 'Viral fever' },
   ];
 
   const leaveDatesByUser = {};
@@ -172,8 +175,9 @@ async function seedAttendance(users, settings, today, leaveDatesByUser) {
       const roll = random();
       if (roll < 0.04) continue; // ~4% absent days
 
-      const checkInMinutes = randomInt(9 * 60 + 5, 10 * 60 + 15); // 09:05 - 10:15
-      const worked = roll < 0.08 ? randomInt(250, 400) : randomInt(500, 590); // some half days
+      // Mostly on time (09:00 - 09:44), sometimes late (09:46 - 10:20)
+      const checkInMinutes = random() < 0.95 ? randomInt(9 * 60, 9 * 60 + 44) : randomInt(9 * 60 + 46, 10 * 60 + 20);
+      const worked = roll < 0.055 ? randomInt(250, 400) : randomInt(500, 590); // some half days
       const checkOutMinutes = Math.min(checkInMinutes + worked, 23 * 60);
       const lateByMinutes = getLateMinutes(checkInMinutes, settings);
 
@@ -260,12 +264,15 @@ async function seed() {
   await seedAttendance(users, masters.settings, today, leaveDatesByUser);
   await seedOthers(users, today);
   await seedPayroll(users, today);
+  await seedModules({ users, settings: masters.settings, today, random, randomInt });
 
   console.log('\nSeed completed. Login accounts:');
   console.log(`  Admin    : admin@hrms.com    / ${DEFAULT_PASSWORD}`);
   console.log(`  HR       : hr@hrms.com       / ${DEFAULT_PASSWORD}`);
   console.log(`  Manager  : manager@hrms.com  / ${DEFAULT_PASSWORD}`);
   console.log(`  Employee : employee@hrms.com / ${DEFAULT_PASSWORD}`);
+  console.log(`  QA       : qa@hrms.com       / ${DEFAULT_PASSWORD}`);
+  console.log(`  IT       : it@hrms.com       / ${DEFAULT_PASSWORD}`);
 
   await mongoose.disconnect();
 }

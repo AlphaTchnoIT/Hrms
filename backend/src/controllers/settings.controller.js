@@ -20,6 +20,13 @@ const FIELDS = [
   'pfCeiling',
   'professionalTax',
   'attendanceBasedLop',
+  'kpiTargets',
+  'kpiWeights',
+  'attentionBand',
+  'efficiencyGlidePath',
+  'shortLoginPercent',
+  'idleAlertMinutes',
+  'calibrationTolerance',
 ];
 
 export async function getSettings(_req, res) {

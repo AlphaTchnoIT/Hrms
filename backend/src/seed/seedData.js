@@ -7,6 +7,8 @@ export const DEPARTMENTS = [
   { name: 'Marketing', code: 'MKT', description: 'Brand, content and growth' },
   { name: 'Finance', code: 'FIN', description: 'Accounts and finance' },
   { name: 'Operations', code: 'OPS', description: 'Admin and operations' },
+  { name: 'Quality', code: 'QA', description: 'Quality assurance and audits' },
+  { name: 'IT Support', code: 'IT', description: 'Internal IT helpdesk' },
 ];
 
 export const DESIGNATIONS = [
@@ -20,12 +22,15 @@ export const DESIGNATIONS = [
   { title: 'Marketing Executive', level: 3 },
   { title: 'Accountant', level: 3 },
   { title: 'Intern', level: 1 },
+  { title: 'QA Auditor', level: 3 },
+  { title: 'IT Support Engineer', level: 3 },
 ];
 
 export const LEAVE_TYPES = [
   { name: 'Casual Leave', code: 'CL', annualQuota: 12, isPaid: true, color: '#6366f1', description: 'For personal work' },
   { name: 'Sick Leave', code: 'SL', annualQuota: 8, isPaid: true, color: '#ef4444', description: 'When you are unwell' },
   { name: 'Earned Leave', code: 'EL', annualQuota: 15, isPaid: true, color: '#10b981', description: 'Planned vacations' },
+  { name: 'Emergency Leave', code: 'EML', annualQuota: 3, isPaid: true, color: '#f97316', description: 'Unplanned personal or family emergency' },
   { name: 'Loss of Pay', code: 'LOP', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Unpaid leave' },
 ];
 
@@ -106,6 +111,16 @@ export const EMPLOYEES = [
     dept: 'Finance', desig: 'Accountant', manager: 'admin@hrms.com', dateOfJoining: '2021-10-04', dateOfBirth: '1991-10-05',
     salary: { basic: 36000, hra: 14400, conveyance: 2000, specialAllowance: 8000, monthlyTds: 1800 },
   },
+  {
+    firstName: 'Meera', lastName: 'Nambiar', email: 'qa@hrms.com', role: 'qa', gender: 'female',
+    dept: 'Quality', desig: 'QA Auditor', manager: 'hr@hrms.com', dateOfJoining: '2022-05-02', dateOfBirth: '1992-07-21',
+    salary: { basic: 34000, hra: 13600, conveyance: 2000, specialAllowance: 7000, monthlyTds: 1200 },
+  },
+  {
+    firstName: 'Dev', lastName: 'Malhotra', email: 'it@hrms.com', role: 'it', gender: 'male',
+    dept: 'IT Support', desig: 'IT Support Engineer', manager: 'admin@hrms.com', dateOfJoining: '2023-04-10', dateOfBirth: '1994-01-30',
+    salary: { basic: 33000, hra: 13200, conveyance: 2000, specialAllowance: 6500, monthlyTds: 1000 },
+  },
 ];
 
 export const ANNOUNCEMENTS = [
@@ -126,3 +141,33 @@ export const ANNOUNCEMENTS = [
     category: 'event',
   },
 ];
+
+// Default warning triggers (editable by HR)
+export const WARNING_TRIGGERS = [
+  { name: 'Repeated late logins', type: 'late-logins', threshold: 4, windowDays: 30, category: 'attendance' },
+  { name: 'Unplanned absences', type: 'absences', threshold: 2, windowDays: 30, category: 'attendance' },
+  { name: 'Efficiency below target', type: 'kpi-failure', metric: 'efficiency', threshold: 5, windowDays: 14, category: 'performance' },
+  { name: 'Classification failures', type: 'kpi-failure', metric: 'classification', threshold: 2, windowDays: 28, category: 'performance' },
+  { name: 'Repeated QA errors', type: 'qa-errors', threshold: 3, windowDays: 30, category: 'quality' },
+];
+
+// Training programmes and a sample knowledge test
+export const TRAINING_PROGRAMS = [
+  { title: 'Customer Verification Process', category: 'process', durationHours: 2, description: 'Steps to verify a customer before sharing account details.', completionCriteria: 'Watch the module and pass the verification test' },
+  { title: 'Ticket Classification Masterclass', category: 'process', durationHours: 3, description: 'How to pick the right category and sub-category for every case.', completionCriteria: 'Complete all 4 lessons' },
+  { title: 'Information Security Awareness', category: 'compliance', durationHours: 1, description: 'Annual mandatory security training.', completionCriteria: 'Complete the module' },
+];
+
+export const KNOWLEDGE_TEST = {
+  title: 'Weekly Process Check - Verification',
+  description: 'Five quick questions on the customer verification process.',
+  passPercent: 80,
+  maxAttempts: 2,
+  questions: [
+    { text: 'How many security questions must be verified before sharing account details?', options: ['One', 'Two', 'Three', 'None'], correctIndex: 1 },
+    { text: 'A caller cannot answer the security questions. What should you do?', options: ['Share partial details', 'Escalate to the manager', 'Politely decline and offer the secure channel', 'Ask a colleague'], correctIndex: 2 },
+    { text: 'Which of these is NOT allowed to be read out on a call?', options: ['Ticket number', 'Full card number', 'Registered city', 'Customer first name'], correctIndex: 1 },
+    { text: 'When must the verification step be documented?', options: ['Only for complaints', 'Never', 'On every interaction', 'Only for chats'], correctIndex: 2 },
+    { text: 'Verification failed 3 times. The account should be:', options: ['Closed', 'Flagged for review', 'Ignored', 'Upgraded'], correctIndex: 1 },
+  ],
+};

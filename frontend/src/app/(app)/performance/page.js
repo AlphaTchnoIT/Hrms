@@ -2,14 +2,17 @@
 
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Target } from 'lucide-react';
+import { ListChecks, Plus, Target } from 'lucide-react';
 import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
-import { Button, EmptyState, PageHeader, PageLoader, StatCard, useConfirm } from '@/components/ui';
+import { useTabParam } from '@/hooks/useTabParam';
+import { Button, EmptyState, ErrorMessage, PageHeader, PageLoader, StatCard, Tabs, useConfirm } from '@/components/ui';
 import GoalCard from '@/components/performance/GoalCard';
 import GoalFormModal from '@/components/performance/GoalFormModal';
+import PerformanceDashboard from '@/components/performance/PerformanceDashboard';
+import ActionPlanCard from '@/components/performance/ActionPlanCard';
 
-export default function PerformancePage() {
+function GoalsTab() {
   const confirm = useConfirm();
   const { data: goals, loading, refetch } = useFetch('/goals/my');
   const [editing, setEditing] = useState(undefined); // undefined = closed, null = new goal
@@ -32,16 +35,11 @@ export default function PerformancePage() {
 
   return (
     <div>
-      <PageHeader
-        title="My Goals"
-        subtitle="Track your objectives and self-review"
-        actions={
-          <Button icon={Plus} onClick={() => setEditing(null)}>
-            Add goal
-          </Button>
-        }
-      />
-
+      <div className="mb-4 flex justify-end">
+        <Button icon={Plus} onClick={() => setEditing(null)}>
+          Add goal
+        </Button>
+      </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Total goals" value={list.length} icon={Target} />
         <StatCard label="Completed" value={completed} icon={Target} tone="green" />
@@ -63,6 +61,44 @@ export default function PerformancePage() {
       </div>
 
       <GoalFormModal open={editing !== undefined} goal={editing} mode="self" onClose={() => setEditing(undefined)} onSaved={refetch} />
+    </div>
+  );
+}
+
+export default function PerformancePage() {
+  const [tab, setTab] = useTabParam('kpi', ['kpi', 'action-plans', 'goals']);
+  const { data, loading, error, refetch } = useFetch('/performance/my');
+  const plans = data?.actionPlans || [];
+  const openPlans = plans.filter((p) => ['open', 'in-progress'].includes(p.status)).length;
+
+  return (
+    <div>
+      <PageHeader title="My Performance" subtitle="KPIs, QA, efficiency, classification, adherence, action plans and goals" />
+      <Tabs
+        className="mb-6"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'kpi', label: 'KPI dashboard' },
+          { value: 'action-plans', label: 'Action plans', count: openPlans || undefined },
+          { value: 'goals', label: 'Goals' },
+        ]}
+      />
+
+      <ErrorMessage message={error} onRetry={refetch} />
+      {tab === 'goals' && <GoalsTab />}
+      {tab !== 'goals' && loading && !data && <PageLoader />}
+      {tab === 'kpi' && data && <PerformanceDashboard data={data} mode="self" onRefetch={refetch} />}
+      {tab === 'action-plans' && data && (
+        <>
+          {!plans.length && <EmptyState icon={ListChecks} title="No action plans" message="Your manager will assign a plan here if a KPI needs improvement." />}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {plans.map((plan) => (
+              <ActionPlanCard key={plan._id} plan={plan} mode="employee" onChanged={refetch} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

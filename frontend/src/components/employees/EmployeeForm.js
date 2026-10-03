@@ -62,7 +62,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
 
   const roleOptions = Object.values(ROLES)
     .filter((role) => isAdmin || role !== ROLES.ADMIN)
-    .map((role) => ({ value: role, label: role === 'hr' ? 'HR' : role[0].toUpperCase() + role.slice(1) }));
+    .map((role) => ({ value: role, label: { hr: 'HR', qa: 'QA Auditor', it: 'IT Support' }[role] || role[0].toUpperCase() + role.slice(1) }));
   const managerOptions = (people.data || [])
     .filter((p) => p._id !== employeeId)
     .map((p) => ({ value: p._id, label: `${getFullName(p)} (${p.employeeCode})` }));

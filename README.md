@@ -7,7 +7,7 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 
 | Module | What it does |
 | --- | --- |
-| **Auth & roles** | JWT login. Four roles: `admin`, `hr`, `manager`, `employee` |
+| **Auth & roles** | JWT login. Six roles: `admin`, `hr`, `manager`, `employee`, `qa` (quality auditor), `it` (IT support) |
 | **Dashboard** | Live check-in card, team stats, 7-day attendance chart, department headcount, pending approvals, holidays, birthdays & work anniversaries, who's on leave |
 | **Employees** | Create / edit / deactivate, auto employee codes (EMP0001), job, personal, bank and salary details, password reset, CSV export |
 | **Directory** | Searchable company directory for everyone |
@@ -23,6 +23,24 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Announcements** | Pinned, categorised, with expiry |
 | **Notifications** | In-app bell for approvals, payslips, assignments |
 | **Settings** | Office timings, grace time, full/half-day thresholds, weekly offs, location requirement, PF/PT, LOP rule |
+| **Roster & shifts** | Managers publish shifts (morning / general / evening / night) and weekly offs; employees see the next two weeks with scheduled hours |
+| **Attendance tracking** | Day status: Present, Late Login, Short Login, Absent, Sick Leave, Emergency Leave, Approved Leave, Weekly Off, Holiday — measured against the roster |
+| **Login / AT hours** | Login, productive (AT) and idle hours per day; short-login, late-login and idle-time flags; CSV export |
+| **KPI dashboard** | Quality (QA), efficiency (with new-joiner glide path), classification and shift adherence; current vs previous 30 days, 13-week trend, 3-month adherence trend |
+| **Performance status** | Meeting Target / Needs Attention / Critical from configurable targets and band |
+| **3-parameter rating** | Weighted quality / efficiency / classification → 1–5 rating; monthly ratings need **mutual approval by QA and HR** (dispute + resubmit flow) |
+| **Manager rating** | Each manager is rated from their team's KPI achievement |
+| **Action plans** | Generated from failing KPIs or created by managers: actions, target, deadline, follow-ups, employee acknowledgement, and **forward performance** (weekly score vs baseline/target, on-track / off-track) |
+| **Quality** | QA audits with error categories and fatal errors (weekly QA score auto-calculated), employee acknowledgement, repeated-error tracking |
+| **Calibration** | Random resolved interaction (daily/weekly); manager and QA audit blind; variance & accuracy; both teams sign off an agreed score |
+| **Employee relations** | Escalations with evidence and audit trail; warnings by **category** and **stage 1–4** (verbal → first written → final → termination review) with electronic acknowledgement; configurable warning triggers; full history per employee |
+| **Manager workspace** | My Team Home (only assigned reports), team performance dashboard, Attention Required list |
+| **Reports & analytics** | Reports Centre (12 reports, CSV export) and Management Dashboard (attrition, attendance, KPI achievement, QA, teams requiring attention) |
+| **Recruitment (ATS)** | Internal job posting with eligibility, external candidates, pipeline statuses, interview scheduling with panel feedback, document collection, public status page, email + in-app notifications |
+| **Learning** | Training programmes & assignments, in-app knowledge tests (auto-graded, attempts, time limit), automatic hourly reminders, training records |
+| **IT helpdesk** | Tickets with categories/priority, conversation, internal notes, assignment, resolve / reopen |
+| **Grievances & ideas** | Confidential (optionally anonymous) grievances visible only to HR; feedback & suggestions with management response |
+| **Leave summary** | Leave taken per type summed per quarter |
 
 ## Project structure
 
@@ -86,6 +104,8 @@ Open http://localhost:3000
 | HR | hr@hrms.com |
 | Manager | manager@hrms.com |
 | Employee | employee@hrms.com |
+| QA auditor | qa@hrms.com |
+| IT support | it@hrms.com |
 
 ## Validation
 
@@ -104,6 +124,12 @@ Examples: Indian mobile (10 digits), PAN `ABCDE1234F`, IFSC `HDFC0001234`, 6-dig
 - **Payroll** is prorated by calendar days: `pay = monthly × paidDays / totalDays`.
   LOP days = absent days + ½ × half-days + unpaid leave + days before joining / after exit.
 - Employees see payslips only after HR marks the payroll run as **paid**.
+- **Performance status** (last 30 days): score ≥ target → Meeting Target; within `attentionBand` points below → Needs Attention; lower → Critical. The worst KPI decides the overall status.
+- **Efficiency target** follows the glide path for new joiners (e.g. week 1–4: 60%, 5–8: 70%, 9–12: 80%, then the normal target).
+- **Adherence** = rostered working days logged in on time and for at least `shortLoginPercent` of the shift ÷ rostered working days.
+- **Rating**: weighted achievement (score ÷ target) of quality, efficiency, classification → ≥105% = 5, ≥100% = 4, ≥95% = 3, ≥85% = 2, else 1. Manager rating uses the team's average achievement.
+- **Warning stage**: next stage = highest active (not expired / withdrawn) stage in the same category + 1. Managers cannot skip stages; only HR can.
+- **Email**: set `SMTP_*` in `backend/.env` to also send emails (interview invites, document requests, status changes, warnings). Without it, in-app notifications only.
 
 ## API overview
 
@@ -123,4 +149,10 @@ POST   /leaves                     PATCH /leaves/:id/review     PATCH /leaves/:i
 GET    /payroll/runs               POST /payroll/runs           PATCH /payroll/runs/:id/mark-paid
 GET    /payroll/my-payslips        GET  /payroll/payslips/:id
 /expenses  /goals  /assets  /holidays  /announcements  /notifications  /settings
+/workforce   (roster, attendance status, login-hours, trends)
+/performance (my, team, employee/:id, kpis, ratings, manager-ratings)   /action-plans
+/quality     (feedback, repeated-errors, interactions, calibrations)    /relations (escalations, warnings, triggers, flags, history)
+/workspace/team   /reports   /reports/:type   /reports/management   /leaves/quarterly-summary
+/recruitment (HR ATS)   /careers (internal jobs, my applications, interview panels)   /public/application-status (no login)
+/learning    (programs, assignments, tests, attempts, records, reminders)   /support (tickets, grievances, suggestions)
 ```

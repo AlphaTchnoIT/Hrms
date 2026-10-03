@@ -18,7 +18,9 @@ const attendanceSchema = new mongoose.Schema(
     date: { type: String, required: true }, // "YYYY-MM-DD" in company timezone
     checkIn: punchSchema,
     checkOut: punchSchema,
-    workMinutes: { type: Number, default: 0 },
+    workMinutes: { type: Number, default: 0 }, // login hours (check-in to check-out)
+    productiveMinutes: { type: Number, min: 0 }, // AT (available / productive) hours, entered by the manager
+    idleMinutes: { type: Number, min: 0 },
     status: { type: String, enum: ATTENDANCE_STATUS, default: 'present' },
     isLate: { type: Boolean, default: false },
     lateByMinutes: { type: Number, default: 0 },

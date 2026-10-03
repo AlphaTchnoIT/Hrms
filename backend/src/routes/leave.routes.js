@@ -7,6 +7,7 @@ import {
   getEmployeeBalances,
   getMyBalances,
   getMyLeaves,
+  getQuarterlySummary,
   getWhoIsOut,
   listLeaves,
   listLeaveTypes,
@@ -35,6 +36,7 @@ router.put('/balances/:userId', authorize(HR_ROLES), validate(leaveBalanceSchema
 
 // Requests
 router.get('/my', getMyLeaves);
+router.get('/quarterly-summary', getQuarterlySummary);
 router.get('/who-is-out', getWhoIsOut);
 router.post('/', validate(applyLeaveSchema), applyLeave);
 router.get('/', authorize(APPROVER_ROLES), listLeaves);

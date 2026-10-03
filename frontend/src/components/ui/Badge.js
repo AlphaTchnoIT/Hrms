@@ -20,7 +20,7 @@ const DOTS = {
   purple: 'bg-violet-500',
 };
 
-const LABELS = { hr: 'HR' };
+const LABELS = { hr: 'HR', qa: 'QA', it: 'IT' };
 
 // <Badge status="approved" /> picks the colour automatically, or pass color + children
 export default function Badge({ status, color, children, className, dot = true }) {

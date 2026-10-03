@@ -9,6 +9,7 @@ import { settingsSchema } from '@/lib/validation';
 import { ROLES, WEEK_DAYS } from '@/lib/constants';
 import { Button, Card, Checkbox, FormSection, Input, PageHeader, PageLoader, Textarea } from '@/components/ui';
 import RoleGuard from '@/components/layout/RoleGuard';
+import PerformanceSettings from '@/components/settings/PerformanceSettings';
 
 function SettingsForm({ settings }) {
   const form = useForm(
@@ -123,8 +124,15 @@ export default function SettingsPage() {
 
   return (
     <RoleGuard roles={[ROLES.ADMIN]}>
-      <PageHeader title="Settings" subtitle="Company profile, attendance rules and payroll configuration." />
-      {loading || !data ? <PageLoader /> : <SettingsForm settings={data} />}
+      <PageHeader title="Settings" subtitle="Performance rules, company profile, attendance rules and payroll configuration." />
+      {loading || !data ? (
+        <PageLoader />
+      ) : (
+        <>
+          <PerformanceSettings settings={data} />
+          <SettingsForm settings={data} />
+        </>
+      )}
     </RoleGuard>
   );
 }

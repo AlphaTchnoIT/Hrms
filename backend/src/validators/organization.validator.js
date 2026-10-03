@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { ANNOUNCEMENT_CATEGORIES, HOLIDAY_TYPES } from '../constants/index.js';
 import { dateStr, intRange, optional, optionalDate, optionalObjectId, optionalText, requiredText, timeStr, email, phone } from './common.js';
 
+const percent = (label) => intRange(label, 0, 100);
+
 export const departmentSchema = z.object({
   name: requiredText('Department name', { min: 2, max: 60 }),
   code: optional(z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,10}$/, 'Code must be 2-10 letters or numbers')),
@@ -58,6 +60,29 @@ export const settingsSchema = z
     pfCeiling: z.coerce.number().min(0, 'PF cap cannot be negative'),
     professionalTax: z.coerce.number().min(0, 'Professional tax cannot be negative').max(2500, 'Professional tax cannot exceed ₹2,500'),
     attendanceBasedLop: z.boolean(),
+    kpiTargets: z.object({
+      quality: percent('Quality target'),
+      efficiency: percent('Efficiency target'),
+      classification: percent('Classification target'),
+      adherence: percent('Adherence target'),
+    }),
+    kpiWeights: z
+      .object({
+        quality: percent('Quality weight'),
+        efficiency: percent('Efficiency weight'),
+        classification: percent('Classification weight'),
+      })
+      .refine((w) => w.quality + w.efficiency + w.classification === 100, {
+        path: ['quality'],
+        message: 'Weights must add up to 100',
+      }),
+    attentionBand: intRange('Needs attention band', 1, 50),
+    efficiencyGlidePath: z
+      .array(z.object({ week: intRange('Week', 1, 104), target: percent('Glide path target') }))
+      .max(12, 'At most 12 glide path steps'),
+    shortLoginPercent: intRange('Short login %', 50, 100),
+    idleAlertMinutes: intRange('Idle alert minutes', 0, 600),
+    calibrationTolerance: intRange('Calibration tolerance', 0, 50),
   })
   .partial()
   .superRefine((data, ctx) => {

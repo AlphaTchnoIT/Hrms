@@ -14,6 +14,8 @@ const DEMO_ACCOUNTS = [
   { role: 'HR', email: 'hr@hrms.com' },
   { role: 'Manager', email: 'manager@hrms.com' },
   { role: 'Employee', email: 'employee@hrms.com' },
+  { role: 'QA', email: 'qa@hrms.com' },
+  { role: 'IT', email: 'it@hrms.com' },
 ];
 const DEMO_PASSWORD = 'Password@123';
 

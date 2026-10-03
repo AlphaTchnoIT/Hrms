@@ -101,3 +101,19 @@ export function monthRange(year, month) {
 export function toDateStr(date) {
   return new Date(date).toISOString().slice(0, 10);
 }
+
+// Monday of the week that contains dateStr
+export function weekStart(dateStr) {
+  const day = dayOfWeek(dateStr);
+  return addDays(dateStr, day === 0 ? -6 : 1 - day);
+}
+
+// "YYYY-MM-DD" -> 1..4
+export function quarterOf(dateStr) {
+  return Math.floor((Number(dateStr.slice(5, 7)) - 1) / 3) + 1;
+}
+
+// Whole days from a to b (b - a)
+export function daysBetween(a, b) {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+}

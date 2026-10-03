@@ -18,6 +18,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { Card, ErrorMessage, PageLoader, StatCard } from '@/components/ui';
+import MyWorkspace from '@/components/dashboard/MyWorkspace';
 import CheckInCard from '@/components/attendance/CheckInCard';
 import AttendanceSummary from '@/components/attendance/AttendanceSummary';
 import LeaveBalanceCards from '@/components/leave/LeaveBalanceCards';
@@ -100,6 +101,8 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      <MyWorkspace work={data.myWork} />
 
       {/* Team / company KPIs */}
       {stats && (

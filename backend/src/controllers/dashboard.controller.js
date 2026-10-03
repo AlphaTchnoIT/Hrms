@@ -1,18 +1,24 @@
 import {
+  ActionPlan,
   Announcement,
   Attendance,
   Expense,
   Holiday,
   LeaveRequest,
+  QaFeedback,
   Regularization,
   Settings,
+  TrainingAssignment,
   User,
+  Warning,
 } from '../models/index.js';
 import { ROLES } from '../constants/index.js';
 import { sendSuccess } from '../utils/response.js';
 import { addDays, todayInTz } from '../utils/date.js';
 import { getBalancesForUser } from '../services/leave.service.js';
 import { getManagedUserFilter, isHR } from '../services/access.service.js';
+import { getWorkforce } from '../services/workforce.service.js';
+import { currentRange, getPerformanceSummaries } from '../services/performance.service.js';
 
 // Birthdays & work anniversaries in the next `days` days
 async function getUpcomingCelebrations(today, days = 30) {
@@ -97,6 +103,24 @@ export async function getDashboard(req, res) {
     whoIsOut,
     myPending: { leaves: myPending[0], expenses: myPending[1], regularizations: myPending[2] },
   };
+
+  // My workspace: next shifts, performance status and items waiting for me
+  const [workforce, summaries, qaToAck, warningsToAck, plansToAck, trainingsDue] = await Promise.all([
+    getWorkforce([user], today, addDays(today, 2), settings),
+    getPerformanceSummaries([user], { ...currentRange(settings), settings }),
+    QaFeedback.countDocuments({ user: user._id, acknowledgedAt: null }),
+    Warning.countDocuments({ employee: user._id, status: 'issued' }),
+    ActionPlan.countDocuments({ user: user._id, employeeAcknowledgedAt: null, status: { $in: ['open', 'in-progress'] } }),
+    TrainingAssignment.countDocuments({ user: user._id, status: { $ne: 'completed' }, dueDate: { $lte: addDays(today, 7) } }),
+  ]);
+  const mySummary = summaries[String(user._id)];
+  data.myWork = {
+    shifts: workforce[String(user._id)]?.days || [],
+    performance: { status: mySummary.status, rating: mySummary.rating, compositeScore: mySummary.compositeScore },
+    toAcknowledge: { qaFeedback: qaToAck, warnings: warningsToAck, actionPlans: plansToAck },
+    trainingsDue,
+  };
+
 
   // Team / company level stats for approvers
   if (isHR(user) || user.role === ROLES.MANAGER) {

@@ -27,6 +27,37 @@ const settingsSchema = new mongoose.Schema(
     pfCeiling: { type: Number, default: 1800 }, // max PF per month (0 = no cap)
     professionalTax: { type: Number, default: 200 },
     attendanceBasedLop: { type: Boolean, default: true },
+
+    // Performance (configurable KPI thresholds)
+    kpiTargets: {
+      quality: { type: Number, default: 90 },
+      efficiency: { type: Number, default: 85 },
+      classification: { type: Number, default: 95 },
+      adherence: { type: Number, default: 90 },
+    },
+    // Weightage of the 3 rating parameters (should add up to 100)
+    kpiWeights: {
+      quality: { type: Number, default: 40 },
+      efficiency: { type: Number, default: 35 },
+      classification: { type: Number, default: 25 },
+    },
+    // Score within this many points below target = Needs Attention, further below = Critical
+    attentionBand: { type: Number, default: 5 },
+    // Ramp-up efficiency targets for new joiners: up to `week` weeks of tenure the target is `target`
+    efficiencyGlidePath: {
+      type: [{ week: Number, target: Number, _id: false }],
+      default: [
+        { week: 4, target: 60 },
+        { week: 8, target: 70 },
+        { week: 12, target: 80 },
+      ],
+    },
+    // Login shorter than this % of the scheduled shift = short login
+    shortLoginPercent: { type: Number, default: 90 },
+    // Idle minutes above this in a day are flagged
+    idleAlertMinutes: { type: Number, default: 60 },
+    // Calibration: manager vs QA score difference allowed to count as aligned
+    calibrationTolerance: { type: Number, default: 5 },
   },
   { timestamps: true }
 );

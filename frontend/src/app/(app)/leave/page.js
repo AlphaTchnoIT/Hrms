@@ -10,6 +10,7 @@ import { Badge, Button, Card, DataTable, ErrorMessage, PageHeader, Tabs, useConf
 import LeaveBalanceCards from '@/components/leave/LeaveBalanceCards';
 import ApplyLeaveModal from '@/components/leave/ApplyLeaveModal';
 import LeaveDates from '@/components/leave/LeaveDates';
+import QuarterlyLeaveSummary from '@/components/leave/QuarterlyLeaveSummary';
 
 const STATUS_TABS = [
   { value: '', label: 'All' },
@@ -110,6 +111,10 @@ export default function LeavePage() {
 
       <ErrorMessage message={balances.error} onRetry={balances.refetch} />
       <LeaveBalanceCards balances={balances.data} loading={balances.loading} />
+
+      <div className="mt-6">
+        <QuarterlyLeaveSummary />
+      </div>
 
       <div className="mt-8 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-slate-900">Leave history</h2>

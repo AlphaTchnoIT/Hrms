@@ -29,3 +29,31 @@ export async function canManageEmployee(user, employeeId) {
   const employee = await User.findById(employeeId).select('reportingManager');
   return Boolean(employee && String(employee.reportingManager) === String(user._id));
 }
+
+export function isQA(user) {
+  return user.role === ROLES.QA;
+}
+
+/*
+ * Active employees the logged-in user may look at in team screens.
+ * - HR/admin/QA: everyone, or only one manager's team when managerId is given
+ * - manager: own direct reports
+ * - others: nobody
+ */
+export async function getScopedUsers(user, { managerId, select = 'firstName lastName employeeCode avatar role reportingManager dateOfJoining department designation' } = {}) {
+  const filter = { status: 'active' };
+  if (isHR(user) || isQA(user)) {
+    if (managerId) filter.reportingManager = managerId;
+  } else if (user.role === ROLES.MANAGER) {
+    filter.reportingManager = user._id;
+  } else {
+    return [];
+  }
+  return User.find(filter).select(select).populate('designation', 'title').sort({ firstName: 1 });
+}
+
+// QA auditors can audit any active employee; others follow the normal manager rules
+export async function canAuditEmployee(user, employeeId) {
+  if (isQA(user)) return Boolean(await User.exists({ _id: employeeId, status: 'active' }));
+  return canManageEmployee(user, employeeId);
+}

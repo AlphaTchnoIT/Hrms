@@ -5,7 +5,7 @@ import { sendSuccess } from '../utils/response.js';
 import { buildMeta, getPagination } from '../utils/pagination.js';
 import { addDays, isValidDateStr, todayInTz } from '../utils/date.js';
 import { getWorkingDates } from '../services/calendar.service.js';
-import { adjustBalance, getBalancesForUser, getOrCreateBalance } from '../services/leave.service.js';
+import { adjustBalance, getBalancesForUser, getOrCreateBalance, getQuarterlyLeaveSummary } from '../services/leave.service.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
 
@@ -247,4 +247,16 @@ export async function deleteLeaveType(req, res) {
   await LeaveType.findByIdAndDelete(req.params.id);
   await LeaveBalance.deleteMany({ leaveType: req.params.id });
   sendSuccess(res, { message: 'Leave type deleted' });
+}
+
+/* ---------------------------------- Quarterly summary ---------------------------------- */
+
+// GET /api/leaves/quarterly-summary?year=&user=  - leave taken per type, summed per quarter
+export async function getQuarterlySummary(req, res) {
+  const userId = req.query.user || String(req.user._id);
+  if (userId !== String(req.user._id) && !(await canManageEmployee(req.user, userId))) throw ApiError.forbidden();
+  const settings = await Settings.getSettings();
+  const year = Number(req.query.year) || yearOf(todayInTz(settings.timezone));
+  const summary = await getQuarterlyLeaveSummary([userId], year, settings);
+  sendSuccess(res, { data: { year, ...summary[userId] } });
 }

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api, { tokenStorage } from '@/lib/api';
-import { APPROVER_ROLES, HR_ROLES } from '@/lib/constants';
+import { APPROVER_ROLES, AUDITOR_ROLES, HR_ROLES, IT_ROLES } from '@/lib/constants';
 
 const AuthContext = createContext(null);
 
@@ -55,6 +55,9 @@ export function AuthProvider({ children }) {
       isHR: Boolean(user && HR_ROLES.includes(user.role)),
       isApprover: Boolean(user && APPROVER_ROLES.includes(user.role)),
       isAdmin: user?.role === 'admin',
+      isQA: user?.role === 'qa',
+      isAuditor: Boolean(user && AUDITOR_ROLES.includes(user.role)),
+      isIT: Boolean(user && IT_ROLES.includes(user.role)),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, loading, loadUser]
