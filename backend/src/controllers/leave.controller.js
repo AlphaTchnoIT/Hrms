@@ -204,7 +204,7 @@ export async function cancelLeave(req, res) {
 
 /* ---------------------------------- Leave types ---------------------------------- */
 
-const LEAVE_TYPE_FIELDS = ['name', 'code', 'annualQuota', 'isPaid', 'allowHalfDay', 'proRata', 'carryForwardMax', 'color', 'description', 'isActive'];
+const LEAVE_TYPE_FIELDS = ['name', 'code', 'annualQuota', 'isPaid', 'allowHalfDay', 'proRata', 'carryForwardMax', 'statutoryPay', 'color', 'description', 'isActive'];
 
 export async function listLeaveTypes(req, res) {
   const filter = req.query.all === 'true' ? {} : { isActive: true };

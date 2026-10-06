@@ -1,7 +1,8 @@
 import clsx from 'clsx';
 import { formatTime, minutesToHours, titleCase } from '@/lib/format';
 
-const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// UK calendars start the week on Monday
+const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // Pill colour for each day status
 const PILL = {
@@ -36,7 +37,7 @@ function getLabel(day) {
  */
 export default function AttendanceCalendar({ days = [], onDayClick }) {
   if (!days.length) return null;
-  const leadingBlanks = new Date(`${days[0].date}T00:00:00`).getDay();
+  const leadingBlanks = (new Date(`${days[0].date}T00:00:00`).getDay() + 6) % 7; // Monday = 0
 
   return (
     <div>
@@ -63,7 +64,7 @@ export default function AttendanceCalendar({ days = [], onDayClick }) {
               type="button"
               disabled={!clickable}
               onClick={() => clickable && onDayClick(day)}
-              title={clickable ? 'Click to request regularization' : label}
+              title={clickable ? 'Click to request regularisation' : label}
               className={clsx(
                 'group flex min-h-[72px] flex-col rounded-xl border p-1.5 text-left transition sm:min-h-[92px] sm:p-2.5',
                 isToday ? 'border-brand-400 bg-brand-50/40 ring-2 ring-brand-100' : 'border-slate-200 bg-white',

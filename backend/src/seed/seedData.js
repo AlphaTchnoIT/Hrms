@@ -35,6 +35,10 @@ export const LEAVE_TYPES = [
   { name: 'Time Off for Dependants', code: 'TOD', annualQuota: 3, isPaid: true, color: '#f97316', description: 'Unexpected emergencies involving a dependant' },
   { name: "Carer's Leave", code: 'CRL', annualQuota: 5, isPaid: false, color: '#0ea5e9', description: 'To care for a dependant with a long-term need' },
   { name: 'Unpaid Leave', code: 'UL', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Agreed time off without pay' },
+  // Paid through payroll as statutory pay instead of salary
+  { name: 'Sick Leave (SSP)', code: 'SSP', annualQuota: 0, isPaid: false, allowHalfDay: false, statutoryPay: 'ssp', color: '#dc2626', description: 'Sickness after company sick pay is used up: Statutory Sick Pay only (up to 28 weeks)' },
+  { name: 'Maternity Leave', code: 'MAT', annualQuota: 0, isPaid: false, allowHalfDay: false, statutoryPay: 'smp', color: '#ec4899', description: 'Up to 52 weeks. Statutory Maternity Pay for 39 weeks' },
+  { name: 'Paternity Leave', code: 'PAT', annualQuota: 0, isPaid: false, allowHalfDay: false, statutoryPay: 'spp', color: '#3b82f6', description: '1 or 2 weeks within 52 weeks of the birth. Statutory Paternity Pay' },
 ];
 
 // regions: [] = whole UK, otherwise only those nations
@@ -115,12 +119,12 @@ export const EMPLOYEES = [
     firstName: 'Harry', lastName: 'Evans', email: 'harry@hrms.com', role: 'employee', gender: 'male',
     dept: 'Engineering', desig: 'Intern', manager: 'thomas@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2005-05-17',
     probationEndDate: '2026-10-16',
-    salary: { annualSalary: 24000, taxCode: '1257L', niCategory: 'M', studentLoanPlan: 'plan5' },
+    salary: { annualSalary: 25000, taxCode: '1257L', studentLoanPlan: 'plan5' }, // aged 21: needs at least the £12.71 National Living Wage
   },
   {
     firstName: 'Grace', lastName: 'Walker', email: 'grace@hrms.com', role: 'employee', gender: 'female',
     dept: 'Human Resources', desig: 'HR Executive', manager: 'hr@hrms.com', dateOfJoining: '2023-02-01', dateOfBirth: '1996-08-30',
-    employmentType: 'part-time', workingDaysPerWeek: 3,
+    employmentType: 'part-time', workingDaysPerWeek: 3, contractedHoursPerWeek: 22.5,
     salary: { annualSalary: 18600, taxCode: '1257L' }, // 3 days a week (pro-rata of £31,000)
   },
   {

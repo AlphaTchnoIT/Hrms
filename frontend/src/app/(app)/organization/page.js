@@ -136,7 +136,7 @@ export default function OrganizationPage() {
   return (
     <RoleGuard roles={HR_ROLES}>
       <PageHeader
-        title="Organization"
+        title="Organisation"
         subtitle="Structure your company with departments and designations."
         actions={
           <Button icon={Plus} onClick={() => setEditing(null)}>

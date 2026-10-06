@@ -24,6 +24,9 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
           <DetailItem label="Bank holidays" value={labelOf(HOLIDAY_REGIONS, employee.holidayRegion || 'england-wales')} />
           <DetailItem label="Working days / week" value={employee.workingDaysPerWeek ?? 5} />
           <DetailItem label="Probation ends" value={employee.probationEndDate ? formatDate(employee.probationEndDate) : null} />
+          <DetailItem label="Contracted hours / week" value={employee.contractedHoursPerWeek ?? 37.5} />
+          <DetailItem label="Notice period" value={employee.noticePeriodWeeks !== undefined && employee.noticePeriodWeeks !== null ? `${employee.noticePeriodWeeks} weeks` : null} />
+          <DetailItem label="48-hour opt-out" value={employee.wtrOptOut ? 'Signed' : 'No'} />
           <DetailItem label="Role" value={titleCase(employee.role)} />
         </dl>
       </Card>
@@ -84,7 +87,10 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
                 <DetailItem label="Monthly allowance" value={formatCurrency(salary.monthlyAllowance)} />
                 <DetailItem label="Tax code" value={salary.taxCode} />
                 <DetailItem label="NI category" value={labelOf(NI_CATEGORIES, salary.niCategory)} />
-                <DetailItem label="Workplace pension" value={salary.pensionEnrolled === false ? 'Opted out' : 'Enrolled'} />
+                <DetailItem
+                  label="Workplace pension"
+                  value={salary.pensionEnrolled === false || salary.pensionOptedOutOn ? `Not enrolled${salary.pensionOptedOutOn ? ` (opted out ${formatDate(salary.pensionOptedOutOn)})` : ''}` : 'Enrolled'}
+                />
                 <DetailItem label="Student loan" value={`${labelOf(STUDENT_LOAN_PLANS, salary.studentLoanPlan || 'none')}${salary.postgraduateLoan ? ' + Postgraduate' : ''}`} />
                 <DetailItem label="Gross / month" value={<strong>{formatCurrency(monthlyGross)}</strong>} />
               </dl>

@@ -4,6 +4,7 @@ import {
   Escalation,
   Grievance,
   JobPosting,
+  LeaveRequest,
   QaFeedback,
   Settings,
   TestAttempt,
@@ -21,6 +22,9 @@ import { currentRange, getKpiTrend, getManagerRatings, getPerformanceSummaries }
 import { getAdherenceTrend, getWorkforce } from '../services/workforce.service.js';
 import { getQuarterlyLeaveSummary } from '../services/leave.service.js';
 import { activeWarningFilter } from '../services/relations.service.js';
+import { leaveStatus } from '../services/workforce.service.js';
+import { payrollRates } from '../services/payroll.service.js';
+import { autoEnrolmentStatus, bradfordFactor, genderPayGap, minimumWageCheck, statutoryNoticeWeeks } from '../services/ukCompliance.service.js';
 
 const name = (u) => (u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : '');
 const hours = (minutes) => Math.round(((minutes || 0) / 60) * 10) / 10;
@@ -40,6 +44,9 @@ const REPORTS = {
   'manager-ratings': { title: 'Manager ratings (team performance)', roles: HR_ROLES },
   recruitment: { title: 'Recruitment pipeline', roles: HR_ROLES },
   tickets: { title: 'IT tickets', roles: [ROLES.ADMIN, ROLES.IT] },
+  bradford: { title: 'Sickness absence (Bradford Factor, last 52 weeks)', roles: [...HR_ROLES, ROLES.MANAGER] },
+  'uk-compliance': { title: 'UK compliance (right to work, minimum wage, pension, notice)', roles: HR_ROLES },
+  'gender-pay-gap': { title: 'Gender pay gap', roles: HR_ROLES },
 };
 
 // GET /api/reports - reports available to the user
@@ -244,6 +251,85 @@ export async function runReport(req, res) {
         ticket: t.ticketNo, subject: t.subject, category: t.category, priority: t.priority, raisedBy: name(t.raisedBy),
         assignedTo: name(t.assignedTo), status: t.status, created: dateOnly(t.createdAt), resolved: dateOnly(t.resolvedAt),
       }));
+      break;
+    }
+
+    // Sickness spells and days over the last 52 weeks; Bradford Factor = spells² x days
+    case 'bradford': {
+      const today = todayInTz(settings.timezone);
+      const since = addDays(today, -364);
+      const leaves = await LeaveRequest.find({ user: { $in: ids }, status: 'approved', toDate: { $gte: since }, fromDate: { $lte: today } }).populate('leaveType', 'name code');
+      const sick = leaves.filter((l) => leaveStatus(l.leaveType) === 'sick-leave' || l.leaveType?.code === 'SSP');
+      columns = [col('code', 'Code'), col('name', 'Name'), col('spells', 'Spells'), col('days', 'Days'), col('score', 'Bradford Factor'), col('level', 'Level')];
+      rows = users
+        .map((u) => {
+          const mine = sick.filter((l) => String(l.user) === String(u._id));
+          const days = mine.reduce((sum, l) => sum + (l.days || 0), 0);
+          const score = bradfordFactor(mine.length, days);
+          const level = score >= 500 ? 'Formal review' : score >= 200 ? 'Written warning trigger' : score >= 51 ? 'Informal chat' : 'No concern';
+          return { code: u.employeeCode, name: name(u), spells: mine.length, days, score, level };
+        })
+        .sort((a, b) => b.score - a.score);
+      break;
+    }
+
+    // One line per active employee with the UK checks HR must keep on top of
+    case 'uk-compliance': {
+      const rates = payrollRates(settings);
+      const today = todayInTz(settings.timezone);
+      const people = await User.find({ _id: { $in: ids } }).select(
+        'firstName lastName employeeCode dateOfBirth dateOfJoining employmentType salary contractedHoursPerWeek rightToWork probationEndDate noticePeriodWeeks wtrOptOut'
+      );
+      columns = [col('code', 'Code'), col('name', 'Name'), col('rtw', 'Right to work'), col('rtwExpiry', 'RTW expiry'), col('hourly', 'Hourly pay'), col('minimumWage', 'Minimum wage'), col('pension', 'Pension'), col('probation', 'Probation ends'), col('notice', 'Notice (weeks)'), col('wtr', '48h opt-out'), col('actions', 'Needs action')];
+      rows = people.map((p) => {
+        const actions = [];
+        const rtw = p.rightToWork || {};
+        if (!rtw.status || rtw.status === 'not-checked') actions.push('Right to work not checked');
+        if (rtw.status === 'time-limited' && rtw.expiryDate && rtw.expiryDate <= addDays(today, 60)) actions.push(rtw.expiryDate < today ? 'Right to work expired' : 'Follow-up RTW check due');
+        const wage = minimumWageCheck(p, rates);
+        if (wage && !wage.ok) actions.push('Below minimum wage');
+        const pension = autoEnrolmentStatus(p, rates);
+        const enrolled = p.salary?.pensionEnrolled !== false && !p.salary?.pensionOptedOutOn;
+        if (pension === 'eligible' && !enrolled && !p.salary?.pensionOptedOutOn) actions.push('Must be auto-enrolled');
+        const statutory = statutoryNoticeWeeks(p.dateOfJoining);
+        if (p.noticePeriodWeeks !== undefined && p.noticePeriodWeeks !== null && p.noticePeriodWeeks < statutory) actions.push('Notice below statutory minimum');
+        return {
+          code: p.employeeCode,
+          name: name(p),
+          rtw: rtw.status || 'not-checked',
+          rtwExpiry: rtw.expiryDate || '',
+          hourly: wage ? wage.hourly : '',
+          minimumWage: wage ? `${wage.ok ? 'OK' : 'BELOW'} (min ${wage.required})` : '',
+          pension: `${pension}${enrolled ? ', enrolled' : p.salary?.pensionOptedOutOn ? ', opted out' : ', not enrolled'}`,
+          probation: p.probationEndDate || '',
+          notice: `${p.noticePeriodWeeks ?? '—'} (statutory ${statutory})`,
+          wtr: p.wtrOptOut ? 'Yes' : 'No',
+          actions: actions.join('; ') || 'None',
+        };
+      });
+      break;
+    }
+
+    // Equality Act 2010 reporting (mandatory at 250+ employees): hourly pay from contracted hours
+    case 'gender-pay-gap': {
+      const people = await User.find({ _id: { $in: ids } }).select('gender salary contractedHoursPerWeek');
+      const result = genderPayGap(
+        people.map((p) => ({
+          gender: p.gender,
+          hourly: p.contractedHoursPerWeek ? ((p.salary?.annualSalary || 0) + (p.salary?.monthlyAllowance || 0) * 12) / 52 / p.contractedHoursPerWeek : 0,
+        }))
+      );
+      columns = [col('measure', 'Measure'), col('value', 'Value')];
+      rows = result
+        ? [
+            { measure: 'Men / women included', value: `${result.men} / ${result.women}` },
+            { measure: 'Mean gender pay gap (hourly)', value: `${result.meanGap}%` },
+            { measure: 'Median gender pay gap (hourly)', value: `${result.medianGap}%` },
+            { measure: 'Mean hourly pay (men / women)', value: `${result.meanHourly.men} / ${result.meanHourly.women}` },
+            { measure: 'Median hourly pay (men / women)', value: `${result.medianHourly.men} / ${result.medianHourly.women}` },
+            ...result.quartiles.map((q) => ({ measure: `${q.quartile} pay quartile: women`, value: `${q.womenPercent}% of ${q.people}` })),
+          ]
+        : [{ measure: 'Not enough data', value: 'Needs at least one man and one woman with salary and contracted hours' }];
       break;
     }
 

@@ -6,13 +6,31 @@ import { pick } from '../utils/helpers.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
 
+/*
+ * HMRC approved mileage allowance (cars and vans): 45p a mile for the first 10,000 business miles
+ * in the tax year (6 April - 5 April), 25p after that. Rates come from Settings -> UK payroll rates.
+ */
+async function mileageAmount(userId, miles, expenseDate) {
+  const settings = await Settings.getSettings();
+  const rates = { mileageRate: 0.45, mileageRateAfter10k: 0.25, ...(settings.payroll?.toObject?.() || {}) };
+  const [y, m, d] = expenseDate.split('-').map(Number);
+  const taxYearStart = m > 4 || (m === 4 && d >= 6) ? `${y}-04-06` : `${y - 1}-04-06`;
+  const previous = await Expense.aggregate([
+    { $match: { user: userId, category: 'mileage', status: { $ne: 'rejected' }, expenseDate: { $gte: taxYearStart, $lte: expenseDate } } },
+    { $group: { _id: null, miles: { $sum: '$miles' } } },
+  ]);
+  const before = previous[0]?.miles || 0;
+  const atFullRate = Math.max(0, Math.min(miles, 10000 - before));
+  return Math.round((atFullRate * rates.mileageRate + (miles - atFullRate) * rates.mileageRateAfter10k) * 100) / 100;
+}
+
 // Amount in the company currency, e.g. "£45.00"
 async function formatMoney(amount) {
   const { currency } = await Settings.getSettings();
   return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-GB', { style: 'currency', currency }).format(amount);
 }
 
-const FIELDS = ['title', 'category', 'amount', 'expenseDate', 'description', 'receiptUrl'];
+const FIELDS = ['title', 'category', 'amount', 'expenseDate', 'description', 'receiptUrl', 'miles'];
 const EXPENSE_POPULATE = [
   { path: 'user', select: 'firstName lastName employeeCode avatar' },
   { path: 'reviewedBy', select: 'firstName lastName' },
@@ -23,6 +41,9 @@ export async function createExpense(req, res) {
   const body = pick(req.body, FIELDS);
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
   if (body.expenseDate < ninetyDaysAgo) throw ApiError.field('expenseDate', 'Claims must be submitted within 90 days of the expense');
+
+  if (body.category === 'mileage') body.amount = await mileageAmount(req.user._id, body.miles, body.expenseDate);
+  else delete body.miles;
 
   const expense = await Expense.create({ ...body, user: req.user._id });
 

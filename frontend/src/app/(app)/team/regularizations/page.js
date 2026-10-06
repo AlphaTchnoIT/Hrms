@@ -69,7 +69,7 @@ export default function RegularizationsPage() {
 
   return (
     <RoleGuard roles={APPROVER_ROLES}>
-      <PageHeader title="Attendance Regularizations" subtitle="Approved requests update the attendance record automatically" actions={<TeamScopeToggle {...teamScope} setScope={changeScope} />} />
+      <PageHeader title="Attendance Regularisations" subtitle="Approved requests update the attendance record automatically" actions={<TeamScopeToggle {...teamScope} setScope={changeScope} />} />
       <Tabs
         tabs={TABS}
         value={status}

@@ -156,6 +156,18 @@ export default function PayrollRunPage() {
         <StatCard label="Net payout" value={formatCurrency(run.totalNet)} icon={CurrencyIcon} tone="green" />
       </div>
 
+      {run.warnings?.length > 0 && (
+        <Card className="mb-6 border-amber-200 bg-amber-50" title={`${run.warnings.length} thing${run.warnings.length > 1 ? 's' : ''} to check before paying`}>
+          <ul className="space-y-1.5 text-sm text-amber-900">
+            {run.warnings.map((w, i) => (
+              <li key={i}>
+                <strong>{w.name}:</strong> {w.message}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card noPadding>
         <DataTable columns={columns} rows={payslips} onRowClick={(p) => router.push(`/payslips/${p._id}`)} />
       </Card>

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { STATUTORY_PAY_TYPES } from '../constants/index.js';
 
 const leaveTypeSchema = new mongoose.Schema(
   {
@@ -9,6 +10,8 @@ const leaveTypeSchema = new mongoose.Schema(
     // UK holiday: pro-rated for part-time staff (working days / 5) and for joiners / leavers during the year
     proRata: { type: Boolean, default: false },
     carryForwardMax: { type: Number, default: 0, min: 0 }, // unused days that move into next year
+    // Paid through payroll as statutory pay instead of salary (SSP / SMP / SPP); such leave is unpaid by the company
+    statutoryPay: { type: String, enum: STATUTORY_PAY_TYPES, default: 'none' },
     allowHalfDay: { type: Boolean, default: true },
     color: { type: String, default: '#6366f1' },
     description: String,

@@ -19,12 +19,18 @@ export const expenseSchema = z.object({
   category: z.enum(EXPENSE_CATEGORIES, { errorMap: () => ({ message: 'Select a category' }) }),
   amount: z.coerce
     .number({ invalid_type_error: 'Amount must be a number' })
-    .positive('Amount must be greater than 0')
-    .max(100000, 'Amount cannot exceed 100,000'),
+    .min(0, 'Amount cannot be negative')
+    .max(100000, 'Amount cannot exceed 100,000')
+    .optional(),
+  miles: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().positive('Miles must be more than 0').max(5000, 'At most 5,000 miles per claim').optional()),
   expenseDate: dateStr('Expense date').refine((d) => d <= today(), 'Expense date cannot be in the future'),
   description: optionalText('Description', 500),
   receiptUrl: optional(url('Receipt link')),
-});
+})
+  .superRefine((d, ctx) => {
+    if (d.category === 'mileage' && !d.miles) ctx.addIssue({ code: 'custom', path: ['miles'], message: 'Enter the business miles driven' });
+    if (d.category !== 'mileage' && !(d.amount > 0)) ctx.addIssue({ code: 'custom', path: ['amount'], message: 'Amount must be greater than 0' });
+  });
 
 // ---------- Goals ----------
 const rating = (label) =>

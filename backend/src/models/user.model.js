@@ -42,6 +42,7 @@ const salarySchema = new mongoose.Schema(
     pensionEnrolled: { type: Boolean, default: true }, // workplace pension (auto-enrolment)
     studentLoanPlan: { type: String, enum: STUDENT_LOAN_PLANS, default: 'none' },
     postgraduateLoan: { type: Boolean, default: false },
+    pensionOptedOutOn: String, // "YYYY-MM-DD": the worker opted out of the workplace pension
   },
   { _id: false }
 );
@@ -98,6 +99,9 @@ const userSchema = new mongoose.Schema(
     workLocation: String,
     holidayRegion: { type: String, enum: HOLIDAY_REGIONS, default: 'england-wales' }, // which bank holidays apply
     workingDaysPerWeek: { type: Number, default: 5, min: 0.5, max: 7 }, // part-time holiday is pro-rated on this
+    contractedHoursPerWeek: { type: Number, default: 37.5, min: 1, max: 80 }, // for the minimum wage check
+    noticePeriodWeeks: { type: Number, min: 0, max: 52 }, // contractual notice; never below the statutory minimum
+    wtrOptOut: { type: Boolean, default: false }, // signed opt-out of the 48-hour average working week
     probationEndDate: String, // "YYYY-MM-DD"
     rightToWork: { type: rightToWorkSchema, default: () => ({}) },
     anonymisedAt: Date, // personal data removed after the retention period (UK GDPR)

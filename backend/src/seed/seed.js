@@ -91,6 +91,8 @@ async function seedEmployees({ departments, designations }) {
       workLocation: e.workLocation || 'London',
       holidayRegion: e.holidayRegion || 'england-wales',
       workingDaysPerWeek: e.workingDaysPerWeek || 5,
+      contractedHoursPerWeek: e.contractedHoursPerWeek || 37.5,
+      noticePeriodWeeks: e.role === 'employee' ? 4 : 12,
       probationEndDate: e.probationEndDate,
       rightToWork: e.rightToWork || { status: 'british-irish', documentType: 'UK passport', checkedOn: e.dateOfJoining },
       niNumber: `QQ${String(123450 + index * 11).padStart(6, '0')}${'ABCD'[index % 4]}`, // QQ = HMRC specimen prefix
@@ -126,6 +128,8 @@ async function seedLeaves(users, leaveTypes, today) {
     { user: 'sophie@hrms.com', code: 'AL', from: addDays(today, 6), to: addDays(today, 8), status: 'pending', reason: 'Long weekend in Cornwall' },
     { user: 'employee@hrms.com', code: 'AL', from: addDays(today, 12), to: addDays(today, 12), status: 'pending', reason: 'Moving house' },
     { user: 'grace@hrms.com', code: 'SL', from: addDays(today, -5), to: addDays(today, -5), status: 'approved', reason: 'GP appointment' },
+    { user: 'amelia@hrms.com', code: 'MAT', from: addDays(today, -50), to: addDays(today, 310), status: 'approved', reason: 'Maternity leave' },
+    { user: 'george@hrms.com', code: 'SSP', from: addDays(today, -33), to: addDays(today, -31), status: 'approved', reason: 'Back injury (company sick pay used up)' },
     { user: 'jack@hrms.com', code: 'UL', from: addDays(today, -25), to: addDays(today, -25), status: 'approved', reason: 'Personal emergency' },
     { user: 'sophie@hrms.com', code: 'TOD', from: addDays(today, -16), to: addDays(today, -16), status: 'approved', reason: 'Childcare fell through' },
     { user: 'employee@hrms.com', code: 'SL', from: addDays(today, -60), to: addDays(today, -59), status: 'approved', reason: 'Stomach bug' },

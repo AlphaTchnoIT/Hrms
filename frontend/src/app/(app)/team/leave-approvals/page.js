@@ -62,7 +62,21 @@ export default function LeaveApprovalsPage() {
           ? `${formatDate(l.fromDate)} (${titleCase(l.halfDaySession)})`
           : `${formatDate(l.fromDate)} → ${formatDate(l.toDate)}`,
     },
-    { key: 'days', header: 'Days' },
+    {
+      key: 'days',
+      header: 'Days',
+      render: (l) => {
+        // UK: sickness of more than 7 days in a row needs a fit note from a doctor
+        const calendarDays = (new Date(l.toDate) - new Date(l.fromDate)) / 86400000 + 1;
+        const sick = /sick|ssp/i.test(`${l.leaveType?.name} ${l.leaveType?.code}`);
+        return (
+          <span>
+            {l.days}
+            {sick && calendarDays > 7 && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">Fit note needed</span>}
+          </span>
+        );
+      },
+    },
     { key: 'reason', header: 'Reason', render: (l) => <span className="block max-w-xs truncate" title={l.reason}>{l.reason}</span> },
     { key: 'applied', header: 'Applied on', render: (l) => formatDate(l.createdAt) },
     { key: 'status', header: 'Status', render: (l) => <Badge status={l.status} /> },

@@ -329,7 +329,7 @@ export async function seedModules({ users, settings, today, random, randomInt })
 
   // Not the demo login accounts, so those can still try check-in themselves
   const now = new Date();
-  for (const email of ['sophie@hrms.com', 'harry@hrms.com', 'grace@hrms.com', 'jack@hrms.com', 'amelia@hrms.com']) {
+  for (const email of ['sophie@hrms.com', 'harry@hrms.com', 'grace@hrms.com', 'jack@hrms.com', 'george@hrms.com']) {
     const user = users[email];
     const start = new Date(now.getTime() - randomInt(70, 330) * 60000);
     if (todayInTz(settings.timezone, start) !== today) continue; // too early in the day for a believable shift

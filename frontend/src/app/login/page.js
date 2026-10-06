@@ -24,7 +24,7 @@ const DEMO_PASSWORD = 'Password@123';
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
 const FEATURES = [
-  [CalendarCheck, 'One-click web check-in', 'Live attendance, late marks and regularization'],
+  [CalendarCheck, 'One-click web check-in', 'Live attendance, late marks and regularisation'],
   [Wallet, 'Payroll in minutes', 'PAYE, National Insurance, pension and payslips'],
   [ShieldCheck, 'Approvals that flow', 'Leave, expenses and attendance in one inbox'],
 ];

@@ -1,8 +1,9 @@
 import { PayrollRun, Payslip, Settings, User } from '../models/index.js';
-import { daysInMonth, monthRange } from '../utils/date.js';
+import { monthRange } from '../utils/date.js';
 import { roundMoney } from '../utils/helpers.js';
-import { buildMonthDays, calculateLopDays, loadMonthData } from './attendance.service.js';
+import { buildMonthDays, loadMonthData } from './attendance.service.js';
 import { DEFAULT_UK_PAYROLL } from '../constants/index.js';
+import { autoEnrolmentStatus, calculateStatutoryPay, minimumWageCheck } from './ukCompliance.service.js';
 
 /*
  * UK PAYE payroll, monthly.
@@ -101,21 +102,27 @@ export function calculateStudentLoans(monthlyPay, { studentLoanPlan, postgraduat
 
 /*
  * One employee's payslip for the month.
- * Pay is prorated on calendar days for unpaid days: pay = monthly amount x (paid days / total days)
+ * Pay is prorated on working days: pay = monthly amount x (paid working days / working days)
  */
-export function calculatePayslip({ employee, settings, totalDays, lopDays }) {
+export function payrollRates(settings) {
+  return { ...DEFAULT_UK_PAYROLL, ...(settings.payroll?.toObject?.() || settings.payroll || {}) };
+}
+
+export function calculatePayslip({ employee, settings, totalDays, lopDays, statutoryPay = [] }) {
   const salary = employee.salary || {};
-  const rates = { ...DEFAULT_UK_PAYROLL, ...(settings.payroll?.toObject?.() || settings.payroll || {}) };
+  const rates = payrollRates(settings);
   const paidDays = Math.max(0, totalDays - lopDays);
   const ratio = totalDays ? paidDays / totalDays : 0;
 
   const earnings = [
     { name: 'Basic Pay', amount: roundMoney(((salary.annualSalary || 0) / 12) * ratio) },
     { name: 'Allowances', amount: roundMoney((salary.monthlyAllowance || 0) * ratio) },
+    ...statutoryPay, // SSP / SMP / SPP are taxable pay and count for NI
   ].filter((item) => item.amount > 0);
   const grossEarnings = roundMoney(earnings.reduce((sum, item) => sum + item.amount, 0));
 
-  const pension = salary.pensionEnrolled === false ? { employee: 0, employer: 0 } : calculatePension(grossEarnings, rates);
+  const inPension = salary.pensionEnrolled !== false && !salary.pensionOptedOutOn;
+  const pension = inPension ? calculatePension(grossEarnings, rates) : { employee: 0, employer: 0 };
   const taxablePay = roundMoney(grossEarnings - pension.employee);
   const tax = calculateIncomeTax(taxablePay, salary.taxCode, rates);
   const ni = calculateNationalInsurance(grossEarnings, salary.niCategory || 'A', rates);
@@ -156,7 +163,6 @@ export async function runPayroll({ month, year, processedBy }) {
 
   const settings = await Settings.getSettings();
   const { start, end } = monthRange(year, month);
-  const totalDays = daysInMonth(year, month);
 
   const employees = await User.find({
     dateOfJoining: { $lte: new Date(`${end}T23:59:59Z`) },
@@ -174,12 +180,43 @@ export async function runPayroll({ month, year, processedBy }) {
   // Re-running replaces old payslips of this month
   await Payslip.deleteMany({ payrollRun: run._id });
 
+  const rates = payrollRates(settings);
+  const warnings = [];
   const payslips = employees.map((employee) => {
-    const { summary } = buildMonthDays({ user: employee, settings, ...monthData });
-    // When attendance-based deduction is off, only unpaid leave and non-employed days are unpaid
-    const lopDays = settings.attendanceBasedLop
-      ? calculateLopDays(summary)
-      : summary.unpaidLeave + summary.notEmployed;
+    const { days, summary } = buildMonthDays({ user: employee, settings, ...monthData });
+    // Statutory pay replaces salary on SSP / SMP / SPP leave (that leave is unpaid by the company)
+    const sickDays = days
+      .filter((d) => d.status === 'leave' && d.leave?.leaveType?.statutoryPay === 'ssp')
+      .reduce((sum, d) => sum + (d.leave.isHalfDay ? 0.5 : 1), 0);
+    const statutoryPay = calculateStatutoryPay({
+      salary: employee.salary,
+      workingDaysPerWeek: employee.workingDaysPerWeek,
+      leaves: monthData.leaves.filter((l) => String(l.user) === String(employee._id)),
+      sickDays,
+      monthStart: start,
+      monthEnd: end,
+      rates,
+    });
+
+    if (employee.status === 'active') {
+      const wage = minimumWageCheck(employee, rates);
+      if (wage && !wage.ok) warnings.push({ user: employee._id, name: employee.fullName, message: `Below minimum wage: £${wage.hourly}/hour on ${employee.contractedHoursPerWeek} contracted hours (needs £${wage.required})` });
+      const pensionStatus = autoEnrolmentStatus(employee, rates);
+      if (pensionStatus === 'eligible' && employee.salary?.pensionEnrolled === false && !employee.salary?.pensionOptedOutOn) {
+        warnings.push({ user: employee._id, name: employee.fullName, message: 'Eligible for workplace pension auto-enrolment but not enrolled (no opt-out recorded)' });
+      }
+    }
+    /*
+     * Working-day basis (UK practice for monthly salaries): unpaid = unauthorised absence (when that rule is on)
+     * + unpaid / statutory-pay leave + working days before joining or after leaving.
+     * Part-timers without a roster: the company's working days scaled by their days per week.
+     */
+    const hasRoster = monthData.rosters.some((r) => String(r.user) === String(employee._id));
+    const factor = hasRoster ? 1 : Math.min(1, (employee.workingDaysPerWeek ?? 5) / 5);
+    const workingDays = days.filter((d) => d.scheduled).length * factor;
+    const notEmployedWorking = days.filter((d) => d.status === 'not-employed' && d.scheduled).length * factor;
+    const absence = settings.attendanceBasedLop ? summary.absent + summary.halfDay * 0.5 : 0;
+    const lopDays = Math.round((absence + summary.unpaidLeave + notEmployedWorking) * 10) / 10;
 
     return {
       payrollRun: run._id,
@@ -199,7 +236,7 @@ export async function runPayroll({ month, year, processedBy }) {
         sortCode: employee.bankDetails?.sortCode,
         accountNumber: employee.bankDetails?.accountNumber,
       },
-      ...calculatePayslip({ employee, settings, totalDays, lopDays: Math.min(lopDays, totalDays) }),
+      ...calculatePayslip({ employee, settings, totalDays: Math.round(workingDays * 10) / 10, lopDays: Math.min(lopDays, workingDays), statutoryPay }),
     };
   });
 
@@ -209,6 +246,7 @@ export async function runPayroll({ month, year, processedBy }) {
   run.totalGross = roundMoney(payslips.reduce((sum, p) => sum + p.grossEarnings, 0));
   run.totalDeductions = roundMoney(payslips.reduce((sum, p) => sum + p.totalDeductions, 0));
   run.totalNet = roundMoney(payslips.reduce((sum, p) => sum + p.netPay, 0));
+  run.warnings = warnings;
   run.totalEmployerCost = roundMoney(payslips.reduce((sum, p) => sum + p.employerContributions.reduce((s2, c) => s2 + c.amount, 0), 0));
   await run.save();
 

@@ -1,4 +1,4 @@
-import { Attendance, LeaveRequest } from '../models/index.js';
+import { Attendance, LeaveRequest, Roster } from '../models/index.js';
 import { buildHolidayLookup, findHolidays } from './calendar.service.js';
 import { eachDate, monthRange, timeToMinutes, toDateStr, todayInTz, dayOfWeek } from '../utils/date.js';
 
@@ -21,7 +21,7 @@ export function getLateMinutes(checkInMinutes, settings) {
  */
 export async function loadMonthData(userIds, year, month) {
   const { start, end } = monthRange(year, month);
-  const [records, holidays, leaves] = await Promise.all([
+  const [records, holidays, leaves, rosters] = await Promise.all([
     Attendance.find({ user: { $in: userIds }, date: { $gte: start, $lte: end } }).sort('date'),
     findHolidays(start, end),
     LeaveRequest.find({
@@ -29,17 +29,21 @@ export async function loadMonthData(userIds, year, month) {
       status: 'approved',
       fromDate: { $lte: end },
       toDate: { $gte: start },
-    }).populate('leaveType', 'name code color isPaid'),
+    }).populate('leaveType', 'name code color isPaid statutoryPay'),
+    Roster.find({ user: { $in: userIds }, date: { $gte: start, $lte: end } }).select('user date isWeeklyOff'),
   ]);
 
-  return { start, end, records, holidayOf: buildHolidayLookup(holidays), leaves };
+  return { start, end, records, holidayOf: buildHolidayLookup(holidays), leaves, rosters };
 }
 
 /*
  * Builds the day-by-day attendance of one employee for a month.
  * Priority of a day: attendance record > holiday > weekly off > approved leave > absent.
+ * Working days come from the roster when there is one; otherwise from the company weekly offs.
+ * Part-time staff without a roster are never marked absent (we don't know which days they work).
+ * Each day has `scheduled` = a working day for this person (bank holidays count as paid working days).
  */
-export function buildMonthDays({ user, settings, start, end, records, holidayOf, leaves }) {
+export function buildMonthDays({ user, settings, start, end, records, holidayOf, leaves, rosters = [] }) {
   const today = todayInTz(settings.timezone);
   const joinDate = user.dateOfJoining ? toDateStr(user.dateOfJoining) : start;
   const exitDate = user.exitDate ? toDateStr(user.exitDate) : null;
@@ -55,10 +59,16 @@ export function buildMonthDays({ user, settings, start, end, records, holidayOf,
       eachDate(leave.fromDate, leave.toDate).forEach((date) => (leaveMap[date] = leave));
     });
 
+  const rosterMap = {};
+  rosters.filter((r) => String(r.user) === userId).forEach((r) => (rosterMap[r.date] = r));
+  const partTimeWithoutRoster = (user.workingDaysPerWeek ?? 5) < 5 && !Object.keys(rosterMap).length;
+
   const days = eachDate(start, end).map((date) => {
     const record = recordMap[date] || null;
     const holiday = holidayOf(date, user.holidayRegion);
-    const isWeeklyOff = settings.weeklyOffs.includes(dayOfWeek(date));
+    const roster = rosterMap[date];
+    const isWeeklyOff = roster ? roster.isWeeklyOff : settings.weeklyOffs.includes(dayOfWeek(date));
+    const scheduled = !isWeeklyOff;
     const leave = leaveMap[date] || null;
 
     let status;
@@ -67,10 +77,11 @@ export function buildMonthDays({ user, settings, start, end, records, holidayOf,
     else if (holiday) status = 'holiday';
     else if (isWeeklyOff) status = 'weekly-off';
     else if (leave) status = 'leave';
+    else if (partTimeWithoutRoster) status = 'weekly-off'; // non-working day of a part-timer
     else if (date < today) status = 'absent';
     else status = date === today ? 'today' : 'upcoming';
 
-    return { date, status, record, holiday, isWeeklyOff, leave };
+    return { date, status, record, holiday, isWeeklyOff, leave, scheduled };
   });
 
   return { days, summary: summarizeDays(days) };
@@ -111,10 +122,6 @@ function summarizeDays(days) {
   return summary;
 }
 
-// Loss-of-pay days used by payroll
-export function calculateLopDays(summary) {
-  return summary.absent + summary.halfDay * 0.5 + summary.unpaidLeave + summary.notEmployed;
-}
 
 // Convenience wrapper for a single employee
 export async function getMonthlyAttendance(user, year, month, settings) {

@@ -26,7 +26,7 @@ export const REQUEST_STATUS = {
 
 export const ATTENDANCE_STATUS = ['present', 'half-day', 'absent'];
 
-export const EXPENSE_CATEGORIES = ['travel', 'food', 'accommodation', 'office-supplies', 'internet', 'other'];
+export const EXPENSE_CATEGORIES = ['travel', 'mileage', 'food', 'accommodation', 'office-supplies', 'internet', 'other'];
 export const EXPENSE_STATUS = ['pending', 'approved', 'rejected', 'reimbursed'];
 
 export const GOAL_STATUS = ['not-started', 'in-progress', 'completed'];
@@ -53,6 +53,9 @@ export const RIGHT_TO_WORK_STATUS = ['not-checked', 'british-irish', 'settled', 
 // Modules a company can switch off in Settings
 export const FEATURES = ['payroll', 'workStatus'];
 export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
+
+// Leave that is paid through payroll as statutory pay instead of salary
+export const STATUTORY_PAY_TYPES = ['none', 'ssp', 'smp', 'spp'];
 
 export const DEFAULT_UK_PAYROLL = {
   taxYear: '2026/27',
@@ -86,6 +89,17 @@ export const DEFAULT_UK_PAYROLL = {
   studentLoanThresholds: { plan1: 26900, plan2: 29385, plan4: 33795, plan5: 25000, postgrad: 21000 },
   studentLoanRate: 9,
   postgradLoanRate: 6,
+  // Workplace pension: must auto-enrol workers aged 22 to State Pension age earning over this
+  autoEnrolmentTrigger: 10000,
+  // Statutory pay (weekly): SSP is the lower of this or 80% of average weekly earnings;
+  // SMP after week 6, SPP and SAP are the lower of the flat rate or 90% of average weekly earnings
+  sspWeeklyRate: 123.25,
+  statutoryFlatRate: 194.32,
+  // National Living / Minimum Wage per hour from 1 April 2026
+  minimumWage: { age21: 12.71, age18: 10.85, under18: 8, apprentice: 8 },
+  // HMRC approved mileage allowance for cars and vans: per mile for the first 10,000 business miles in a tax year, then after
+  mileageRate: 0.45,
+  mileageRateAfter10k: 0.25,
 };
 
 export const ANNOUNCEMENT_CATEGORIES = ['general', 'policy', 'event', 'celebration', 'urgent'];

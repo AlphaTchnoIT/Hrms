@@ -68,6 +68,7 @@ const salarySchema = z.object({
   pensionEnrolled: z.boolean().optional(),
   studentLoanPlan: z.enum(STUDENT_LOAN_PLANS).optional(),
   postgraduateLoan: z.boolean().optional(),
+  pensionOptedOutOn: optionalDate('Pension opt-out date'),
 });
 
 // Personal fields an employee can edit on their own profile
@@ -97,6 +98,9 @@ const employeeFields = personalInfoSchema.extend({
   workLocation: optionalText('Work location', 100),
   holidayRegion: z.enum(HOLIDAY_REGIONS, { errorMap: () => ({ message: 'Select a bank holiday region' }) }).optional(),
   workingDaysPerWeek: z.coerce.number().min(0.5, 'At least half a day a week').max(7, 'At most 7 days a week').optional(),
+  contractedHoursPerWeek: z.coerce.number().min(1, 'At least 1 hour a week').max(80, 'At most 80 hours a week').optional(),
+  noticePeriodWeeks: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().min(0).max(52, 'At most 52 weeks').optional()),
+  wtrOptOut: z.boolean().optional(),
   probationEndDate: optionalDate('Probation end date'),
   rightToWork: z
     .object({

@@ -38,7 +38,9 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Reports & analytics** | Reports Centre (12 reports, CSV export) and Management Dashboard (attrition, attendance, KPI achievement, QA, teams requiring attention) |
 | **Recruitment (ATS)** | Internal job posting with eligibility, external candidates, pipeline statuses, interview scheduling with panel feedback, document collection, public status page, email + in-app notifications |
 | **Learning** | Training programmes & assignments, in-app knowledge tests (auto-graded, attempts, time limit, answer key, report cards), automatic hourly reminders, training records |
-| **UK HR** | Right to work checks (follow-up reminders 60 / 30 days before time-limited permission expires), probation reminders, bank holidays per nation (England & Wales, Scotland, Northern Ireland), holiday pro-rata for part-time staff and joiners, carry-over |
+| **UK HR** | Right to work checks (follow-up reminders 60 / 30 days before time-limited permission expires), probation reminders, bank holidays per nation with **Sync from GOV.UK** (auto-loads next year), holiday pro-rata for part-time staff and joiners, carry-over, notice periods vs the statutory minimum, 48-hour week opt-out, fit note flag for 7+ day sickness, HMRC mileage claims (45p / 25p) |
+| **UK pay rules** | Statutory Sick / Maternity / Paternity Pay through payroll, workplace pension auto-enrolment status (eligible / non-eligible / entitled, opt-out date), National Minimum Wage check on contracted hours, payroll warnings before paying |
+| **UK reports** | Bradford Factor (sickness), gender pay gap (mean, median, quartiles), UK compliance (right to work, minimum wage, pension, probation, notice) |
 | **Accounts & security** | One-time passwords for new accounts with a forced change at first login, forgot / reset password by email, sessions ended when a password changes, login and reset rate limits |
 | **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll or Live Work Status per company |
 | **IT helpdesk** | Tickets with categories/priority, conversation, internal notes, assignment, resolve / reopen |
@@ -145,8 +147,9 @@ Examples: UK phone (`07700 900123` or `+44 …`), National Insurance number `QQ 
 - **Late**: check-in after `officeStartTime + graceMinutes`.
 - **Day status** on check-out: worked ≥ `fullDayMinutes` → present, ≥ `halfDayMinutes` → half-day, else absent.
 - **Leave days** count only working days (weekly offs and non-optional holidays are skipped). Paid leave needs balance; unpaid leave does not.
-- **Payroll** is prorated by calendar days: `pay = (annual salary / 12 + monthly allowance) × paidDays / totalDays`.
-  Unpaid days = absent days + ½ × half-days + unpaid leave + days before joining / after exit.
+- **Payroll** is prorated on working days: `pay = (annual salary / 12 + monthly allowance) × paid working days / working days`.
+  Unpaid days = unauthorised absence (if enabled) + ½ × half-days + unpaid / statutory-pay leave + working days before joining / after exit. Working days come from the roster, else the company weekly offs (scaled by days per week for part-timers, who are never marked absent without a roster). Bank holidays are paid.
+- **Statutory pay** (leave types with SSP / SMP / SPP): SSP = lower of the weekly rate or 80% of average weekly earnings per working day (from day one, April 2026 rules); SMP = 90% for 6 weeks then the lower of the flat rate or 90% up to week 39; SPP = flat rate for up to 2 weeks. Taxable and NI-able.
 - **UK deductions** (month 1 / non-cumulative basis): pension = employee % of qualifying earnings (net pay arrangement, before tax); Income Tax = annual bands on (taxable pay × 12 − allowance from the tax code) ÷ 12; employee NI on pay between the primary threshold and upper earnings limit (category C / X: none); student loans 9% / postgraduate 6% above the plan threshold, rounded down to whole pounds. Rates live in Settings → UK payroll rates and should be checked every April. Payroll does not file to HMRC: submit RTI (FPS) from HMRC-recognised software.
 - Employees see payslips only after HR marks the payroll run as **paid**.
 - **Performance status** (last 30 days): score ≥ target → Meeting Target; within `attentionBand` points below → Needs Attention; lower → Critical. The worst KPI decides the overall status.

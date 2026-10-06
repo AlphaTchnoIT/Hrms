@@ -6,6 +6,7 @@ import { useForm } from '@/hooks/useForm';
 import { employeeSchema } from '@/lib/validation';
 import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, HOLIDAY_REGIONS, MARITAL_STATUS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS } from '@/lib/constants';
 import { formatCurrency, getFullName, toInputDate, getCurrencySymbol } from '@/lib/format';
+import { autoEnrolmentStatus, minimumWageCheck, PENSION_STATUS_TEXT, statutoryNoticeWeeks } from '@/lib/ukRules';
 import { Button, Card, Checkbox, FormSection, Input, Select } from '@/components/ui';
 
 // Convert an employee from the API into flat form values
@@ -27,6 +28,9 @@ export function toFormValues(employee = {}) {
     workLocation: employee.workLocation || '',
     holidayRegion: employee.holidayRegion || 'england-wales',
     workingDaysPerWeek: employee.workingDaysPerWeek ?? 5,
+    contractedHoursPerWeek: employee.contractedHoursPerWeek ?? 37.5,
+    noticePeriodWeeks: employee.noticePeriodWeeks ?? '',
+    wtrOptOut: employee.wtrOptOut ?? false,
     probationEndDate: employee.probationEndDate || '',
     rightToWork: {
       status: employee.rightToWork?.status || 'not-checked',
@@ -54,6 +58,7 @@ export function toFormValues(employee = {}) {
       pensionEnrolled: salary.pensionEnrolled ?? true,
       studentLoanPlan: salary.studentLoanPlan || 'none',
       postgraduateLoan: salary.postgraduateLoan ?? false,
+      pensionOptedOutOn: salary.pensionOptedOutOn || '',
     },
   };
 }
@@ -78,6 +83,12 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
     .map((p) => ({ value: p._id, label: `${getFullName(p)} (${p.employeeCode})` }));
 
   const gross = monthlyGross(values.salary);
+  // UK checks shown as hints while typing (rates from Settings -> UK payroll rates)
+  const settings = useFetch('/settings');
+  const rates = settings.data?.payroll;
+  const wage = minimumWageCheck(values, rates);
+  const pensionStatus = autoEnrolmentStatus(values, rates);
+  const statutoryNotice = statutoryNoticeWeeks(values.dateOfJoining);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     const payload = { ...data, dateOfBirth: data.dateOfBirth || null };
@@ -101,7 +112,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           )}
         </FormSection>
 
-        <FormSection title="Job details" description="Where this person sits in the organization.">
+        <FormSection title="Job details" description="Where this person sits in the organisation.">
           <Select label="Department" options={(departments.data || []).map((d) => ({ value: d._id, label: d.name }))} {...register('department')} />
           <Select label="Designation" options={(designations.data || []).map((d) => ({ value: d._id, label: d.title }))} {...register('designation')} />
           <Select label="Reporting manager" placeholder="No manager" options={managerOptions} {...register('reportingManager')} />
@@ -111,6 +122,28 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Select label="Bank holidays" placeholder={false} options={HOLIDAY_REGIONS} hint="Which UK nation's bank holidays apply" {...register('holidayRegion')} />
           <Input label="Working days per week" type="number" min="0.5" max="7" step="0.5" hint="Part-time holiday is pro-rated on this" {...register('workingDaysPerWeek')} />
           <Input label="Probation ends" type="date" hint="Manager and HR are reminded 2 weeks before" {...register('probationEndDate')} />
+          <Input
+            label="Contracted hours per week"
+            type="number"
+            min="1"
+            max="80"
+            step="0.5"
+            hint={wage ? `${formatCurrency(wage.hourly)}/hour · minimum wage ${formatCurrency(wage.required)}${wage.ok ? ' ✓' : ' — BELOW the legal minimum'}` : 'Used for the minimum wage check'}
+            {...register('contractedHoursPerWeek')}
+          />
+          <Input
+            label="Notice period (weeks)"
+            type="number"
+            min="0"
+            max="52"
+            hint={`Statutory minimum now: ${statutoryNotice} week${statutoryNotice === 1 ? '' : 's'}${values.noticePeriodWeeks !== '' && Number(values.noticePeriodWeeks) < statutoryNotice ? ' — contract is below it' : ''}`}
+            {...register('noticePeriodWeeks')}
+          />
+          <Checkbox
+            label="48-hour week opt-out signed"
+            description="Working Time Regulations: needed if they may average more than 48 hours a week"
+            {...register('wtrOptOut', { type: 'checkbox' })}
+          />
         </FormSection>
 
         <FormSection title="Right to work" description="Home Office check before the first day. Time-limited permission needs a follow-up check before it expires.">
@@ -145,7 +178,12 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Select label="NI category" placeholder={false} options={NI_CATEGORIES} {...register('salary.niCategory')} />
           <Select label="Student loan" placeholder={false} options={STUDENT_LOAN_PLANS} {...register('salary.studentLoanPlan')} />
           <div className="space-y-3">
-            <Checkbox label="Workplace pension" description="Auto-enrolled: employee and employer contributions" {...register('salary.pensionEnrolled', { type: 'checkbox' })} />
+            <Checkbox
+              label="Workplace pension"
+              description={pensionStatus ? PENSION_STATUS_TEXT[pensionStatus] : 'Auto-enrolment: employee and employer contributions'}
+              {...register('salary.pensionEnrolled', { type: 'checkbox' })}
+            />
+            {!values.salary.pensionEnrolled && <Input label="Opted out on" type="date" hint="Record the date of the opt-out notice" {...register('salary.pensionOptedOutOn')} />}
             <Checkbox label="Postgraduate loan" description="Deduct postgraduate loan repayments" {...register('salary.postgraduateLoan', { type: 'checkbox' })} />
           </div>
           <div className="rounded-xl bg-slate-50 px-4 py-3">

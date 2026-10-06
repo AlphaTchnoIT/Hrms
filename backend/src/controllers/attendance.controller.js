@@ -222,22 +222,22 @@ export async function applyRegularization(req, res) {
   const settings = await Settings.getSettings();
   const today = todayInTz(settings.timezone);
 
-  if (date > today) throw ApiError.field('date', 'You cannot regularize a future date');
-  if (date < addDays(today, -30)) throw ApiError.field('date', 'Regularization is allowed only for the last 30 days');
+  if (date > today) throw ApiError.field('date', 'You cannot regularise a future date');
+  if (date < addDays(today, -30)) throw ApiError.field('date', 'Regularisation is allowed only for the last 30 days');
   if (date < toDateStr(req.user.dateOfJoining)) throw ApiError.field('date', 'Date is before your joining date');
 
   const duplicate = await Regularization.findOne({ user: req.user._id, date, status: 'pending' });
-  if (duplicate) throw ApiError.field('date', 'A regularization request for this date is already pending');
+  if (duplicate) throw ApiError.field('date', 'A regularisation request for this date is already pending');
 
   const request = await Regularization.create({ user: req.user._id, date, checkInTime, checkOutTime, reason });
 
   notify(req.user.reportingManager, {
-    title: 'Attendance regularization request',
-    message: `${req.user.fullName} requested regularization for ${date}`,
+    title: 'Attendance regularisation request',
+    message: `${req.user.fullName} requested regularisation for ${date}`,
     link: '/team/regularizations',
   });
 
-  sendSuccess(res, { data: request, message: 'Regularization request submitted', status: 201 });
+  sendSuccess(res, { data: request, message: 'Regularisation request submitted', status: 201 });
 }
 
 // GET /api/attendance/regularizations/my
@@ -292,8 +292,8 @@ export async function reviewRegularization(req, res) {
     await Attendance.findOneAndUpdate(
       { user: request.user, date: request.date },
       {
-        checkIn: { time: checkInAt, note: 'Regularized' },
-        checkOut: { time: checkOutAt, note: 'Regularized' },
+        checkIn: { time: checkInAt, note: 'Regularised' },
+        checkOut: { time: checkOutAt, note: 'Regularised' },
         workMinutes,
         status: getStatusFromMinutes(workMinutes, settings),
         isLate: lateByMinutes > 0,
@@ -312,8 +312,8 @@ export async function reviewRegularization(req, res) {
   await request.save();
 
   notify(request.user, {
-    title: `Regularization ${request.status}`,
-    message: `Your regularization request for ${request.date} was ${request.status}`,
+    title: `Regularisation ${request.status}`,
+    message: `Your regularisation request for ${request.date} was ${request.status}`,
     link: '/attendance',
   });
 

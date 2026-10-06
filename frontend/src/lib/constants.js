@@ -35,11 +35,17 @@ export const GENDERS = ['male', 'female', 'other'];
 export const MARITAL_STATUS = ['single', 'married', 'divorced', 'widowed'];
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-export const EXPENSE_CATEGORIES = ['travel', 'food', 'accommodation', 'office-supplies', 'internet', 'other'];
+export const EXPENSE_CATEGORIES = ['travel', 'mileage', 'food', 'accommodation', 'office-supplies', 'internet', 'other'];
 export const GOAL_STATUS = ['not-started', 'in-progress', 'completed'];
 export const ASSET_CATEGORIES = ['laptop', 'desktop', 'monitor', 'mobile', 'accessory', 'furniture', 'other'];
 export const ASSET_STATUS = ['available', 'assigned', 'maintenance', 'retired'];
 export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company'];
+export const STATUTORY_PAY_OPTIONS = [
+  { value: 'none', label: 'None (company pays salary or leave is unpaid)' },
+  { value: 'ssp', label: 'Statutory Sick Pay (SSP)' },
+  { value: 'smp', label: 'Statutory Maternity Pay (SMP)' },
+  { value: 'spp', label: 'Statutory Paternity Pay (SPP)' },
+];
 export const HOLIDAY_REGIONS = [
   { value: 'england-wales', label: 'England & Wales' },
   { value: 'scotland', label: 'Scotland' },

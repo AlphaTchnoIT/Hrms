@@ -134,6 +134,9 @@ const employeeBase = z.object({
   bloodGroup: z.string().optional(),
   holidayRegion: z.string().optional(),
   workingDaysPerWeek: number('Working days per week', { min: 0.5, max: 7, required: true }),
+  contractedHoursPerWeek: number('Contracted hours', { min: 1, max: 80, required: true }),
+  noticePeriodWeeks: number('Notice period', { max: 52, int: true }),
+  wtrOptOut: z.boolean(),
   probationEndDate: z.string().optional(),
   rightToWork: z
     .object({
@@ -165,6 +168,7 @@ const employeeBase = z.object({
     pensionEnrolled: z.boolean(),
     studentLoanPlan: z.string().optional(),
     postgraduateLoan: z.boolean(),
+    pensionOptedOutOn: z.string().optional(),
   }),
 });
 
@@ -213,6 +217,7 @@ export const leaveTypeSchema = z.object({
   isPaid: z.boolean(),
   allowHalfDay: z.boolean(),
   proRata: z.boolean(),
+  statutoryPay: z.string(),
   carryForwardMax: number('Carry-over days', { max: 60 }).refine((v) => Number.isInteger(v * 2), 'Use whole or half days'),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Pick a valid colour'),
   description: text('Description', 300),
@@ -236,10 +241,14 @@ export const reviewSchema = (action) =>
 export const expenseSchema = z.object({
   title: required('Title', { min: 3, max: 100 }),
   category: select('a category'),
-  amount: number('Amount', { max: 500000, required: true }).refine((v) => v > 0, 'Amount must be greater than 0'),
+  amount: number('Amount', { max: 100000 }),
+  miles: number('Miles', { max: 5000 }),
   expenseDate: date('Expense date').refine((v) => v <= todayStr(), 'Expense date cannot be in the future'),
   description: text('Description', 500),
   receiptUrl: optional(urlRule('receipt link')),
+}).superRefine((d, ctx) => {
+  if (d.category === 'mileage' && !(d.miles > 0)) ctx.addIssue({ code: 'custom', path: ['miles'], message: 'Enter the business miles driven' });
+  if (d.category !== 'mileage' && !(d.amount > 0)) ctx.addIssue({ code: 'custom', path: ['amount'], message: 'Amount must be greater than 0' });
 });
 
 export const goalSchema = z

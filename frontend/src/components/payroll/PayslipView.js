@@ -48,7 +48,7 @@ export default function PayslipView({ payslip, company }) {
 
       <div className="grid grid-cols-3 gap-4 border-b border-slate-200 py-4 text-center">
         <div>
-          <p className="text-xs text-slate-500">Total days</p>
+          <p className="text-xs text-slate-500">Working days</p>
           <p className="font-semibold">{payslip.totalDays}</p>
         </div>
         <div>

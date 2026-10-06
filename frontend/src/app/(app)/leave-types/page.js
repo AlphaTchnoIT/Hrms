@@ -8,7 +8,8 @@ import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { leaveTypeSchema } from '@/lib/validation';
 import { HR_ROLES } from '@/lib/constants';
-import { Badge, Button, Card, Checkbox, DataTable, Input, Modal, PageHeader, Textarea, useConfirm } from '@/components/ui';
+import { Badge, Button, Card, Checkbox, DataTable, Input, Modal, PageHeader, Select, Textarea, useConfirm } from '@/components/ui';
+import { STATUTORY_PAY_OPTIONS } from '@/lib/constants';
 import RoleGuard from '@/components/layout/RoleGuard';
 
 const COLORS = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#0ea5e9', '#8b5cf6', '#ec4899', '#64748b'];
@@ -23,6 +24,7 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
       allowHalfDay: item?.allowHalfDay ?? true,
       proRata: item?.proRata ?? false,
       carryForwardMax: item?.carryForwardMax ?? 0,
+      statutoryPay: item?.statutoryPay || 'none',
       color: item?.color || COLORS[0],
       description: item?.description || '',
       isActive: item?.isActive ?? true,
@@ -68,6 +70,13 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
           disabled={!values.isPaid}
           hint={item ? "Changing this recalculates everyone's balance for this year" : 'Full-time, full-year entitlement'}
           {...register('annualQuota')}
+        />
+        <Select
+          label="Statutory pay"
+          placeholder={false}
+          options={STATUTORY_PAY_OPTIONS}
+          hint="Leave paid through payroll as SSP / SMP / SPP instead of salary. Untick Paid leave for these."
+          {...register('statutoryPay')}
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <Checkbox label="Pro-rata" description="Part-time (working days ÷ 5) and joiners / leavers get a share" {...register('proRata', { type: 'checkbox' })} />

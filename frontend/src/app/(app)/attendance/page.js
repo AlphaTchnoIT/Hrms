@@ -27,7 +27,7 @@ export default function AttendancePage() {
   const cancelRequest = async (request) => {
     const ok = await confirm({
       title: 'Cancel this request?',
-      message: `Your regularization request for ${formatDate(request.date)} will be withdrawn.`,
+      message: `Your regularisation request for ${formatDate(request.date)} will be withdrawn.`,
       confirmText: 'Cancel request',
       danger: true,
     });
@@ -59,7 +59,7 @@ export default function AttendancePage() {
     {
       key: 'note',
       header: 'Remarks',
-      render: (d) => <span className="text-slate-500">{d.holiday || d.leave?.leaveType?.name || (d.record?.source === 'regularization' ? 'Regularized' : '')}</span>,
+      render: (d) => <span className="text-slate-500">{d.holiday || d.leave?.leaveType?.name || (d.record?.source === 'regularization' ? 'Regularised' : '')}</span>,
     },
   ];
 
@@ -89,7 +89,7 @@ export default function AttendancePage() {
         subtitle="Check in from the web, review your month and fix missed punches."
         actions={
           <Button icon={CalendarPlus} variant="secondary" onClick={() => setRegularizeDate('')}>
-            Regularize
+            Regularise
           </Button>
         }
       />
@@ -112,7 +112,7 @@ export default function AttendancePage() {
           tabs={[
             { value: 'calendar', label: 'Calendar' },
             { value: 'list', label: 'Attendance log' },
-            { value: 'requests', label: 'Regularizations', count: pendingCount || undefined },
+            { value: 'requests', label: 'Regularisations', count: pendingCount || undefined },
           ]}
           value={tab}
           onChange={setTab}
@@ -146,7 +146,7 @@ export default function AttendancePage() {
               rows={requests.data}
               loading={requests.loading}
               emptyIcon={CalendarRange}
-              emptyTitle="No regularization requests"
+              emptyTitle="No regularisation requests"
               emptyMessage="Missed a check-in? Click a day on the calendar to request a correction."
             />
           </Card>

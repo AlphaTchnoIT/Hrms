@@ -69,6 +69,17 @@ const ukPayrollSchema = z.object({
   }),
   studentLoanRate: rate('Student loan rate'),
   postgradLoanRate: rate('Postgraduate loan rate'),
+  autoEnrolmentTrigger: amount('Auto-enrolment trigger'),
+  sspWeeklyRate: amount('SSP weekly rate'),
+  statutoryFlatRate: amount('SMP / SPP weekly rate'),
+  minimumWage: z.object({
+    age21: amount('Minimum wage (21 and over)'),
+    age18: amount('Minimum wage (18 to 20)'),
+    under18: amount('Minimum wage (under 18)'),
+    apprentice: amount('Apprentice rate'),
+  }),
+  mileageRate: amount('Mileage rate'),
+  mileageRateAfter10k: amount('Mileage rate after 10,000 miles'),
 });
 
 export const settingsSchema = z

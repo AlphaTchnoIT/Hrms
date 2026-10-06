@@ -11,6 +11,8 @@ const payrollRunSchema = new mongoose.Schema(
     totalDeductions: { type: Number, default: 0 },
     totalNet: { type: Number, default: 0 },
     totalEmployerCost: { type: Number, default: 0 }, // employer NI + employer pension
+    // Things HR should check: below minimum wage, eligible for pension but not enrolled
+    warnings: [{ user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, name: String, message: String, _id: false }],
     processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     processedAt: Date,
     paidAt: Date,

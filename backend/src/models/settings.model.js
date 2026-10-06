@@ -54,6 +54,12 @@ const settingsSchema = new mongoose.Schema(
           studentLoanThresholds: { plan1: Number, plan2: Number, plan4: Number, plan5: Number, postgrad: Number },
           studentLoanRate: Number,
           postgradLoanRate: Number,
+          autoEnrolmentTrigger: Number,
+          sspWeeklyRate: Number,
+          statutoryFlatRate: Number,
+          minimumWage: { age21: Number, age18: Number, under18: Number, apprentice: Number },
+          mileageRate: Number,
+          mileageRateAfter10k: Number,
         },
         { _id: false }
       ),

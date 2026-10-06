@@ -35,14 +35,14 @@ function greeting() {
 
 const QUICK_ACTIONS = [
   { label: 'Apply leave', href: '/leave', icon: CalendarPlus },
-  { label: 'Regularize', href: '/attendance', icon: CalendarClock },
+  { label: 'Regularise', href: '/attendance', icon: CalendarClock },
   { label: 'New expense', href: '/expenses', icon: Receipt },
 ];
 
 function PendingApprovals({ stats }) {
   const items = [
     { label: 'Leave requests', value: stats.pendingLeaves, href: '/team/leave-approvals', icon: ClipboardCheck, tone: 'text-violet-600 bg-violet-50' },
-    { label: 'Regularizations', value: stats.pendingRegularizations, href: '/team/regularizations', icon: CalendarClock, tone: 'text-sky-600 bg-sky-50' },
+    { label: 'Regularisations', value: stats.pendingRegularizations, href: '/team/regularizations', icon: CalendarClock, tone: 'text-sky-600 bg-sky-50' },
     { label: 'Expense claims', value: stats.pendingExpenses, href: '/team/expense-approvals', icon: Receipt, tone: 'text-amber-600 bg-amber-50' },
   ];
   const total = items.reduce((sum, i) => sum + i.value, 0);
@@ -130,7 +130,7 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-3 divide-x divide-slate-100 text-center">
                   {[
                     ['Leaves', data.myPending.leaves, '/leave'],
-                    ['Regularizations', data.myPending.regularizations, '/attendance'],
+                    ['Regularisations', data.myPending.regularizations, '/attendance'],
                     ['Expenses', data.myPending.expenses, '/expenses'],
                   ].map(([label, value, href]) => (
                     <Link key={label} href={href} className="rounded-lg py-1 transition hover:bg-slate-50">

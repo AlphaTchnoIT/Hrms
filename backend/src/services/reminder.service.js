@@ -1,6 +1,7 @@
-import { ActionPlan, Application, KnowledgeTest, Settings, TestAttempt, TrainingAssignment, User, Warning } from '../models/index.js';
+import { ActionPlan, Application, Holiday, KnowledgeTest, Settings, TestAttempt, TrainingAssignment, User, Warning } from '../models/index.js';
 import { addDays, todayInTz } from '../utils/date.js';
 import { notifyOnce, sendEmail } from './notification.service.js';
+import { syncUkBankHolidays } from './bankHolidays.service.js';
 
 /*
  * Automatic reminders. Each reminder has a dedupe key so running this often never sends duplicates.
@@ -92,6 +93,16 @@ export async function runReminders() {
     for (const userId of [person.reportingManager, ...hrTeam].filter(Boolean)) {
       const isHrUser = hrTeam.some((id) => String(id) === String(userId));
       await send(`probation:${person._id}:${person.probationEndDate}:${userId}`, userId, { ...payload, link: isHrUser ? `/employees/${person._id}` : '/team/home' });
+    }
+  }
+
+  // Bank holidays: load this year's / next year's from GOV.UK once they are published (only if none exist yet)
+  for (const year of [Number(today.slice(0, 4)), Number(today.slice(0, 4)) + 1]) {
+    if (await Holiday.exists({ date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }, type: { $in: ['bank-holiday', 'regional'] } })) continue;
+    try {
+      await syncUkBankHolidays({ from: `${year}-01-01`, to: `${year}-12-31` });
+    } catch (error) {
+      console.error(`Bank holiday sync for ${year} failed:`, error.message);
     }
   }
 

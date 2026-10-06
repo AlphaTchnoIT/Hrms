@@ -14,6 +14,17 @@ const AMOUNT_FIELDS = [
   ['niSecondaryThreshold', 'Employer NI threshold', 'Employer NI starts above this (per year)'],
   ['pensionLowerLimit', 'Pension: lower limit', 'Qualifying earnings start here (per year)'],
   ['pensionUpperLimit', 'Pension: upper limit', 'Qualifying earnings stop here (per year)'],
+  ['autoEnrolmentTrigger', 'Auto-enrolment trigger', 'Workers aged 22 to State Pension age earning over this must be enrolled'],
+  ['sspWeeklyRate', 'SSP weekly rate', 'Statutory Sick Pay: lower of this or 80% of weekly earnings'],
+  ['statutoryFlatRate', 'SMP / SPP weekly rate', 'After week 6 of SMP, and SPP: lower of this or 90% of weekly earnings'],
+  ['mileageRate', 'Mileage rate (per mile)', 'HMRC approved rate for the first 10,000 business miles'],
+  ['mileageRateAfter10k', 'Mileage rate after 10,000 miles', 'HMRC approved rate after 10,000 miles in the tax year'],
+];
+const WAGE_BANDS = [
+  ['age21', '21 and over (National Living Wage)'],
+  ['age18', '18 to 20'],
+  ['under18', 'Under 18'],
+  ['apprentice', 'Apprentice'],
 ];
 const RATE_FIELDS = [
   ['niMainRate', 'Employee NI main rate'],
@@ -86,6 +97,7 @@ export default function UkPayrollSettings({ settings }) {
       taxBands: bands(rates.taxBands),
       scottishTaxBands: bands(rates.scottishTaxBands),
       studentLoanThresholds: Object.fromEntries(LOAN_PLANS.map(([key]) => [key, num(rates.studentLoanThresholds?.[key])])),
+      minimumWage: Object.fromEntries(WAGE_BANDS.map(([key]) => [key, num(rates.minimumWage?.[key])])),
     };
     setSaving(true);
     setErrors({});
@@ -129,6 +141,21 @@ export default function UkPayrollSettings({ settings }) {
       <FormSection title="Student loan thresholds" description="Annual repayment thresholds per plan.">
         {LOAN_PLANS.map(([key, label]) => (
           <Input key={key} label={label} type="number" min="0" prefix={getCurrencySymbol()} value={rates.studentLoanThresholds?.[key] ?? ''} onChange={(e) => setLoan(key, e.target.value)} />
+        ))}
+      </FormSection>
+
+      <FormSection title="Minimum wage (per hour)" description="Employees below their band are flagged on the employee form, in payroll and in the UK compliance report.">
+        {WAGE_BANDS.map(([key, label]) => (
+          <Input
+            key={key}
+            label={label}
+            type="number"
+            min="0"
+            step="0.01"
+            prefix={getCurrencySymbol()}
+            value={rates.minimumWage?.[key] ?? ''}
+            onChange={(e) => setRates((r) => ({ ...r, minimumWage: { ...r.minimumWage, [key]: e.target.value } }))}
+          />
         ))}
       </FormSection>
 
