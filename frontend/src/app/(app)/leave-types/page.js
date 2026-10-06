@@ -131,7 +131,7 @@ export default function LeaveTypesPage() {
     },
     { key: 'code', header: 'Code', render: (t) => <span className="font-mono text-xs">{t.code}</span> },
     { key: 'quota', header: 'Days / year', render: (t) => (t.isPaid ? t.annualQuota : 'Unlimited') },
-    { key: 'paid', header: 'Type', render: (t) => <Badge color={t.isPaid ? 'green' : 'gray'}>{t.isPaid ? 'Paid' : 'Unpaid (LOP)'}</Badge> },
+    { key: 'paid', header: 'Type', render: (t) => <Badge color={t.isPaid ? 'green' : 'gray'}>{t.isPaid ? 'Paid' : 'Unpaid'}</Badge> },
     { key: 'half', header: 'Half day', render: (t) => (t.allowHalfDay ? 'Allowed' : 'No') },
     { key: 'status', header: 'Status', render: (t) => <Badge status={t.isActive ? 'active' : 'inactive'} /> },
     {

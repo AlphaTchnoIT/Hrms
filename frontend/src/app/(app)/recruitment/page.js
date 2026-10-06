@@ -251,7 +251,7 @@ function ApplicationModal({ id, onClose, onChanged }) {
               </div>
             ))}
             <div className="flex gap-2">
-              <input className="form-control" placeholder="e.g. PAN card, Aadhaar, Last 3 payslips" value={docNames} onChange={(e) => setDocNames(e.target.value)} />
+              <input className="form-control" placeholder="e.g. Passport / right to work, proof of address, P45" value={docNames} onChange={(e) => setDocNames(e.target.value)} />
               <Button
                 icon={FilePlus2}
                 variant="secondary"

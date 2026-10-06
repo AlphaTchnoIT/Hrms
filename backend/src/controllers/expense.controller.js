@@ -1,10 +1,16 @@
-import { Expense } from '../models/index.js';
+import { Expense, Settings } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { buildMeta, getPagination } from '../utils/pagination.js';
 import { pick } from '../utils/helpers.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
+
+// Amount in the company currency, e.g. "£45.00"
+async function formatMoney(amount) {
+  const { currency } = await Settings.getSettings();
+  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-GB', { style: 'currency', currency }).format(amount);
+}
 
 const FIELDS = ['title', 'category', 'amount', 'expenseDate', 'description', 'receiptUrl'];
 const EXPENSE_POPULATE = [
@@ -22,7 +28,7 @@ export async function createExpense(req, res) {
 
   notify(req.user.reportingManager, {
     title: 'New expense claim',
-    message: `${req.user.fullName} submitted an expense claim of ₹${expense.amount}`,
+    message: `${req.user.fullName} submitted an expense claim of ${await formatMoney(expense.amount)}`,
     link: '/team/expense-approvals',
   });
 
@@ -92,7 +98,7 @@ export async function reimburseExpense(req, res) {
 
   notify(expense.user, {
     title: 'Expense reimbursed',
-    message: `₹${expense.amount} for "${expense.title}" has been reimbursed`,
+    message: `${await formatMoney(expense.amount)} for "${expense.title}" has been reimbursed`,
     link: '/expenses',
   });
 

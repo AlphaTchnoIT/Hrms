@@ -7,17 +7,16 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { AUDITOR_ROLES, RATING_LABELS } from '@/lib/constants';
-import { formatDateTime, getFullName } from '@/lib/format';
+import { formatDateTime, getFullName, zonedParts } from '@/lib/format';
 import { Badge, Button, Card, DataTable, ErrorMessage, Input, Modal, PageHeader, Select, Tabs, Textarea } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import RoleGuard from '@/components/layout/RoleGuard';
 import { RatingStars } from '@/components/performance/KpiWidgets';
 
 const lastMonth = () => {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const { year, month } = zonedParts();
+  const [y, m] = month === 1 ? [year - 1, 12] : [year, month - 1];
+  return `${y}-${String(m).padStart(2, '0')}`;
 };
 
 function ApprovalCell({ approval, label }) {

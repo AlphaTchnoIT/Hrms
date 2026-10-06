@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { BadgeIndianRupee, Info, Play } from 'lucide-react';
+import { Info, Play } from 'lucide-react';
+import { CurrencyBadgeIcon } from '@/components/shared/CurrencyIcon';
 import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
@@ -113,7 +114,7 @@ export default function PayrollPage() {
           columns={columns}
           rows={runs}
           loading={loading}
-          emptyIcon={BadgeIndianRupee}
+          emptyIcon={CurrencyBadgeIcon}
           emptyTitle="No payroll yet"
           emptyMessage="Run payroll for a month to generate payslips."
           onRowClick={(r) => router.push(`/payroll/${r._id}`)}

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { CalendarPlus, CalendarRange } from 'lucide-react';
 import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
-import { formatDate, formatDay, formatTime, minutesToHours } from '@/lib/format';
+import { formatDate, formatDay, formatTime, minutesToHours, zonedParts } from '@/lib/format';
 import { Badge, Button, Card, DataTable, ErrorMessage, PageHeader, Skeleton, Tabs, useConfirm } from '@/components/ui';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import CheckInCard from '@/components/attendance/CheckInCard';
@@ -15,8 +15,8 @@ import RegularizationModal from '@/components/attendance/RegularizationModal';
 
 export default function AttendancePage() {
   const confirm = useConfirm();
-  const now = new Date();
-  const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
+  const now = zonedParts();
+  const [period, setPeriod] = useState({ month: now.month, year: now.year });
   const [tab, setTab] = useState('calendar');
   const [regularizeDate, setRegularizeDate] = useState(null);
 

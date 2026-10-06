@@ -1,4 +1,4 @@
-import { User } from '../models/index.js';
+import { Settings, User } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { signToken } from '../utils/token.js';
@@ -9,12 +9,13 @@ import { getAccessRoles, getTeamSize } from '../services/access.service.js';
 /*
  * Profile + what the user can do: accessRoles (e.g. ['employee', 'manager'] for a team lead)
  * and team size, so the frontend can show the manager workspace and the direct / all toggle.
+ * company.timezone / currency: every screen shows times and money in them.
  */
 async function buildSessionUser(userId) {
-  const profile = await User.findById(userId).populate(USER_POPULATE);
+  const [profile, settings] = await Promise.all([User.findById(userId).populate(USER_POPULATE), Settings.getSettings()]);
   const team = await getTeamSize(profile._id);
   profile.$locals.hasReportees = team.direct > 0;
-  return { ...profile.toJSON(), accessRoles: getAccessRoles(profile), team };
+  return { ...profile.toJSON(), accessRoles: getAccessRoles(profile), team, company: { name: settings.companyName, timezone: settings.timezone, currency: settings.currency } };
 }
 
 // POST /api/auth/login

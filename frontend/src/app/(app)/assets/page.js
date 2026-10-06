@@ -8,7 +8,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { assetSchema, assignAssetSchema } from '@/lib/validation';
 import { ASSET_CATEGORIES, ASSET_STATUS, HR_ROLES } from '@/lib/constants';
-import { formatCurrency, formatDate, getFullName, titleCase, toInputDate } from '@/lib/format';
+import { formatCurrency, formatDate, getFullName, titleCase, toInputDate, getCurrencySymbol } from '@/lib/format';
 import { Badge, Button, Card, DataTable, Input, Modal, PageHeader, Pagination, Select, Textarea, useConfirm } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import RoleGuard from '@/components/layout/RoleGuard';
@@ -63,7 +63,7 @@ function AssetModal({ asset, onClose, onSaved }) {
           <Input label="Brand" {...register('brand')} />
           <Input label="Serial number" {...register('serialNumber')} />
           <Input label="Purchase date" type="date" max={toInputDate()} {...register('purchaseDate')} />
-          <Input label="Purchase cost" type="number" min="0" prefix="₹" {...register('purchaseCost')} />
+          <Input label="Purchase cost" type="number" min="0" prefix={getCurrencySymbol()} {...register('purchaseCost')} />
           {asset && (
             <Select
               label="Status"

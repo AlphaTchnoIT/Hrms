@@ -35,9 +35,9 @@ function EditPersonalInfo({ user, onSaved, onCancel }) {
         line1: user.address?.line1 || '',
         line2: user.address?.line2 || '',
         city: user.address?.city || '',
-        state: user.address?.state || '',
-        country: user.address?.country || 'India',
-        pincode: user.address?.pincode || '',
+        county: user.address?.county || '',
+        country: user.address?.country || 'United Kingdom',
+        postcode: user.address?.postcode || '',
       },
       emergencyContact: {
         name: user.emergencyContact?.name || '',
@@ -59,7 +59,7 @@ function EditPersonalInfo({ user, onSaved, onCancel }) {
     <form onSubmit={onSubmit} noValidate>
       <Card>
         <FormSection title="Personal" description="Job details can only be changed by HR.">
-          <Input label="Mobile number" placeholder="9876543210" {...register('phone')} />
+          <Input label="Mobile number" placeholder="07700 900123" {...register('phone')} />
           <Input label="Date of birth" type="date" max={toInputDate()} {...register('dateOfBirth')} />
           <Select label="Gender" options={GENDERS} {...register('gender')} />
           <Select label="Marital status" options={MARITAL_STATUS} {...register('maritalStatus')} />
@@ -69,15 +69,15 @@ function EditPersonalInfo({ user, onSaved, onCancel }) {
         <FormSection title="Address" description="Your current residential address.">
           <Input label="Address line 1" className="sm:col-span-2" {...register('address.line1')} />
           <Input label="Address line 2" className="sm:col-span-2" {...register('address.line2')} />
-          <Input label="City" {...register('address.city')} />
-          <Input label="State" {...register('address.state')} />
-          <Input label="Pincode" inputMode="numeric" maxLength={6} {...register('address.pincode')} />
+          <Input label="Town / city" {...register('address.city')} />
+          <Input label="County" {...register('address.county')} />
+          <Input label="Postcode" placeholder="EC2A 4NE" maxLength={8} {...register('address.postcode')} />
           <Input label="Country" {...register('address.country')} />
         </FormSection>
         <FormSection title="Emergency contact" description="Who should we call in an emergency?">
           <Input label="Name" {...register('emergencyContact.name')} />
-          <Input label="Relation" placeholder="e.g. Father" {...register('emergencyContact.relation')} />
-          <Input label="Phone" placeholder="9876543210" {...register('emergencyContact.phone')} />
+          <Input label="Relation" placeholder="e.g. Partner" {...register('emergencyContact.relation')} />
+          <Input label="Phone" placeholder="07700 900123" {...register('emergencyContact.phone')} />
         </FormSection>
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-5">
           <Button variant="secondary" onClick={onCancel}>

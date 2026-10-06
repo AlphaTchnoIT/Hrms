@@ -1,4 +1,4 @@
-// Converts a number into Indian-style words: 125000 -> "One Lakh Twenty Five Thousand"
+// Number to words. numberToWords uses the Indian system (lakh / crore) for INR; other currencies use millions
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
   'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
 const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
@@ -12,6 +12,31 @@ function belowThousand(n) {
   const hundred = Math.floor(n / 100);
   const rest = n % 100;
   return [hundred ? `${ONES[hundred]} Hundred` : '', rest ? belowHundred(rest) : ''].filter(Boolean).join(' ');
+}
+
+// International system: 1250000 -> "One Million Two Hundred Fifty Thousand"
+function internationalWords(n) {
+  const parts = [];
+  [
+    [1e9, 'Billion'],
+    [1e6, 'Million'],
+    [1e3, 'Thousand'],
+  ].forEach(([size, name]) => {
+    const chunk = Math.floor(n / size);
+    if (chunk) parts.push(`${belowThousand(chunk)} ${name}`);
+    n %= size;
+  });
+  if (n) parts.push(belowThousand(n));
+  return parts.join(' ');
+}
+
+const CURRENCY_WORDS = { INR: 'Rupees', GBP: 'Pounds', EUR: 'Euros', USD: 'Dollars', AED: 'Dirhams', AUD: 'Australian Dollars', CAD: 'Canadian Dollars', SGD: 'Singapore Dollars' };
+
+// "Pounds One Thousand Two Hundred only" (Indian lakh / crore wording for INR)
+export function amountInWords(amount, currency = 'INR') {
+  const n = Math.floor(Number(amount) || 0);
+  const words = n === 0 ? 'Zero' : currency === 'INR' ? numberToWords(n) : internationalWords(n);
+  return `${CURRENCY_WORDS[currency] || currency} ${words} only`;
 }
 
 export function numberToWords(amount) {

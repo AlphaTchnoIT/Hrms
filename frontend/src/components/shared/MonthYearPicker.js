@@ -1,10 +1,10 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { MONTHS } from '@/lib/format';
+import { MONTHS, zonedParts } from '@/lib/format';
 
 // Month navigator: ‹ September 2026 ›   (month is 1-12)
 export default function MonthYearPicker({ month, year, onChange, disableFuture = true }) {
-  const now = new Date();
-  const isCurrentOrFuture = year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
+  const now = zonedParts();
+  const isCurrentOrFuture = year > now.year || (year === now.year && month >= now.month);
 
   const go = (delta) => {
     let m = month + delta;

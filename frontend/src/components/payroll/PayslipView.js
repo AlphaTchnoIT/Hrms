@@ -1,5 +1,5 @@
-import { formatCurrency, formatDate, MONTHS } from '@/lib/format';
-import { numberToWords } from '@/lib/numberToWords';
+import { formatCurrency, formatDate, getDisplayCurrency, MONTHS } from '@/lib/format';
+import { amountInWords } from '@/lib/numberToWords';
 
 function Row({ label, value }) {
   return (
@@ -23,7 +23,7 @@ export default function PayslipView({ payslip, company }) {
           <p className="max-w-sm text-xs text-slate-500">{company?.address}</p>
         </div>
         <div className="sm:text-right">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Payslip for the month of</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Payslip for</p>
           <p className="text-lg font-semibold text-brand-700">
             {MONTHS[payslip.month - 1]} {payslip.year}
           </p>
@@ -38,10 +38,11 @@ export default function PayslipView({ payslip, company }) {
           <Row label="Department" value={emp.department} />
         </div>
         <div>
-          <Row label="Date of joining" value={formatDate(emp.dateOfJoining)} />
-          <Row label="PAN" value={emp.panNumber} />
-          <Row label="Bank" value={emp.bankName} />
+          <Row label="NI number" value={emp.niNumber} />
+          <Row label="Tax code / NI category" value={[emp.taxCode, emp.niCategory].filter(Boolean).join(' / ')} />
+          <Row label="Bank" value={[emp.bankName, emp.sortCode].filter(Boolean).join(' · ')} />
           <Row label="Account no." value={emp.accountNumber} />
+          <Row label="Date of joining" value={formatDate(emp.dateOfJoining)} />
         </div>
       </div>
 
@@ -55,7 +56,7 @@ export default function PayslipView({ payslip, company }) {
           <p className="font-semibold">{payslip.paidDays}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">LOP days</p>
+          <p className="text-xs text-slate-500">Unpaid days</p>
           <p className="font-semibold text-red-600">{payslip.lopDays}</p>
         </div>
       </div>
@@ -92,8 +93,18 @@ export default function PayslipView({ payslip, company }) {
           <span className="font-semibold text-slate-700">Net pay</span>
           <span className="text-2xl font-bold text-brand-700">{formatCurrency(payslip.netPay)}</span>
         </div>
-        <p className="mt-1 text-xs text-slate-600">Rupees {numberToWords(payslip.netPay)} only</p>
+        {getDisplayCurrency() === 'INR' && <p className="mt-1 text-xs text-slate-600">{amountInWords(payslip.netPay, getDisplayCurrency())}</p>}
+        {payslip.taxablePay !== undefined && <p className="mt-1 text-xs text-slate-600">Taxable pay this month: {formatCurrency(payslip.taxablePay)}</p>}
       </div>
+
+      {payslip.employerContributions?.length > 0 && (
+        <div className="mt-4 rounded-lg border border-slate-200 p-4 text-sm">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Paid by your employer (not deducted)</p>
+          {payslip.employerContributions.map((c) => (
+            <Row key={c.name} label={c.name} value={formatCurrency(c.amount)} />
+          ))}
+        </div>
+      )}
 
       <p className="mt-6 text-center text-[11px] text-slate-400">
         This is a computer generated payslip and does not require a signature.

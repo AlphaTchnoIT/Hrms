@@ -24,9 +24,10 @@ import AttendanceSummary from '@/components/attendance/AttendanceSummary';
 import LeaveBalanceCards from '@/components/leave/LeaveBalanceCards';
 import { AttendanceTrendChart, DepartmentChart } from '@/components/dashboard/Charts';
 import { AnnouncementsWidget, CelebrationsWidget, UpcomingHolidays, WhoIsOutWidget } from '@/components/dashboard/Widgets';
+import { formatDate, zonedParts } from '@/lib/format';
 
 function greeting() {
-  const hour = new Date().getHours();
+  const { hour } = zonedParts();
   if (hour < 12) return 'Good morning';
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
@@ -71,8 +72,8 @@ function PendingApprovals({ stats }) {
 export default function DashboardPage() {
   const { user, isHR, isApprover } = useAuth();
   const { data, loading, error, refetch } = useFetch('/dashboard');
-  const now = new Date();
-  const myMonth = useFetch(isApprover ? null : '/attendance/my', { params: { month: now.getMonth() + 1, year: now.getFullYear() } });
+  const now = zonedParts();
+  const myMonth = useFetch(isApprover ? null : '/attendance/my', { params: { month: now.month, year: now.year } });
 
   if (loading && !data) return <PageLoader />;
   if (error) return <ErrorMessage message={error} onRetry={refetch} />;
@@ -84,7 +85,7 @@ export default function DashboardPage() {
       {/* Greeting + quick actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-slate-500">{now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p className="text-sm text-slate-500">{formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
             {greeting()}, {user.firstName} 👋
           </h1>

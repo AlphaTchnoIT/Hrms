@@ -1,5 +1,4 @@
 import {
-  BadgeIndianRupee,
   BookOpen,
   Briefcase,
   Building2,
@@ -41,6 +40,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { APPROVER_ROLES, AUDITOR_ROLES, HR_ROLES, ROLES } from './constants';
+import { CurrencyBadgeIcon } from '@/components/shared/CurrencyIcon';
 
 const REPORT_ROLES = [...APPROVER_ROLES, ROLES.QA, ROLES.IT];
 
@@ -130,7 +130,7 @@ export const NAVIGATION = [
     roles: HR_ROLES,
     items: [
       { label: 'Recruitment (ATS)', href: '/recruitment', icon: UserSearch },
-      { label: 'Payroll', href: '/payroll', icon: BadgeIndianRupee },
+      { label: 'Payroll', href: '/payroll', icon: CurrencyBadgeIcon },
       { label: 'Leave Policies', href: '/leave-types', icon: UserCog },
       { label: 'Settings', href: '/settings', icon: Settings, roles: [ROLES.ADMIN] },
     ],

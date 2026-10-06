@@ -13,7 +13,23 @@ export const AUDITOR_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.QA];
 export const QA_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.QA];
 export const IT_ROLES = [ROLES.ADMIN, ROLES.IT];
 
-export const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'intern'];
+export const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'fixed-term', 'zero-hours', 'contract', 'apprentice', 'intern'];
+
+// UK payroll options
+export const NI_CATEGORIES = [
+  { value: 'A', label: 'A – Standard' },
+  { value: 'M', label: 'M – Under 21' },
+  { value: 'H', label: 'H – Apprentice under 25' },
+  { value: 'C', label: 'C – Over State Pension age' },
+  { value: 'X', label: 'X – Not liable' },
+];
+export const STUDENT_LOAN_PLANS = [
+  { value: 'none', label: 'None' },
+  { value: 'plan1', label: 'Plan 1' },
+  { value: 'plan2', label: 'Plan 2' },
+  { value: 'plan4', label: 'Plan 4 (Scotland)' },
+  { value: 'plan5', label: 'Plan 5' },
+];
 export const EMPLOYEE_STATUS = ['active', 'inactive', 'terminated'];
 export const GENDERS = ['male', 'female', 'other'];
 export const MARITAL_STATUS = ['single', 'married', 'divorced', 'widowed'];
@@ -23,7 +39,7 @@ export const EXPENSE_CATEGORIES = ['travel', 'food', 'accommodation', 'office-su
 export const GOAL_STATUS = ['not-started', 'in-progress', 'completed'];
 export const ASSET_CATEGORIES = ['laptop', 'desktop', 'monitor', 'mobile', 'accessory', 'furniture', 'other'];
 export const ASSET_STATUS = ['available', 'assigned', 'maintenance', 'retired'];
-export const HOLIDAY_TYPES = ['national', 'festival', 'optional', 'company'];
+export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company'];
 export const ANNOUNCEMENT_CATEGORIES = ['general', 'policy', 'event', 'celebration', 'urgent'];
 export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -42,6 +58,8 @@ export const STATUS_COLORS = {
   leave: 'purple',
   'on-leave': 'purple',
   holiday: 'blue',
+  'bank-holiday': 'blue',
+  regional: 'purple',
   'weekly-off': 'gray',
   'checked-in': 'blue',
   'not-checked-in': 'gray',

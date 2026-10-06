@@ -27,100 +27,108 @@ export const DESIGNATIONS = [
   { title: 'IT Support Engineer', level: 3 },
 ];
 
+// UK leave: 25 days annual leave (plus bank holidays), company sick pay and statutory-style leave
 export const LEAVE_TYPES = [
-  { name: 'Casual Leave', code: 'CL', annualQuota: 12, isPaid: true, color: '#6366f1', description: 'For personal work' },
-  { name: 'Sick Leave', code: 'SL', annualQuota: 8, isPaid: true, color: '#ef4444', description: 'When you are unwell' },
-  { name: 'Earned Leave', code: 'EL', annualQuota: 15, isPaid: true, color: '#10b981', description: 'Planned vacations' },
-  { name: 'Emergency Leave', code: 'EML', annualQuota: 3, isPaid: true, color: '#f97316', description: 'Unplanned personal or family emergency' },
-  { name: 'Loss of Pay', code: 'LOP', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Unpaid leave' },
+  { name: 'Annual Leave', code: 'AL', annualQuota: 25, isPaid: true, color: '#10b981', description: 'Holiday entitlement, on top of bank holidays' },
+  { name: 'Sick Leave', code: 'SL', annualQuota: 10, isPaid: true, color: '#ef4444', description: 'Company sick pay when you are unwell' },
+  { name: 'Compassionate Leave', code: 'CPL', annualQuota: 5, isPaid: true, color: '#8b5cf6', description: 'Bereavement or serious family illness' },
+  { name: 'Time Off for Dependants', code: 'TOD', annualQuota: 3, isPaid: true, color: '#f97316', description: 'Unexpected emergencies involving a dependant' },
+  { name: "Carer's Leave", code: 'CRL', annualQuota: 5, isPaid: false, color: '#0ea5e9', description: 'To care for a dependant with a long-term need' },
+  { name: 'Unpaid Leave', code: 'UL', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Agreed time off without pay' },
 ];
 
+// Bank holidays in England & Wales (2026 and 2027)
 export const HOLIDAYS = [
-  { name: "New Year's Day", date: '2026-01-01', type: 'optional' },
-  { name: 'Republic Day', date: '2026-01-26', type: 'national' },
-  { name: 'Holi', date: '2026-03-04', type: 'festival' },
-  { name: 'Eid ul-Fitr', date: '2026-03-20', type: 'festival' },
-  { name: 'Good Friday', date: '2026-04-03', type: 'festival' },
-  { name: 'Independence Day', date: '2026-08-15', type: 'national' },
-  { name: 'Raksha Bandhan', date: '2026-08-28', type: 'festival' },
-  { name: 'Gandhi Jayanti', date: '2026-10-02', type: 'national' },
-  { name: 'Dussehra', date: '2026-10-20', type: 'festival' },
-  { name: 'Diwali', date: '2026-11-09', type: 'festival' },
-  { name: 'Christmas', date: '2026-12-25', type: 'national' },
-  { name: 'Company Foundation Day', date: '2026-12-31', type: 'company' },
+  { name: "New Year's Day", date: '2026-01-01', type: 'bank-holiday' },
+  { name: 'Good Friday', date: '2026-04-03', type: 'bank-holiday' },
+  { name: 'Easter Monday', date: '2026-04-06', type: 'bank-holiday' },
+  { name: 'Early May bank holiday', date: '2026-05-04', type: 'bank-holiday' },
+  { name: 'Spring bank holiday', date: '2026-05-25', type: 'bank-holiday' },
+  { name: 'Summer bank holiday', date: '2026-08-31', type: 'bank-holiday' },
+  { name: 'Christmas Day', date: '2026-12-25', type: 'bank-holiday' },
+  { name: 'Boxing Day (substitute day)', date: '2026-12-28', type: 'bank-holiday' },
+  { name: 'Company Wellbeing Day', date: '2026-12-24', type: 'company' },
+  { name: "New Year's Day", date: '2027-01-01', type: 'bank-holiday' },
+  { name: 'Good Friday', date: '2027-03-26', type: 'bank-holiday' },
+  { name: 'Easter Monday', date: '2027-03-29', type: 'bank-holiday' },
+  { name: 'Early May bank holiday', date: '2027-05-03', type: 'bank-holiday' },
+  { name: 'Spring bank holiday', date: '2027-05-31', type: 'bank-holiday' },
+  { name: 'Summer bank holiday', date: '2027-08-30', type: 'bank-holiday' },
+  { name: 'Christmas Day (substitute day)', date: '2027-12-27', type: 'bank-holiday' },
+  { name: 'Boxing Day (substitute day)', date: '2027-12-28', type: 'bank-holiday' },
 ];
 
 export const DEFAULT_PASSWORD = 'Password@123';
 
 /*
  * People. "dept" and "desig" are matched by name, "manager" by email.
- * Salary values are monthly.
+ * Pay is UK PAYE: annual salary in GBP, tax code, NI category, pension, student loan.
  */
 export const EMPLOYEES = [
   {
-    firstName: 'Aarav', lastName: 'Sharma', email: 'admin@hrms.com', role: 'admin', gender: 'male',
-    dept: 'Operations', desig: 'Chief Executive Officer', dateOfJoining: '2020-04-01', dateOfBirth: '1985-06-15',
-    salary: { basic: 150000, hra: 60000, conveyance: 5000, specialAllowance: 50000, monthlyTds: 45000 },
+    firstName: 'Oliver', lastName: 'Bennett', email: 'admin@hrms.com', role: 'admin', gender: 'male',
+    dept: 'Operations', desig: 'Chief Executive Officer', dateOfJoining: '2020-04-01', dateOfBirth: '1980-06-15',
+    salary: { annualSalary: 120000, taxCode: '1257L' },
   },
   {
-    firstName: 'Priya', lastName: 'Verma', email: 'hr@hrms.com', role: 'hr', gender: 'female',
-    dept: 'Human Resources', desig: 'HR Manager', manager: 'admin@hrms.com', dateOfJoining: '2021-01-11', dateOfBirth: '1990-10-12',
-    salary: { basic: 60000, hra: 24000, conveyance: 3000, specialAllowance: 18000, monthlyTds: 9000 },
+    firstName: 'Charlotte', lastName: 'Hughes', email: 'hr@hrms.com', role: 'hr', gender: 'female',
+    dept: 'Human Resources', desig: 'HR Manager', manager: 'admin@hrms.com', dateOfJoining: '2021-01-11', dateOfBirth: '1988-10-12',
+    salary: { annualSalary: 52000, taxCode: '1257L' },
   },
   {
-    firstName: 'Rohan', lastName: 'Mehta', email: 'manager@hrms.com', role: 'manager', gender: 'male',
-    dept: 'Engineering', desig: 'Engineering Manager', manager: 'admin@hrms.com', dateOfJoining: '2021-06-01', dateOfBirth: '1988-02-20',
-    salary: { basic: 90000, hra: 36000, conveyance: 3000, specialAllowance: 30000, monthlyTds: 18000 },
+    firstName: 'James', lastName: 'Wilson', email: 'manager@hrms.com', role: 'manager', gender: 'male',
+    dept: 'Engineering', desig: 'Engineering Manager', manager: 'admin@hrms.com', dateOfJoining: '2021-06-01', dateOfBirth: '1986-02-20',
+    salary: { annualSalary: 78000, taxCode: '1257L' },
   },
   {
-    firstName: 'Ananya', lastName: 'Iyer', email: 'employee@hrms.com', role: 'employee', gender: 'female',
+    firstName: 'Emily', lastName: 'Clarke', email: 'employee@hrms.com', role: 'employee', gender: 'female',
     dept: 'Engineering', desig: 'Senior Software Engineer', manager: 'manager@hrms.com', dateOfJoining: '2022-03-14', dateOfBirth: '1994-10-08',
-    salary: { basic: 55000, hra: 22000, conveyance: 2000, specialAllowance: 16000, monthlyTds: 6000 },
+    salary: { annualSalary: 62000, taxCode: '1257L', studentLoanPlan: 'plan2' },
   },
   {
-    firstName: 'Vikram', lastName: 'Singh', email: 'vikram@hrms.com', role: 'employee', gender: 'male',
-    dept: 'Engineering', desig: 'Team Lead', manager: 'manager@hrms.com', dateOfJoining: '2023-07-03', dateOfBirth: '1997-12-01',
-    salary: { basic: 40000, hra: 16000, conveyance: 2000, specialAllowance: 10000, monthlyTds: 2500 },
+    firstName: 'Thomas', lastName: 'Wright', email: 'thomas@hrms.com', role: 'employee', gender: 'male',
+    dept: 'Engineering', desig: 'Team Lead', manager: 'manager@hrms.com', dateOfJoining: '2023-07-03', dateOfBirth: '1992-12-01',
+    salary: { annualSalary: 58000, taxCode: '1257L' },
   },
   {
-    firstName: 'Sneha', lastName: 'Kapoor', email: 'sneha@hrms.com', role: 'employee', gender: 'female',
-    dept: 'Engineering', desig: 'Software Engineer', manager: 'vikram@hrms.com', dateOfJoining: '2024-01-15', dateOfBirth: '1998-10-25',
-    salary: { basic: 38000, hra: 15200, conveyance: 2000, specialAllowance: 9000, monthlyTds: 2000 },
+    firstName: 'Sophie', lastName: 'Martin', email: 'sophie@hrms.com', role: 'employee', gender: 'female',
+    dept: 'Engineering', desig: 'Software Engineer', manager: 'thomas@hrms.com', dateOfJoining: '2024-01-15', dateOfBirth: '1998-10-25',
+    salary: { annualSalary: 42000, taxCode: '1257L', studentLoanPlan: 'plan2' },
   },
   {
-    firstName: 'Karan', lastName: 'Patel', email: 'karan@hrms.com', role: 'employee', gender: 'male',
-    dept: 'Engineering', desig: 'Intern', manager: 'vikram@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2002-05-17',
-    salary: { basic: 15000, hra: 0, conveyance: 0, specialAllowance: 5000, pfApplicable: false },
+    firstName: 'Harry', lastName: 'Evans', email: 'harry@hrms.com', role: 'employee', gender: 'male',
+    dept: 'Engineering', desig: 'Intern', manager: 'thomas@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2005-05-17',
+    salary: { annualSalary: 24000, taxCode: '1257L', niCategory: 'M', studentLoanPlan: 'plan5' },
   },
   {
-    firstName: 'Neha', lastName: 'Gupta', email: 'neha@hrms.com', role: 'employee', gender: 'female',
+    firstName: 'Grace', lastName: 'Walker', email: 'grace@hrms.com', role: 'employee', gender: 'female',
     dept: 'Human Resources', desig: 'HR Executive', manager: 'hr@hrms.com', dateOfJoining: '2023-02-01', dateOfBirth: '1996-08-30',
-    salary: { basic: 30000, hra: 12000, conveyance: 2000, specialAllowance: 6000 },
+    salary: { annualSalary: 31000, taxCode: '1257L' },
   },
   {
-    firstName: 'Arjun', lastName: 'Reddy', email: 'arjun@hrms.com', role: 'employee', gender: 'male',
+    firstName: 'Jack', lastName: 'Robinson', email: 'jack@hrms.com', role: 'employee', gender: 'male',
     dept: 'Sales', desig: 'Sales Executive', manager: 'admin@hrms.com', dateOfJoining: '2022-09-19', dateOfBirth: '1993-11-11',
-    salary: { basic: 35000, hra: 14000, conveyance: 3000, specialAllowance: 8000, monthlyTds: 1500 },
+    salary: { annualSalary: 34000, monthlyAllowance: 300, taxCode: '1257L' },
   },
   {
-    firstName: 'Isha', lastName: 'Nair', email: 'isha@hrms.com', role: 'employee', gender: 'female',
+    firstName: 'Amelia', lastName: 'Hall', email: 'amelia@hrms.com', role: 'employee', gender: 'female',
     dept: 'Marketing', desig: 'Marketing Executive', manager: 'admin@hrms.com', dateOfJoining: '2023-11-06', dateOfBirth: '1995-04-04',
-    salary: { basic: 32000, hra: 12800, conveyance: 2000, specialAllowance: 7000 },
+    salary: { annualSalary: 33000, taxCode: '1257L', studentLoanPlan: 'plan1' },
   },
   {
-    firstName: 'Rahul', lastName: 'Joshi', email: 'rahul@hrms.com', role: 'employee', gender: 'male',
-    dept: 'Finance', desig: 'Accountant', manager: 'admin@hrms.com', dateOfJoining: '2021-10-04', dateOfBirth: '1991-10-05',
-    salary: { basic: 36000, hra: 14400, conveyance: 2000, specialAllowance: 8000, monthlyTds: 1800 },
+    firstName: 'George', lastName: 'King', email: 'george@hrms.com', role: 'employee', gender: 'male',
+    dept: 'Finance', desig: 'Accountant', manager: 'admin@hrms.com', dateOfJoining: '2021-10-04', dateOfBirth: '1990-10-05',
+    salary: { annualSalary: 45000, taxCode: '1257L', postgraduateLoan: true },
   },
   {
-    firstName: 'Meera', lastName: 'Nambiar', email: 'qa@hrms.com', role: 'qa', gender: 'female',
+    firstName: 'Olivia', lastName: 'Scott', email: 'qa@hrms.com', role: 'qa', gender: 'female',
     dept: 'Quality', desig: 'QA Auditor', manager: 'hr@hrms.com', dateOfJoining: '2022-05-02', dateOfBirth: '1992-07-21',
-    salary: { basic: 34000, hra: 13600, conveyance: 2000, specialAllowance: 7000, monthlyTds: 1200 },
+    workLocation: 'Glasgow (remote)', salary: { annualSalary: 36000, taxCode: 'S1257L' },
   },
   {
-    firstName: 'Dev', lastName: 'Malhotra', email: 'it@hrms.com', role: 'it', gender: 'male',
+    firstName: 'Daniel', lastName: 'Green', email: 'it@hrms.com', role: 'it', gender: 'male',
     dept: 'IT Support', desig: 'IT Support Engineer', manager: 'admin@hrms.com', dateOfJoining: '2023-04-10', dateOfBirth: '1994-01-30',
-    salary: { basic: 33000, hra: 13200, conveyance: 2000, specialAllowance: 6500, monthlyTds: 1000 },
+    salary: { annualSalary: 35000, taxCode: '1257L' },
   },
 ];
 
@@ -137,8 +145,8 @@ export const ANNOUNCEMENTS = [
     category: 'policy',
   },
   {
-    title: 'Diwali Celebration on 6th November',
-    content: 'Join us for the Diwali celebration in the cafeteria at 4 PM. Traditional dress encouraged!',
+    title: 'Christmas party on Friday 18th December',
+    content: 'Join us for the team Christmas party at the office from 5 PM. Food, drinks and Secret Santa — please bring a gift up to £15!',
     category: 'event',
   },
 ];

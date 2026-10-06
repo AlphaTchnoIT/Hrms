@@ -17,10 +17,11 @@ import AttendanceCalendar from '@/components/attendance/AttendanceCalendar';
 import AttendanceSummary from '@/components/attendance/AttendanceSummary';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import LeaveDates from '@/components/leave/LeaveDates';
+import { zonedParts } from '@/lib/format';
 
 function EmployeeAttendance({ employeeId }) {
-  const now = new Date();
-  const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
+  const now = zonedParts();
+  const [period, setPeriod] = useState({ month: now.month, year: now.year });
   const { data, loading } = useFetch(`/attendance/employee/${employeeId}`, { params: period });
 
   return (

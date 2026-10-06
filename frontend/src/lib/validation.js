@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toInputDate } from '@/lib/format';
 
 /*
  * Form validation schemas (same rules as the backend validators).
@@ -29,11 +30,11 @@ const date = (label) => z.string({ required_error: `${label} is required` }).min
 const time = (label) => z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, `${label} is required`);
 
 export const emailRule = z.string().trim().min(1, 'Email is required').email('Enter a valid email address');
-// Spaces and dashes are ignored: "98765 43210" and "+91-9876543210" are both valid
+// UK numbers ("07700 900123", "+44 20 7946 0123") or any international number starting with +
 const phoneRule = z
   .string()
   .trim()
-  .refine((v) => /^(\+91)?[6-9]\d{9}$/.test(v.replace(/[\s-]/g, '')), 'Enter a valid 10-digit mobile number');
+  .refine((v) => /^(?:0\d{9,10}|\+44\d{9,10}|\+[1-9]\d{7,14})$/.test(v.replace(/[\s\-()]/g, '')), 'Enter a valid phone number (e.g. 07700 900123)');
 const urlRule = (label) => z.string().trim().url(`Enter a valid ${label} (https://...)`);
 
 export const passwordRule = z
@@ -54,10 +55,7 @@ const number = (label, { min = 0, max = 10000000, int = false, required: isRequi
       .refine((v) => v <= max, `${label} must be at most ${max}`)
   );
 
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const todayStr = () => toInputDate();
 
 const yearsBetween = (from, to) => (new Date(to) - new Date(from)) / (365.25 * 24 * 3600 * 1000);
 
@@ -85,10 +83,10 @@ export const resetPasswordSchema = z.object({ newPassword: passwordRule });
 const addressSchema = z.object({
   line1: text('Address line 1', 150),
   line2: text('Address line 2', 150),
-  city: text('City', 60),
-  state: text('State', 60),
+  city: text('Town / city', 60),
+  county: text('County', 60),
   country: text('Country', 60),
-  pincode: optional(z.string().trim().regex(/^\d{6}$/, 'Pincode must be 6 digits')),
+  postcode: optional(z.string().trim().toUpperCase().regex(/^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/, 'Enter a valid UK postcode (e.g. EC2A 4NE)')),
 });
 
 const emergencySchema = z.object({
@@ -134,21 +132,27 @@ const employeeBase = z.object({
   dateOfBirth: dobRule,
   maritalStatus: z.string().optional(),
   bloodGroup: z.string().optional(),
-  panNumber: optional(z.string().trim().toUpperCase().regex(/^[A-Z]{5}\d{4}[A-Z]$/, 'Enter a valid PAN (e.g. ABCDE1234F)')),
+  niNumber: optional(
+    z
+      .string()
+      .trim()
+      .toUpperCase()
+      .refine((v) => /^[A-Z]{2}\d{6}[A-D]$/.test(v.replace(/\s/g, '')), 'Enter a valid National Insurance number (e.g. QQ 12 34 56 C)')
+  ),
   bankDetails: z.object({
     accountHolderName: text('Account holder name', 80),
     bankName: text('Bank name', 80),
-    accountNumber: optional(z.string().trim().regex(/^\d{9,18}$/, 'Account number must be 9 to 18 digits')),
-    ifsc: optional(z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC (e.g. HDFC0001234)')),
+    accountNumber: optional(z.string().trim().regex(/^\d{8}$/, 'UK account number must be 8 digits')),
+    sortCode: optional(z.string().trim().refine((v) => /^\d{6}$/.test(v.replace(/[\s-]/g, '')), 'Sort code must be 6 digits (e.g. 12-34-56)')),
   }),
   salary: z.object({
-    basic: number('Basic'),
-    hra: number('HRA'),
-    conveyance: number('Conveyance'),
-    specialAllowance: number('Special allowance'),
-    otherAllowance: number('Other allowance'),
-    monthlyTds: number('Monthly TDS'),
-    pfApplicable: z.boolean(),
+    annualSalary: number('Annual salary'),
+    monthlyAllowance: number('Monthly allowance'),
+    taxCode: optional(z.string().trim().toUpperCase().regex(/^[SC]?(?:\d{1,4}[LMNT]|K\d{1,4}|BR|D0|D1|0T|NT)(?: ?(?:W1|M1|X))?$/, 'Enter a valid tax code (e.g. 1257L)')),
+    niCategory: z.string().optional(),
+    pensionEnrolled: z.boolean(),
+    studentLoanPlan: z.string().optional(),
+    postgraduateLoan: z.boolean(),
   }),
 });
 
@@ -156,12 +160,8 @@ export const employeeSchema = employeeBase.superRefine((d, ctx) => {
   if (d.dateOfBirth && d.dateOfJoining && yearsBetween(d.dateOfBirth, d.dateOfJoining) < 18) {
     ctx.addIssue({ code: 'custom', path: ['dateOfJoining'], message: 'Employee must be at least 18 on the joining date' });
   }
-  const gross = d.salary.basic + d.salary.hra + d.salary.conveyance + d.salary.specialAllowance + d.salary.otherAllowance;
-  if (d.salary.monthlyTds > gross) {
-    ctx.addIssue({ code: 'custom', path: ['salary.monthlyTds'], message: 'TDS cannot be more than gross salary' });
-  }
-  if (d.salary.hra > 0 && d.salary.basic === 0) {
-    ctx.addIssue({ code: 'custom', path: ['salary.basic'], message: 'Basic salary is required when HRA is set' });
+  if (d.salary.monthlyAllowance > 0 && d.salary.annualSalary === 0) {
+    ctx.addIssue({ code: 'custom', path: ['salary.annualSalary'], message: 'Annual salary is required when an allowance is set' });
   }
 });
 
@@ -316,7 +316,7 @@ export const settingsSchema = z
       } catch {
         return false;
       }
-    }, 'Enter a valid timezone (e.g. Asia/Kolkata)'),
+    }, 'Enter a valid timezone (e.g. Europe/London)'),
     currency: z.string().optional(),
     officeStartTime: time('Office start time'),
     officeEndTime: time('Office end time'),
@@ -325,9 +325,6 @@ export const settingsSchema = z
     fullDayMinutes: number('Full day minutes', { min: 60, max: 1440, int: true, required: true }),
     weeklyOffs: z.array(z.number()).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
-    pfRate: number('PF rate', { max: 100, required: true }),
-    pfCeiling: number('PF cap', { required: true }),
-    professionalTax: number('Professional tax', { max: 2500, required: true }),
     attendanceBasedLop: z.boolean(),
   })
   .refine((d) => d.officeEndTime > d.officeStartTime, { path: ['officeEndTime'], message: 'End time must be after start time' })

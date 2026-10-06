@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
+import { DEFAULT_UK_PAYROLL, DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
 
 /*
  * Company-wide settings. Only one document exists in this collection.
@@ -7,27 +7,49 @@ import { DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/inde
  */
 const settingsSchema = new mongoose.Schema(
   {
-    companyName: { type: String, default: 'Acme Technologies Pvt Ltd' },
+    companyName: { type: String, default: 'Acme Technologies Ltd' },
     companyEmail: String,
     companyPhone: String,
     companyAddress: String,
-    timezone: { type: String, default: 'Asia/Kolkata' },
-    currency: { type: String, default: 'INR' },
+    timezone: { type: String, default: 'Europe/London' }, // all day / time logic and every screen use this
+    currency: { type: String, default: 'GBP' }, // ISO code; all amounts on screen use it
 
     // Attendance
-    officeStartTime: { type: String, default: '09:30' },
-    officeEndTime: { type: String, default: '18:30' },
+    officeStartTime: { type: String, default: '09:00' },
+    officeEndTime: { type: String, default: '17:30' },
     graceMinutes: { type: Number, default: 15 },
     halfDayMinutes: { type: Number, default: 240 },
     fullDayMinutes: { type: Number, default: 480 },
     weeklyOffs: { type: [Number], default: [0, 6] }, // 0 = Sunday, 6 = Saturday
     requireLocationForCheckIn: { type: Boolean, default: false },
 
-    // Payroll
-    pfRate: { type: Number, default: 12 },
-    pfCeiling: { type: Number, default: 1800 }, // max PF per month (0 = no cap)
-    professionalTax: { type: Number, default: 200 },
+    // Payroll: unpaid days (absences / unpaid leave) reduce pay; UK PAYE rates below
     attendanceBasedLop: { type: Boolean, default: true },
+    payroll: {
+      type: new mongoose.Schema(
+        {
+          taxYear: String,
+          personalAllowance: Number,
+          taxBands: [{ upTo: Number, rate: Number, _id: false }],
+          scottishTaxBands: [{ upTo: Number, rate: Number, _id: false }],
+          niPrimaryThreshold: Number,
+          niUpperEarningsLimit: Number,
+          niMainRate: Number,
+          niUpperRate: Number,
+          niSecondaryThreshold: Number,
+          niEmployerRate: Number,
+          pensionLowerLimit: Number,
+          pensionUpperLimit: Number,
+          pensionEmployeeRate: Number,
+          pensionEmployerRate: Number,
+          studentLoanThresholds: { plan1: Number, plan2: Number, plan4: Number, plan5: Number, postgrad: Number },
+          studentLoanRate: Number,
+          postgradLoanRate: Number,
+        },
+        { _id: false }
+      ),
+      default: () => structuredClone(DEFAULT_UK_PAYROLL),
+    },
 
     // Performance (configurable KPI thresholds)
     kpiTargets: {

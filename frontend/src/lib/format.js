@@ -3,20 +3,61 @@ export const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// "YYYY-MM-DD" strings are treated as local calendar dates (no timezone shift)
+/*
+ * Every time on screen is shown in the company timezone (Settings -> Timezone), not the
+ * browser's, so a manager abroad sees the same clock as the office. Set from the login session.
+ */
+const LOCALE = 'en-GB';
+let displayTimeZone = 'Europe/London';
+
+export function setDisplayTimeZone(timeZone) {
+  if (!timeZone) return;
+  try {
+    new Intl.DateTimeFormat(LOCALE, { timeZone });
+    displayTimeZone = timeZone;
+  } catch {
+    // unknown timezone: keep the current one
+  }
+}
+
+export function getDisplayTimeZone() {
+  return displayTimeZone;
+}
+
+// e.g. "BST" / "GMT" for Europe/London
+export function getTimeZoneLabel(date = new Date()) {
+  const part = new Intl.DateTimeFormat(LOCALE, { timeZone: displayTimeZone, timeZoneName: 'short' }).formatToParts(date).find((p) => p.type === 'timeZoneName');
+  return part?.value || displayTimeZone;
+}
+
+const isDateOnly = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+// "YYYY-MM-DD" strings are calendar dates: they are read as UTC midnight and shown in UTC (no day shift)
 function toDate(value) {
   if (!value) return null;
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (isDateOnly(value)) {
     const [y, m, d] = value.split('-').map(Number);
-    return new Date(y, m - 1, d);
+    return new Date(Date.UTC(y, m - 1, d));
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// Year, month (1-12), day, hour, minute and weekday (0 = Sunday) of a moment in the company timezone
+export function zonedParts(value = new Date()) {
+  const date = toDate(value) || new Date();
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: displayTimeZone, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', weekday: 'short', hourCycle: 'h23' })
+      .formatToParts(date)
+      .map((p) => [p.type, p.value])
+  );
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(parts.hour), minute: Number(parts.minute), weekday: weekdays.indexOf(parts.weekday) };
+}
+
 export function formatDate(value, options = { day: '2-digit', month: 'short', year: 'numeric' }) {
   const date = toDate(value);
-  return date ? date.toLocaleDateString('en-IN', options) : '—';
+  return date ? date.toLocaleDateString(LOCALE, { ...options, timeZone: isDateOnly(value) ? 'UTC' : displayTimeZone }) : '—';
 }
 
 export function formatDay(value) {
@@ -25,7 +66,7 @@ export function formatDay(value) {
 
 export function formatTime(value) {
   const date = toDate(value);
-  return date ? date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—';
+  return date ? date.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: displayTimeZone }) : '—';
 }
 
 export function formatDateTime(value) {
@@ -33,8 +74,38 @@ export function formatDateTime(value) {
   return date ? `${formatDate(date)}, ${formatTime(date)}` : '—';
 }
 
-export function formatCurrency(amount, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(
+/*
+ * Money is shown in the company currency (Settings -> Currency), e.g. £1,250.00 for GBP.
+ * INR keeps its own digit grouping (₹1,25,000).
+ */
+let displayCurrency = 'GBP';
+
+export function setDisplayCurrency(currency) {
+  if (!currency) return;
+  try {
+    new Intl.NumberFormat(LOCALE, { style: 'currency', currency });
+    displayCurrency = currency.toUpperCase();
+  } catch {
+    // unknown currency code: keep the current one
+  }
+}
+
+export function getDisplayCurrency() {
+  return displayCurrency;
+}
+
+const currencyLocale = (currency) => (currency === 'INR' ? 'en-IN' : LOCALE);
+
+// "£", "₹", "€" ... for input prefixes
+export function getCurrencySymbol(currency = displayCurrency) {
+  const part = new Intl.NumberFormat(currencyLocale(currency), { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
+    .formatToParts(0)
+    .find((p) => p.type === 'currency');
+  return part?.value || currency;
+}
+
+export function formatCurrency(amount, currency = displayCurrency) {
+  return new Intl.NumberFormat(currencyLocale(currency), { style: 'currency', currency, maximumFractionDigits: 2 }).format(
     Number(amount) || 0
   );
 }
@@ -67,10 +138,11 @@ export function titleCase(text = '') {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Date object -> "YYYY-MM-DD" in local time (for <input type="date">)
+// Date -> "YYYY-MM-DD" in the company timezone (for <input type="date">); toInputDate() = today there
 export function toInputDate(value = new Date()) {
-  const date = toDate(value);
-  if (!date) return '';
+  if (isDateOnly(value)) return value;
+  if (!toDate(value)) return '';
+  const { year, month, day } = zonedParts(value);
   const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${year}-${pad(month)}-${pad(day)}`;
 }

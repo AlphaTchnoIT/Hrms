@@ -2,7 +2,7 @@
  * Safe upgrade for an existing database (does NOT delete anything).
  * Adds what the new modules need, only if it is missing:
  *   - Quality & IT Support departments, QA Auditor & IT Support Engineer designations
- *   - Emergency Leave type
+ *   - Time Off for Dependants leave type
  *   - QA and IT demo accounts (qa@hrms.com, it@hrms.com)
  *   - Default warning triggers (only when there are none)
  *
@@ -15,7 +15,7 @@ import { DEFAULT_PASSWORD, DEPARTMENTS, DESIGNATIONS, EMPLOYEES, LEAVE_TYPES, WA
 
 const NEW_DEPARTMENTS = ['Quality', 'IT Support'];
 const NEW_DESIGNATIONS = ['QA Auditor', 'IT Support Engineer', 'Team Lead'];
-const NEW_LEAVE_TYPES = ['EML'];
+const NEW_LEAVE_TYPES = ['TOD'];
 const NEW_USERS = ['qa@hrms.com', 'it@hrms.com'];
 
 async function upgrade() {
@@ -65,8 +65,8 @@ async function upgrade() {
       department: department?._id || null,
       designation: designation?._id || null,
       reportingManager: manager?._id || null,
-      workLocation: 'Bengaluru',
-      salary: { pfApplicable: true, ...e.salary },
+      workLocation: e.workLocation || 'London',
+      salary: { niCategory: 'A', pensionEnrolled: true, ...e.salary },
     });
     console.log(`✓ User added: ${e.email} (${e.role}) / ${DEFAULT_PASSWORD}`);
   }

@@ -49,7 +49,7 @@ export default function ExpenseApprovalsPage() {
   const reimburse = async (expense) => {
     const ok = await confirm({
       title: 'Mark as reimbursed?',
-      message: `₹${expense.amount} for "${expense.title}" will be marked as paid to the employee.`,
+      message: `${formatCurrency(expense.amount)} for "${expense.title}" will be marked as paid to the employee.`,
       confirmText: 'Mark reimbursed',
     });
     if (!ok) return;

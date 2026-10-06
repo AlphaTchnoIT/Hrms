@@ -10,6 +10,7 @@ const payrollRunSchema = new mongoose.Schema(
     totalGross: { type: Number, default: 0 },
     totalDeductions: { type: Number, default: 0 },
     totalNet: { type: Number, default: 0 },
+    totalEmployerCost: { type: Number, default: 0 }, // employer NI + employer pension
     processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     processedAt: Date,
     paidAt: Date,
@@ -35,8 +36,11 @@ const payslipSchema = new mongoose.Schema(
       department: String,
       designation: String,
       dateOfJoining: Date,
-      panNumber: String,
+      niNumber: String,
+      taxCode: String,
+      niCategory: String,
       bankName: String,
+      sortCode: String,
       accountNumber: String,
     },
 
@@ -48,6 +52,9 @@ const payslipSchema = new mongoose.Schema(
     grossEarnings: Number,
     totalDeductions: Number,
     netPay: Number,
+    // Paid by the company on top of gross pay (not deducted): employer NI, employer pension
+    employerContributions: [lineItemSchema],
+    taxablePay: Number,
     status: { type: String, enum: ['processed', 'paid'], default: 'processed' },
   },
   { timestamps: true }

@@ -6,7 +6,7 @@ import { Download } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { APPROVER_ROLES } from '@/lib/constants';
-import { getFullName, MONTHS, minutesToHours } from '@/lib/format';
+import { getFullName, MONTHS, minutesToHours, zonedParts } from '@/lib/format';
 import { downloadCsv } from '@/lib/csv';
 import { Button, Card, DataTable, ErrorMessage, PageHeader, Select } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
@@ -18,8 +18,8 @@ import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 export default function AttendanceReportPage() {
   const router = useRouter();
   const { isHR } = useAuth();
-  const now = new Date();
-  const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
+  const now = zonedParts();
+  const [period, setPeriod] = useState({ month: now.month, year: now.year });
   const [department, setDepartment] = useState('');
 
   const departments = useFetch(isHR ? '/departments' : null);

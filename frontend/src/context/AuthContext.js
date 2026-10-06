@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api, { tokenStorage } from '@/lib/api';
+import { setDisplayCurrency, setDisplayTimeZone } from '@/lib/format';
 import { APPROVER_ROLES, AUDITOR_ROLES, HR_ROLES, IT_ROLES } from '@/lib/constants';
 
 const AuthContext = createContext(null);
@@ -18,6 +19,8 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get('/auth/me');
+      setDisplayTimeZone(res.data.company?.timezone);
+      setDisplayCurrency(res.data.company?.currency);
       setUser(res.data);
     } catch {
       tokenStorage.clear();
@@ -34,6 +37,8 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
     tokenStorage.set(res.data.token);
+    setDisplayTimeZone(res.data.user.company?.timezone);
+    setDisplayCurrency(res.data.user.company?.currency);
     setUser(res.data.user);
     return res.data.user;
   };

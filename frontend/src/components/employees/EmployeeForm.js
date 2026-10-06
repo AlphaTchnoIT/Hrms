@@ -4,8 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { employeeSchema } from '@/lib/validation';
-import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, MARITAL_STATUS, ROLES } from '@/lib/constants';
-import { formatCurrency, getFullName, toInputDate } from '@/lib/format';
+import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, MARITAL_STATUS, NI_CATEGORIES, ROLES, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { formatCurrency, getFullName, toInputDate, getCurrencySymbol } from '@/lib/format';
 import { Button, Card, Checkbox, FormSection, Input, Select } from '@/components/ui';
 
 // Convert an employee from the API into flat form values
@@ -29,27 +29,27 @@ export function toFormValues(employee = {}) {
     dateOfBirth: employee.dateOfBirth ? toInputDate(employee.dateOfBirth) : '',
     maritalStatus: employee.maritalStatus || '',
     bloodGroup: employee.bloodGroup || '',
-    panNumber: employee.panNumber || '',
+    niNumber: employee.niNumber || '',
     bankDetails: {
       accountHolderName: employee.bankDetails?.accountHolderName || '',
       bankName: employee.bankDetails?.bankName || '',
       accountNumber: employee.bankDetails?.accountNumber || '',
-      ifsc: employee.bankDetails?.ifsc || '',
+      sortCode: employee.bankDetails?.sortCode || '',
     },
     salary: {
-      basic: salary.basic ?? '',
-      hra: salary.hra ?? '',
-      conveyance: salary.conveyance ?? '',
-      specialAllowance: salary.specialAllowance ?? '',
-      otherAllowance: salary.otherAllowance ?? '',
-      monthlyTds: salary.monthlyTds ?? '',
-      pfApplicable: salary.pfApplicable ?? true,
+      annualSalary: salary.annualSalary ?? '',
+      monthlyAllowance: salary.monthlyAllowance ?? '',
+      taxCode: salary.taxCode || '1257L',
+      niCategory: salary.niCategory || 'A',
+      pensionEnrolled: salary.pensionEnrolled ?? true,
+      studentLoanPlan: salary.studentLoanPlan || 'none',
+      postgraduateLoan: salary.postgraduateLoan ?? false,
     },
   };
 }
 
-const sum = (salary) =>
-  ['basic', 'hra', 'conveyance', 'specialAllowance', 'otherAllowance'].reduce((total, key) => total + (Number(salary[key]) || 0), 0);
+// Gross pay per month = annual salary / 12 + monthly allowance
+const monthlyGross = (salary) => (Number(salary.annualSalary) || 0) / 12 + (Number(salary.monthlyAllowance) || 0);
 
 export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, onCancel, employeeId }) {
   const { isAdmin } = useAuth();
@@ -67,7 +67,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
     .filter((p) => p._id !== employeeId)
     .map((p) => ({ value: p._id, label: `${getFullName(p)} (${p.employeeCode})` }));
 
-  const gross = sum(values.salary);
+  const gross = monthlyGross(values.salary);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     const payload = { ...data, dateOfBirth: data.dateOfBirth || null };
@@ -82,7 +82,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Input label="First name" required {...register('firstName')} />
           <Input label="Last name" {...register('lastName')} />
           <Input label="Work email" type="email" required {...register('email')} />
-          <Input label="Mobile number" placeholder="9876543210" {...register('phone')} />
+          <Input label="Mobile number" placeholder="07700 900123" {...register('phone')} />
           <Select label="Role" required placeholder={false} options={roleOptions} {...register('role')} hint="Controls what this person can access" />
           {isEdit ? (
             <Select label="Status" placeholder={false} options={EMPLOYEE_STATUS} {...register('status')} />
@@ -97,7 +97,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Select label="Reporting manager" placeholder="No manager" options={managerOptions} {...register('reportingManager')} />
           <Select label="Employment type" required placeholder={false} options={EMPLOYMENT_TYPES} {...register('employmentType')} />
           <Input label="Date of joining" type="date" required {...register('dateOfJoining')} />
-          <Input label="Work location" placeholder="e.g. Bengaluru" {...register('workLocation')} />
+          <Input label="Work location" placeholder="e.g. London" {...register('workLocation')} />
         </FormSection>
 
         <FormSection title="Personal details" description="Used for HR records and celebrations.">
@@ -107,22 +107,24 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Select label="Blood group" options={BLOOD_GROUPS.map((b) => ({ value: b, label: b }))} {...register('bloodGroup')} />
         </FormSection>
 
-        <FormSection title="Bank & tax" description="Salary is credited to this account. Shown on payslips.">
+        <FormSection title="Bank & National Insurance" description="Salary is paid into this account. Shown on payslips.">
           <Input label="Account holder name" {...register('bankDetails.accountHolderName')} />
-          <Input label="Bank name" placeholder="e.g. HDFC Bank" {...register('bankDetails.bankName')} />
-          <Input label="Account number" inputMode="numeric" {...register('bankDetails.accountNumber')} />
-          <Input label="IFSC code" placeholder="HDFC0001234" {...register('bankDetails.ifsc')} />
-          <Input label="PAN" placeholder="ABCDE1234F" {...register('panNumber')} />
+          <Input label="Bank name" placeholder="e.g. Barclays" {...register('bankDetails.bankName')} />
+          <Input label="Sort code" placeholder="12-34-56" {...register('bankDetails.sortCode')} />
+          <Input label="Account number" inputMode="numeric" maxLength={8} placeholder="8 digits" {...register('bankDetails.accountNumber')} />
+          <Input label="National Insurance number" placeholder="QQ 12 34 56 C" {...register('niNumber')} />
         </FormSection>
 
-        <FormSection title="Salary structure" description="Monthly amounts in ₹. Payroll prorates these for unpaid days.">
-          <Input label="Basic" type="number" min="0" prefix="₹" {...register('salary.basic')} />
-          <Input label="HRA" type="number" min="0" prefix="₹" {...register('salary.hra')} />
-          <Input label="Conveyance" type="number" min="0" prefix="₹" {...register('salary.conveyance')} />
-          <Input label="Special allowance" type="number" min="0" prefix="₹" {...register('salary.specialAllowance')} />
-          <Input label="Other allowance" type="number" min="0" prefix="₹" {...register('salary.otherAllowance')} />
-          <Input label="Monthly TDS" type="number" min="0" prefix="₹" {...register('salary.monthlyTds')} />
-          <Checkbox label="PF applicable" description="Deduct employee provident fund" {...register('salary.pfApplicable', { type: 'checkbox' })} />
+        <FormSection title="Pay & tax (PAYE)" description="Payroll works out Income Tax, National Insurance, pension and student loan each month.">
+          <Input label="Annual salary" type="number" min="0" prefix={getCurrencySymbol()} hint="Gross per year, before tax" {...register('salary.annualSalary')} />
+          <Input label="Monthly allowance" type="number" min="0" prefix={getCurrencySymbol()} hint="e.g. London weighting, car allowance" {...register('salary.monthlyAllowance')} />
+          <Input label="Tax code" placeholder="1257L" hint="From HMRC / the P45. S… = Scottish, C… = Welsh" {...register('salary.taxCode')} />
+          <Select label="NI category" placeholder={false} options={NI_CATEGORIES} {...register('salary.niCategory')} />
+          <Select label="Student loan" placeholder={false} options={STUDENT_LOAN_PLANS} {...register('salary.studentLoanPlan')} />
+          <div className="space-y-3">
+            <Checkbox label="Workplace pension" description="Auto-enrolled: employee and employer contributions" {...register('salary.pensionEnrolled', { type: 'checkbox' })} />
+            <Checkbox label="Postgraduate loan" description="Deduct postgraduate loan repayments" {...register('salary.postgraduateLoan', { type: 'checkbox' })} />
+          </div>
           <div className="rounded-xl bg-slate-50 px-4 py-3">
             <p className="text-xs text-slate-500">Gross per month</p>
             <p className="text-lg font-semibold text-slate-900">{formatCurrency(gross)}</p>

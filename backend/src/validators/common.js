@@ -37,11 +37,21 @@ export const email = z
   .min(1, 'Email is required')
   .email('Enter a valid email address');
 
-// Spaces and dashes are ignored: "98765 43210" and "+91-9876543210" are both valid
+// UK numbers ("07700 900123", "+44 20 7946 0123") or any international number starting with +
 export const phone = z
   .string()
   .trim()
-  .refine((v) => /^(\+91)?[6-9]\d{9}$/.test(v.replace(/[\s-]/g, '')), 'Enter a valid 10-digit mobile number');
+  .refine((v) => {
+    const digits = v.replace(/[\s\-()]/g, '');
+    return /^(?:0\d{9,10}|\+44\d{9,10}|\+[1-9]\d{7,14})$/.test(digits);
+  }, 'Enter a valid phone number (e.g. 07700 900123)');
+
+// UK postcode, e.g. "EC2A 4NE", "SW1A 1AA"
+export const postcode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/, 'Enter a valid UK postcode (e.g. EC2A 4NE)');
 
 export const password = z
   .string({ required_error: 'Password is required' })

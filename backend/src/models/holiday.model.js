@@ -5,7 +5,7 @@ const holidaySchema = new mongoose.Schema(
   {
     name: { type: String, required: [true, 'Holiday name is required'], trim: true },
     date: { type: String, required: [true, 'Date is required'] }, // "YYYY-MM-DD"
-    type: { type: String, enum: HOLIDAY_TYPES, default: 'national' },
+    type: { type: String, enum: HOLIDAY_TYPES, default: 'bank-holiday' },
     description: String,
   },
   { timestamps: true }

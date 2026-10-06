@@ -21,7 +21,7 @@ const DEMO_PASSWORD = 'Password@123';
 
 const FEATURES = [
   [CalendarCheck, 'One-click web check-in', 'Live attendance, late marks and regularization'],
-  [Wallet, 'Payroll in minutes', 'LOP, PF, PT and printable payslips'],
+  [Wallet, 'Payroll in minutes', 'PAYE, National Insurance, pension and payslips'],
   [ShieldCheck, 'Approvals that flow', 'Leave, expenses and attendance in one inbox'],
 ];
 

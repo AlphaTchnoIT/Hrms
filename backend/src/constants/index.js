@@ -14,7 +14,7 @@ export const QA_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.QA];
 export const AUDITOR_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.QA]; // can record QA feedback / KPIs
 export const IT_ROLES = [ROLES.ADMIN, ROLES.IT];
 
-export const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'intern'];
+export const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'fixed-term', 'zero-hours', 'contract', 'apprentice', 'intern'];
 export const EMPLOYEE_STATUS = ['active', 'inactive', 'terminated'];
 
 export const REQUEST_STATUS = {
@@ -34,7 +34,48 @@ export const GOAL_STATUS = ['not-started', 'in-progress', 'completed'];
 export const ASSET_CATEGORIES = ['laptop', 'desktop', 'monitor', 'mobile', 'accessory', 'furniture', 'other'];
 export const ASSET_STATUS = ['available', 'assigned', 'maintenance', 'retired'];
 
-export const HOLIDAY_TYPES = ['national', 'festival', 'optional', 'company'];
+// UK: bank holidays (England & Wales), regional ones (Scotland / Northern Ireland), optional and company days
+export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company'];
+
+/*
+ * UK payroll (PAYE). Rates are editable in Settings -> UK payroll and should be checked every April.
+ * NI categories: A standard, M under 21, H apprentice under 25, C over State Pension age, X not liable.
+ */
+export const NI_CATEGORIES = ['A', 'M', 'H', 'C', 'X'];
+export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
+
+export const DEFAULT_UK_PAYROLL = {
+  taxYear: '2026/27',
+  personalAllowance: 12570,
+  // Bands are widths of taxable income above the personal allowance (England, Wales & NI)
+  taxBands: [
+    { upTo: 37700, rate: 20 },
+    { upTo: 112570, rate: 40 },
+    { upTo: null, rate: 45 },
+  ],
+  // Scottish taxpayers (tax codes starting with S)
+  scottishTaxBands: [
+    { upTo: 2827, rate: 19 },
+    { upTo: 14921, rate: 20 },
+    { upTo: 31092, rate: 21 },
+    { upTo: 62430, rate: 42 },
+    { upTo: 112570, rate: 45 },
+    { upTo: null, rate: 48 },
+  ],
+  niPrimaryThreshold: 12570,
+  niUpperEarningsLimit: 50270,
+  niMainRate: 8,
+  niUpperRate: 2,
+  niSecondaryThreshold: 5000,
+  niEmployerRate: 15,
+  pensionLowerLimit: 6240,
+  pensionUpperLimit: 50270,
+  pensionEmployeeRate: 5,
+  pensionEmployerRate: 3,
+  studentLoanThresholds: { plan1: 26065, plan2: 28470, plan4: 32745, plan5: 25000, postgrad: 21000 },
+  studentLoanRate: 9,
+  postgradLoanRate: 6,
+};
 
 export const ANNOUNCEMENT_CATEGORIES = ['general', 'policy', 'event', 'celebration', 'urgent'];
 

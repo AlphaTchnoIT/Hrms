@@ -1,14 +1,14 @@
 import { Card } from '@/components/ui';
 import DetailItem from '@/components/shared/DetailItem';
 import { formatCurrency, formatDate, getFullName, titleCase } from '@/lib/format';
+import { NI_CATEGORIES, STUDENT_LOAN_PLANS } from '@/lib/constants';
 
 // Read-only view of an employee's details (used on My Profile and Employee detail)
 export default function ProfileOverview({ employee, showSensitive = false }) {
   const address = employee.address || {};
   const salary = employee.salary;
-  const monthlyGross = salary
-    ? (salary.basic || 0) + (salary.hra || 0) + (salary.conveyance || 0) + (salary.specialAllowance || 0) + (salary.otherAllowance || 0)
-    : 0;
+  const monthlyGross = salary ? (salary.annualSalary || 0) / 12 + (salary.monthlyAllowance || 0) : 0;
+  const labelOf = (list, value) => list.find((o) => o.value === value)?.label || value;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -36,7 +36,7 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
           <div className="col-span-2">
             <DetailItem
               label="Address"
-              value={[address.line1, address.line2, address.city, address.state, address.pincode].filter(Boolean).join(', ')}
+              value={[address.line1, address.line2, address.city, address.county, address.postcode, address.country].filter(Boolean).join(', ')}
             />
           </div>
           <DetailItem
@@ -53,25 +53,24 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
 
       {showSensitive && (
         <>
-          <Card title="Bank & tax">
+          <Card title="Bank & National Insurance">
             <dl className="grid grid-cols-2 gap-4">
               <DetailItem label="Bank" value={employee.bankDetails?.bankName} />
+              <DetailItem label="Sort code" value={employee.bankDetails?.sortCode} />
               <DetailItem label="Account number" value={employee.bankDetails?.accountNumber} />
-              <DetailItem label="IFSC" value={employee.bankDetails?.ifsc} />
-              <DetailItem label="PAN" value={employee.panNumber} />
+              <DetailItem label="NI number" value={employee.niNumber} />
             </dl>
           </Card>
 
           {salary && (
-            <Card title="Salary structure (monthly)">
+            <Card title="Pay & tax">
               <dl className="grid grid-cols-2 gap-4">
-                <DetailItem label="Basic" value={formatCurrency(salary.basic)} />
-                <DetailItem label="HRA" value={formatCurrency(salary.hra)} />
-                <DetailItem label="Conveyance" value={formatCurrency(salary.conveyance)} />
-                <DetailItem label="Special allowance" value={formatCurrency(salary.specialAllowance)} />
-                <DetailItem label="Other allowance" value={formatCurrency(salary.otherAllowance)} />
-                <DetailItem label="Monthly TDS" value={formatCurrency(salary.monthlyTds)} />
-                <DetailItem label="PF applicable" value={salary.pfApplicable ? 'Yes' : 'No'} />
+                <DetailItem label="Annual salary" value={formatCurrency(salary.annualSalary)} />
+                <DetailItem label="Monthly allowance" value={formatCurrency(salary.monthlyAllowance)} />
+                <DetailItem label="Tax code" value={salary.taxCode} />
+                <DetailItem label="NI category" value={labelOf(NI_CATEGORIES, salary.niCategory)} />
+                <DetailItem label="Workplace pension" value={salary.pensionEnrolled === false ? 'Opted out' : 'Enrolled'} />
+                <DetailItem label="Student loan" value={`${labelOf(STUDENT_LOAN_PLANS, salary.studentLoanPlan || 'none')}${salary.postgraduateLoan ? ' + Postgraduate' : ''}`} />
                 <DetailItem label="Gross / month" value={<strong>{formatCurrency(monthlyGross)}</strong>} />
               </dl>
             </Card>

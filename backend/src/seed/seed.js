@@ -49,10 +49,12 @@ const minutesToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${S
 
 async function seedMasters() {
   const settings = await Settings.create({
-    companyName: 'Acme Technologies Pvt Ltd',
+    companyName: 'Acme Technologies Ltd',
     companyEmail: 'hello@acme.example',
-    companyPhone: '+91 80 4000 1234',
-    companyAddress: '4th Floor, Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103',
+    companyPhone: '+44 20 7946 0123',
+    companyAddress: '4th Floor, 21 Finsbury Lane, London EC2A 4NE, United Kingdom',
+    timezone: 'Europe/London',
+    currency: 'GBP',
   });
   const departments = await Department.insertMany(DEPARTMENTS);
   const designations = await Designation.insertMany(DESIGNATIONS);
@@ -77,7 +79,7 @@ async function seedEmployees({ departments, designations }) {
       password: DEFAULT_PASSWORD,
       role: e.role,
       gender: e.gender,
-      phone: `+91 98${String(76543210 + index * 1111).slice(0, 8)}`,
+      phone: `+44 7700 900${String(100 + index * 7).padStart(3, '0')}`, // Ofcom range reserved for fiction
       dateOfBirth: new Date(e.dateOfBirth),
       dateOfJoining: new Date(e.dateOfJoining),
       maritalStatus: index % 3 === 0 ? 'married' : 'single',
@@ -86,17 +88,17 @@ async function seedEmployees({ departments, designations }) {
       designation: desigByTitle[e.desig],
       reportingManager: e.manager ? usersByEmail[e.manager]._id : null,
       employmentType: e.employmentType || 'full-time',
-      workLocation: 'Bengaluru',
-      panNumber: `ABCPE${1000 + index}F`,
-      address: { line1: `${100 + index}, MG Road`, city: 'Bengaluru', state: 'Karnataka', country: 'India', pincode: '560001' },
-      emergencyContact: { name: 'Family Member', relation: 'Parent', phone: '+91 9000000000' },
+      workLocation: e.workLocation || 'London',
+      niNumber: `QQ${String(123450 + index * 11).padStart(6, '0')}${'ABCD'[index % 4]}`, // QQ = HMRC specimen prefix
+      address: { line1: `${10 + index} Example Road`, city: 'London', county: 'Greater London', country: 'United Kingdom', postcode: `E${1 + (index % 9)} 4AB` },
+      emergencyContact: { name: 'Family Member', relation: 'Partner', phone: '+44 7700 900999' },
       bankDetails: {
         accountHolderName: `${e.firstName} ${e.lastName}`,
-        accountNumber: `50100${String(23456789 + index * 97)}`,
-        bankName: 'HDFC Bank',
-        ifsc: 'HDFC0000123',
+        accountNumber: String(12345670 + index),
+        bankName: ['Barclays', 'Lloyds Bank', 'HSBC UK', 'NatWest', 'Monzo'][index % 5],
+        sortCode: `20-${String(10 + index).padStart(2, '0')}-45`,
       },
-      salary: { pfApplicable: true, ...e.salary },
+      salary: { niCategory: 'A', pensionEnrolled: true, studentLoanPlan: 'none', ...e.salary },
     });
     usersByEmail[e.email] = user;
   }
@@ -115,14 +117,14 @@ async function seedLeaves(users, leaveTypes, today) {
   const approver = users['manager@hrms.com'];
 
   const leaves = [
-    { user: 'employee@hrms.com', code: 'CL', from: addDays(today, -20), to: addDays(today, -20), status: 'approved', reason: 'Family function' },
-    { user: 'vikram@hrms.com', code: 'SL', from: addDays(today, -11), to: addDays(today, -10), status: 'approved', reason: 'Fever' },
-    { user: 'sneha@hrms.com', code: 'EL', from: addDays(today, 6), to: addDays(today, 8), status: 'pending', reason: 'Vacation with family' },
-    { user: 'employee@hrms.com', code: 'CL', from: addDays(today, 12), to: addDays(today, 12), status: 'pending', reason: 'Personal work' },
-    { user: 'neha@hrms.com', code: 'SL', from: addDays(today, -5), to: addDays(today, -5), status: 'approved', reason: 'Doctor appointment' },
-    { user: 'arjun@hrms.com', code: 'LOP', from: addDays(today, -25), to: addDays(today, -25), status: 'approved', reason: 'Personal emergency' },
-    { user: 'sneha@hrms.com', code: 'EML', from: addDays(today, -16), to: addDays(today, -16), status: 'approved', reason: 'Family emergency' },
-    { user: 'employee@hrms.com', code: 'SL', from: addDays(today, -60), to: addDays(today, -59), status: 'approved', reason: 'Viral fever' },
+    { user: 'employee@hrms.com', code: 'AL', from: addDays(today, -20), to: addDays(today, -20), status: 'approved', reason: 'Family wedding' },
+    { user: 'thomas@hrms.com', code: 'SL', from: addDays(today, -11), to: addDays(today, -10), status: 'approved', reason: 'Flu' },
+    { user: 'sophie@hrms.com', code: 'AL', from: addDays(today, 6), to: addDays(today, 8), status: 'pending', reason: 'Long weekend in Cornwall' },
+    { user: 'employee@hrms.com', code: 'AL', from: addDays(today, 12), to: addDays(today, 12), status: 'pending', reason: 'Moving house' },
+    { user: 'grace@hrms.com', code: 'SL', from: addDays(today, -5), to: addDays(today, -5), status: 'approved', reason: 'GP appointment' },
+    { user: 'jack@hrms.com', code: 'UL', from: addDays(today, -25), to: addDays(today, -25), status: 'approved', reason: 'Personal emergency' },
+    { user: 'sophie@hrms.com', code: 'TOD', from: addDays(today, -16), to: addDays(today, -16), status: 'approved', reason: 'Childcare fell through' },
+    { user: 'employee@hrms.com', code: 'SL', from: addDays(today, -60), to: addDays(today, -59), status: 'approved', reason: 'Stomach bug' },
   ];
 
   const leaveDatesByUser = {};
@@ -175,9 +177,9 @@ async function seedAttendance(users, settings, today, leaveDatesByUser) {
       const roll = random();
       if (roll < 0.04) continue; // ~4% absent days
 
-      // Mostly on time (09:00 - 09:44), sometimes late (09:46 - 10:20)
-      const checkInMinutes = random() < 0.95 ? randomInt(9 * 60, 9 * 60 + 44) : randomInt(9 * 60 + 46, 10 * 60 + 20);
-      const worked = roll < 0.055 ? randomInt(250, 400) : randomInt(500, 590); // some half days
+      // Mostly on time (08:40 - 09:14), sometimes late (09:16 - 09:50)
+      const checkInMinutes = random() < 0.95 ? randomInt(8 * 60 + 40, 9 * 60 + 14) : randomInt(9 * 60 + 16, 9 * 60 + 50);
+      const worked = roll < 0.055 ? randomInt(250, 400) : randomInt(500, 560); // some half days
       const checkOutMinutes = Math.min(checkInMinutes + worked, 23 * 60);
       const lateByMinutes = getLateMinutes(checkInMinutes, settings);
 
@@ -206,25 +208,25 @@ async function seedOthers(users, today) {
   await Announcement.insertMany(ANNOUNCEMENTS.map((a) => ({ ...a, createdBy: users['hr@hrms.com']._id })));
 
   await Expense.insertMany([
-    { user: users['arjun@hrms.com']._id, title: 'Client visit - Mumbai flight', category: 'travel', amount: 8450, expenseDate: addDays(today, -9), status: 'pending' },
-    { user: users['employee@hrms.com']._id, title: 'Home internet - September', category: 'internet', amount: 1199, expenseDate: addDays(today, -15), status: 'approved', reviewedBy: manager._id, reviewedAt: new Date() },
-    { user: users['vikram@hrms.com']._id, title: 'Team lunch', category: 'food', amount: 3200, expenseDate: addDays(today, -4), status: 'pending' },
-    { user: users['isha@hrms.com']._id, title: 'Marketing event stationery', category: 'office-supplies', amount: 2150, expenseDate: addDays(today, -30), status: 'reimbursed', reviewedBy: admin._id, reviewedAt: new Date(), reimbursedAt: new Date() },
+    { user: users['jack@hrms.com']._id, title: 'Client visit - Manchester (train)', category: 'travel', amount: 186.4, expenseDate: addDays(today, -9), status: 'pending' },
+    { user: users['employee@hrms.com']._id, title: 'Home broadband - September', category: 'internet', amount: 35, expenseDate: addDays(today, -15), status: 'approved', reviewedBy: manager._id, reviewedAt: new Date() },
+    { user: users['thomas@hrms.com']._id, title: 'Team lunch', category: 'food', amount: 96.5, expenseDate: addDays(today, -4), status: 'pending' },
+    { user: users['amelia@hrms.com']._id, title: 'Marketing event stationery', category: 'office-supplies', amount: 64.2, expenseDate: addDays(today, -30), status: 'reimbursed', reviewedBy: admin._id, reviewedAt: new Date(), reimbursedAt: new Date() },
   ]);
 
   await Goal.insertMany([
     { user: users['employee@hrms.com']._id, title: 'Ship payments v2 module', description: 'Lead the redesign of the payments flow', dueDate: addDays(today, 60), weightage: 40, progress: 55, status: 'in-progress', createdBy: manager._id },
     { user: users['employee@hrms.com']._id, title: 'Mentor 2 junior engineers', dueDate: addDays(today, 90), weightage: 20, progress: 30, status: 'in-progress', createdBy: manager._id },
-    { user: users['vikram@hrms.com']._id, title: 'Improve API test coverage to 80%', dueDate: addDays(today, 45), weightage: 30, progress: 100, status: 'completed', selfRating: 4, selfComment: 'Reached 83% coverage', createdBy: manager._id },
-    { user: users['sneha@hrms.com']._id, title: 'Complete AWS certification', dueDate: addDays(today, 75), weightage: 25, progress: 0, status: 'not-started', createdBy: users['sneha@hrms.com']._id },
+    { user: users['thomas@hrms.com']._id, title: 'Improve API test coverage to 80%', dueDate: addDays(today, 45), weightage: 30, progress: 100, status: 'completed', selfRating: 4, selfComment: 'Reached 83% coverage', createdBy: manager._id },
+    { user: users['sophie@hrms.com']._id, title: 'Complete AWS certification', dueDate: addDays(today, 75), weightage: 25, progress: 0, status: 'not-started', createdBy: users['sophie@hrms.com']._id },
   ]);
 
   const assets = [
-    { name: 'MacBook Pro 14"', category: 'laptop', brand: 'Apple', serialNumber: 'C02XK1JHMD6R', purchaseDate: '2024-02-10', purchaseCost: 189000, assignedTo: users['employee@hrms.com']._id },
-    { name: 'Dell Latitude 5440', category: 'laptop', brand: 'Dell', serialNumber: 'DL5440-88231', purchaseDate: '2023-07-01', purchaseCost: 92000, assignedTo: users['vikram@hrms.com']._id },
-    { name: 'Dell 27" Monitor', category: 'monitor', brand: 'Dell', serialNumber: 'P2723QE-1192', purchaseDate: '2024-03-15', purchaseCost: 32000, assignedTo: users['employee@hrms.com']._id },
-    { name: 'ThinkPad E14', category: 'laptop', brand: 'Lenovo', serialNumber: 'TPE14-77612', purchaseDate: '2025-01-20', purchaseCost: 68000 },
-    { name: 'iPhone 15', category: 'mobile', brand: 'Apple', serialNumber: 'F2LXK8P1Q', purchaseDate: '2024-10-05', purchaseCost: 79900, assignedTo: users['arjun@hrms.com']._id },
+    { name: 'MacBook Pro 14"', category: 'laptop', brand: 'Apple', serialNumber: 'C02XK1JHMD6R', purchaseDate: '2024-02-10', purchaseCost: 1999, assignedTo: users['employee@hrms.com']._id },
+    { name: 'Dell Latitude 5440', category: 'laptop', brand: 'Dell', serialNumber: 'DL5440-88231', purchaseDate: '2023-07-01', purchaseCost: 1150, assignedTo: users['thomas@hrms.com']._id },
+    { name: 'Dell 27" Monitor', category: 'monitor', brand: 'Dell', serialNumber: 'P2723QE-1192', purchaseDate: '2024-03-15', purchaseCost: 349, assignedTo: users['employee@hrms.com']._id },
+    { name: 'ThinkPad E14', category: 'laptop', brand: 'Lenovo', serialNumber: 'TPE14-77612', purchaseDate: '2025-01-20', purchaseCost: 799 },
+    { name: 'iPhone 15', category: 'mobile', brand: 'Apple', serialNumber: 'F2LXK8P1Q', purchaseDate: '2024-10-05', purchaseCost: 799, assignedTo: users['jack@hrms.com']._id },
   ];
   for (const asset of assets) {
     await Asset.create({
@@ -271,7 +273,7 @@ async function seed() {
   console.log(`  HR       : hr@hrms.com       / ${DEFAULT_PASSWORD}`);
   console.log(`  Manager  : manager@hrms.com  / ${DEFAULT_PASSWORD}`);
   console.log(`  Employee : employee@hrms.com / ${DEFAULT_PASSWORD}`);
-  console.log(`  Team Lead: vikram@hrms.com    / ${DEFAULT_PASSWORD}  (employee role, Sneha & Karan report to him)`);
+  console.log(`  Team Lead: thomas@hrms.com    / ${DEFAULT_PASSWORD}  (employee role, Sophie & Harry report to him)`);
   console.log(`  QA       : qa@hrms.com       / ${DEFAULT_PASSWORD}`);
   console.log(`  IT       : it@hrms.com       / ${DEFAULT_PASSWORD}`);
 

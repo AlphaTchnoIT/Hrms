@@ -13,14 +13,14 @@ import { HOLIDAY_TYPES } from '@/lib/constants';
 import { formatDate, toInputDate } from '@/lib/format';
 import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Select, Skeleton, Textarea, useConfirm } from '@/components/ui';
 
-const TYPE_COLORS = { national: 'red', festival: 'purple', optional: 'gray', company: 'blue' };
+const TYPE_COLORS = { 'bank-holiday': 'red', regional: 'purple', optional: 'gray', company: 'blue' };
 
 function HolidayModal({ holiday, year, onClose, onSaved }) {
   const form = useForm(
     {
       name: holiday?.name || '',
       date: holiday?.date || '',
-      type: holiday?.type || 'national',
+      type: holiday?.type || 'bank-holiday',
       description: holiday?.description || '',
     },
     { schema: holidaySchema }
@@ -50,7 +50,7 @@ function HolidayModal({ holiday, year, onClose, onSaved }) {
       }
     >
       <form id="holiday-form" onSubmit={onSubmit} noValidate className="space-y-4">
-        <Input label="Holiday name" required placeholder="e.g. Diwali" {...form.register('name')} />
+        <Input label="Holiday name" required placeholder="e.g. Christmas Day" {...form.register('name')} />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Date" type="date" required min={`${year - 1}-01-01`} max={`${year + 1}-12-31`} {...form.register('date')} />
           <Select label="Type" required placeholder={false} options={HOLIDAY_TYPES} {...form.register('type')} />

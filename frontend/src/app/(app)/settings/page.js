@@ -6,11 +6,24 @@ import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { settingsSchema } from '@/lib/validation';
+import { getDisplayCurrency, getDisplayTimeZone } from '@/lib/format';
 import { ROLES, WEEK_DAYS } from '@/lib/constants';
-import { Button, Card, Checkbox, FormSection, Input, PageHeader, PageLoader, Textarea } from '@/components/ui';
+import { Button, Card, Checkbox, FormSection, Input, PageHeader, PageLoader, Select, Textarea } from '@/components/ui';
+
+const CURRENCY_OPTIONS = [
+  { value: 'GBP', label: 'GBP – British Pound (£)' },
+  { value: 'EUR', label: 'EUR – Euro (€)' },
+  { value: 'USD', label: 'USD – US Dollar ($)' },
+  { value: 'INR', label: 'INR – Indian Rupee (₹)' },
+  { value: 'AED', label: 'AED – UAE Dirham' },
+  { value: 'AUD', label: 'AUD – Australian Dollar' },
+  { value: 'CAD', label: 'CAD – Canadian Dollar' },
+  { value: 'SGD', label: 'SGD – Singapore Dollar' },
+];
 import RoleGuard from '@/components/layout/RoleGuard';
 import PerformanceSettings from '@/components/settings/PerformanceSettings';
 import WorkStatusSettings from '@/components/settings/WorkStatusSettings';
+import UkPayrollSettings from '@/components/settings/UkPayrollSettings';
 
 function SettingsForm({ settings }) {
   const form = useForm(
@@ -19,8 +32,8 @@ function SettingsForm({ settings }) {
       companyEmail: settings.companyEmail || '',
       companyPhone: settings.companyPhone || '',
       companyAddress: settings.companyAddress || '',
-      timezone: settings.timezone || 'Asia/Kolkata',
-      currency: settings.currency || 'INR',
+      timezone: settings.timezone || 'Europe/London',
+      currency: settings.currency || 'GBP',
       officeStartTime: settings.officeStartTime,
       officeEndTime: settings.officeEndTime,
       graceMinutes: settings.graceMinutes,
@@ -28,9 +41,6 @@ function SettingsForm({ settings }) {
       fullDayMinutes: settings.fullDayMinutes,
       weeklyOffs: settings.weeklyOffs || [],
       requireLocationForCheckIn: settings.requireLocationForCheckIn,
-      pfRate: settings.pfRate,
-      pfCeiling: settings.pfCeiling,
-      professionalTax: settings.professionalTax,
       attendanceBasedLop: settings.attendanceBasedLop,
     },
     { schema: settingsSchema }
@@ -45,6 +55,8 @@ function SettingsForm({ settings }) {
   const onSubmit = form.handleSubmit(async (data) => {
     const res = await api.put('/settings', data);
     toast.success(res.message);
+    // Timezone and currency apply to every screen; reload so already-open pages pick them up
+    if (data.timezone !== getDisplayTimeZone() || data.currency !== getDisplayCurrency()) window.location.reload();
   });
 
   return (
@@ -55,7 +67,8 @@ function SettingsForm({ settings }) {
           <Input label="Email" type="email" {...register('companyEmail')} />
           <Input label="Phone" {...register('companyPhone')} />
           <Textarea label="Address" rows={2} className="sm:col-span-2" maxLength={300} {...register('companyAddress')} />
-          <Input label="Timezone" required hint="IANA name, e.g. Asia/Kolkata" {...register('timezone')} />
+          <Input label="Timezone" required hint="IANA name, e.g. Europe/London (UK) or Asia/Kolkata. All screens show times in this zone." {...register('timezone')} />
+          <Select label="Currency" placeholder={false} options={CURRENCY_OPTIONS} hint="All amounts, salaries and payslips use this currency" {...register('currency')} />
         </FormSection>
 
         <FormSection title="Shift & attendance" description="Used to mark late check-ins and present / half-day / absent.">
@@ -95,15 +108,11 @@ function SettingsForm({ settings }) {
           />
         </FormSection>
 
-        <FormSection title="Payroll" description="Statutory deductions applied when running payroll.">
-          <Input label="Employee PF rate" type="number" min="0" max="100" step="0.01" required hint="% of basic" {...register('pfRate')} />
-          <Input label="PF monthly cap" type="number" min="0" prefix="₹" required hint="0 = no cap" {...register('pfCeiling')} />
-          <Input label="Professional tax" type="number" min="0" prefix="₹" required hint="Per month" {...register('professionalTax')} />
-          <div />
+        <FormSection title="Payroll" description="Tax, NI and pension rates are under UK payroll rates below.">
           <Checkbox
             className="sm:col-span-2"
-            label="Deduct salary for absent days"
-            description="Loss of pay is calculated from attendance. Unpaid leave is always deducted."
+            label="Deduct pay for unauthorised absence"
+            description="Absent days (no check-in, no approved leave) are unpaid. Unpaid leave is always deducted."
             {...register('attendanceBasedLop', { type: 'checkbox' })}
           />
         </FormSection>
@@ -132,6 +141,7 @@ export default function SettingsPage() {
         <>
           <PerformanceSettings settings={data} />
           <WorkStatusSettings settings={data} />
+          <UkPayrollSettings settings={data} />
           <SettingsForm settings={data} />
         </>
       )}

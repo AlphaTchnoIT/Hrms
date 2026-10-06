@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, ROLES } from '../constants/index.js';
+import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, NI_CATEGORIES, ROLES, STUDENT_LOAN_PLANS } from '../constants/index.js';
 import {
   dateStr,
   email,
@@ -11,6 +11,7 @@ import {
   password,
   personName,
   phone,
+  postcode,
   today,
   url,
 } from './common.js';
@@ -29,10 +30,10 @@ const dateOfBirth = optionalDate('Date of birth').refine(
 export const addressSchema = z.object({
   line1: optionalText('Address line 1', 150),
   line2: optionalText('Address line 2', 150),
-  city: optionalText('City', 60),
-  state: optionalText('State', 60),
+  city: optionalText('Town / city', 60),
+  county: optionalText('County', 60),
   country: optionalText('Country', 60),
-  pincode: optional(z.string().trim().regex(/^\d{6}$/, 'Pincode must be 6 digits')),
+  postcode: optional(postcode),
 });
 
 export const emergencyContactSchema = z.object({
@@ -44,20 +45,29 @@ export const emergencyContactSchema = z.object({
 const bankDetailsSchema = z.object({
   accountHolderName: optionalText('Account holder name', 80),
   bankName: optionalText('Bank name', 80),
-  accountNumber: optional(z.string().trim().regex(/^\d{9,18}$/, 'Account number must be 9 to 18 digits')),
-  ifsc: optional(
-    z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC code (e.g. HDFC0001234)')
+  accountNumber: optional(z.string().trim().regex(/^\d{8}$/, 'UK account number must be 8 digits')),
+  // "12-34-56", "12 34 56" or "123456" -> "12-34-56"
+  sortCode: optional(
+    z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/[\s-]/g, ''))
+      .refine((v) => /^\d{6}$/.test(v), 'Sort code must be 6 digits (e.g. 12-34-56)')
+      .transform((v) => `${v.slice(0, 2)}-${v.slice(2, 4)}-${v.slice(4)}`)
   ),
 });
 
+// HMRC tax codes: 1257L, S1257L (Scotland), C1257L (Wales), K475, BR, D0, D1, 0T, NT (+ optional W1 / M1 / X)
+export const TAX_CODE_REGEX = /^[SC]?(?:\d{1,4}[LMNT]|K\d{1,4}|BR|D0|D1|0T|NT)(?: ?(?:W1|M1|X))?$/;
+
 const salarySchema = z.object({
-  basic: money('Basic'),
-  hra: money('HRA'),
-  conveyance: money('Conveyance'),
-  specialAllowance: money('Special allowance'),
-  otherAllowance: money('Other allowance'),
-  monthlyTds: money('Monthly TDS'),
-  pfApplicable: z.boolean().optional(),
+  annualSalary: money('Annual salary', { max: 10000000 }),
+  monthlyAllowance: money('Monthly allowance'),
+  taxCode: optional(z.string().trim().toUpperCase().regex(TAX_CODE_REGEX, 'Enter a valid tax code (e.g. 1257L)')),
+  niCategory: z.enum(NI_CATEGORIES, { errorMap: () => ({ message: 'Select an NI category' }) }).optional(),
+  pensionEnrolled: z.boolean().optional(),
+  studentLoanPlan: z.enum(STUDENT_LOAN_PLANS).optional(),
+  postgraduateLoan: z.boolean().optional(),
 });
 
 // Personal fields an employee can edit on their own profile
@@ -85,8 +95,14 @@ const employeeFields = personalInfoSchema.extend({
   dateOfJoining: dateStr('Date of joining'),
   exitDate: optionalDate('Exit date'),
   workLocation: optionalText('Work location', 100),
-  panNumber: optional(
-    z.string().trim().toUpperCase().regex(/^[A-Z]{5}\d{4}[A-Z]$/, 'Enter a valid PAN (e.g. ABCDE1234F)')
+  // National Insurance number, e.g. "QQ 12 34 56 C" (spaces are removed)
+  niNumber: optional(
+    z
+      .string()
+      .trim()
+      .toUpperCase()
+      .transform((v) => v.replace(/\s/g, ''))
+      .refine((v) => /^(?!BG|GB|KN|NK|NT|TN|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]$/.test(v) || /^QQ\d{6}[A-D]$/.test(v), 'Enter a valid National Insurance number (e.g. QQ 12 34 56 C)')
   ),
   bankDetails: bankDetailsSchema.optional(),
   salary: salarySchema.optional(),

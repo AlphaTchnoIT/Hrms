@@ -1,6 +1,6 @@
 # PeopleHub HRMS
 
-A full-stack Human Resource Management System (Keka-style) built with **Next.js 15**, **Node.js / Express 5** and **MongoDB**.
+A full-stack Human Resource Management System built with **Next.js 15**, **Node.js / Express 5** and **MongoDB**, set up for **UK companies**: UK time (Europe/London), GBP, bank holidays and PAYE payroll. Timezone and currency can be changed in Settings.
 Attendance is captured through **web check-in / check-out** (with optional browser location), so no biometric hardware is needed.
 
 ## Features
@@ -16,15 +16,15 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Team attendance** | Daily "who's in" view and monthly report with CSV export |
 | **Leave** | Leave types & yearly quotas, balances, half-day leave, holidays/weekly-offs excluded, approval workflow, cancel, HR balance adjustment |
 | **Holidays** | Yearly holiday calendar |
-| **Payroll** | Monthly payroll run with LOP (attendance + unpaid leave), PF (with cap), professional tax, TDS; re-run, mark paid (locks), bank-sheet CSV, printable payslips |
+| **Payroll (UK PAYE)** | Monthly run: Income Tax from the tax code (incl. Scottish `S` codes, `BR`, `D0`, `D1`, `0T`, `NT`, `K` codes), Class 1 National Insurance by category, workplace pension (auto-enrolment, qualifying earnings), student and postgraduate loans, employer NI + pension costs; unpaid days, re-run, mark paid (locks), bank-sheet CSV with sort codes, printable payslips |
 | **Expenses** | Claims with receipt link → manager approval → HR reimbursement |
 | **Performance** | Goals with progress, weightage, self rating and manager review |
 | **Assets** | Company equipment inventory, assign / return |
 | **Announcements** | Pinned, categorised, with expiry |
 | **Notifications** | In-app bell for approvals, payslips, assignments |
-| **Settings** | Office timings, grace time, full/half-day thresholds, weekly offs, location requirement, PF/PT, LOP rule |
+| **Settings** | Company timezone and currency, office timings, grace time, full/half-day thresholds, weekly offs, location requirement, unpaid-absence rule, UK payroll rates (tax bands, NI, pension, student loans) |
 | **Roster & shifts** | Managers publish shifts (morning / general / evening / night) and weekly offs; employees see the next two weeks with scheduled hours |
-| **Attendance tracking** | Day status: Present, Late Login, Short Login, Absent, Sick Leave, Emergency Leave, Approved Leave, Weekly Off, Holiday — measured against the roster |
+| **Attendance tracking** | Day status: Present, Late Login, Short Login, Absent, Sick Leave, Emergency Leave (Time Off for Dependants), Approved Leave, Weekly Off, Holiday — measured against the roster |
 | **Login / AT hours** | Login, productive (AT) and idle hours per day; short-login, late-login and idle-time flags; CSV export |
 | **KPI dashboard** | Quality (QA), efficiency (with new-joiner glide path), classification and shift adherence; current vs previous 30 days, 13-week trend, 3-month adherence trend |
 | **Performance status** | Meeting Target / Needs Attention / Critical from configurable targets and band |
@@ -104,6 +104,7 @@ Open http://localhost:3000
 | HR | hr@hrms.com |
 | Manager | manager@hrms.com |
 | Employee | employee@hrms.com |
+| Team lead (employee role) | thomas@hrms.com |
 | QA auditor | qa@hrms.com |
 | IT support | it@hrms.com |
 
@@ -114,15 +115,16 @@ Every form is validated twice with the same rules:
 - **Frontend** – `frontend/src/lib/validation.js` (zod) + `useForm` hook. Errors appear under the field when it is left or on submit, and focus jumps to the first invalid field.
 - **Backend** – `backend/src/validators/*.validator.js` (zod) applied by the `validate()` middleware on each route. Invalid requests get `422 { message, errors: { field: message } }`, and the form shows those messages on the matching fields. Business rules (overlapping leave, insufficient balance, duplicate email, etc.) are returned the same way.
 
-Examples: Indian mobile (10 digits), PAN `ABCDE1234F`, IFSC `HDFC0001234`, 6-digit pincode, age 18–80, password ≥ 8 chars with a letter and a number, no future expense dates, regularization only for the last 30 days, a reason is mandatory when rejecting.
+Examples: UK phone (`07700 900123` or `+44 …`), National Insurance number `QQ 12 34 56 C`, sort code `12-34-56`, 8-digit account number, UK postcode `EC2A 4NE`, HMRC tax code `1257L`, age 18–80, password ≥ 8 chars with a letter and a number, no future expense dates, regularization only for the last 30 days, a reason is mandatory when rejecting.
 
 ## Business rules (quick reference)
 
 - **Late**: check-in after `officeStartTime + graceMinutes`.
 - **Day status** on check-out: worked ≥ `fullDayMinutes` → present, ≥ `halfDayMinutes` → half-day, else absent.
-- **Leave days** count only working days (weekly offs and non-optional holidays are skipped). Paid leave needs balance; unpaid (LOP) does not.
-- **Payroll** is prorated by calendar days: `pay = monthly × paidDays / totalDays`.
-  LOP days = absent days + ½ × half-days + unpaid leave + days before joining / after exit.
+- **Leave days** count only working days (weekly offs and non-optional holidays are skipped). Paid leave needs balance; unpaid leave does not.
+- **Payroll** is prorated by calendar days: `pay = (annual salary / 12 + monthly allowance) × paidDays / totalDays`.
+  Unpaid days = absent days + ½ × half-days + unpaid leave + days before joining / after exit.
+- **UK deductions** (month 1 / non-cumulative basis): pension = employee % of qualifying earnings (net pay arrangement, before tax); Income Tax = annual bands on (taxable pay × 12 − allowance from the tax code) ÷ 12; employee NI on pay between the primary threshold and upper earnings limit (category C / X: none); student loans 9% / postgraduate 6% above the plan threshold, rounded down to whole pounds. Rates live in Settings → UK payroll rates and should be checked every April. Payroll does not file to HMRC: submit RTI (FPS) from HMRC-recognised software.
 - Employees see payslips only after HR marks the payroll run as **paid**.
 - **Performance status** (last 30 days): score ≥ target → Meeting Target; within `attentionBand` points below → Needs Attention; lower → Critical. The worst KPI decides the overall status.
 - **Efficiency target** follows the glide path for new joiners (e.g. week 1–4: 60%, 5–8: 70%, 9–12: 80%, then the normal target).

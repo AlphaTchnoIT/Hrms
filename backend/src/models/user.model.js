@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS } from '../constants/index.js';
+import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS, NI_CATEGORIES, STUDENT_LOAN_PLANS } from '../constants/index.js';
 
 /*
  * User = Employee.
@@ -12,9 +12,9 @@ const addressSchema = new mongoose.Schema(
     line1: String,
     line2: String,
     city: String,
-    state: String,
-    country: { type: String, default: 'India' },
-    pincode: String,
+    county: String,
+    country: { type: String, default: 'United Kingdom' },
+    postcode: String,
   },
   { _id: false }
 );
@@ -25,20 +25,23 @@ const emergencyContactSchema = new mongoose.Schema(
 );
 
 const bankDetailsSchema = new mongoose.Schema(
-  { accountHolderName: String, accountNumber: String, bankName: String, ifsc: String },
+  { accountHolderName: String, accountNumber: String, bankName: String, sortCode: String },
   { _id: false }
 );
 
-// Monthly salary components (in INR)
+/*
+ * Pay details for UK payroll (PAYE). Amounts are in the company currency.
+ * Monthly gross = annual salary / 12 + monthly allowance.
+ */
 const salarySchema = new mongoose.Schema(
   {
-    basic: { type: Number, default: 0, min: 0 },
-    hra: { type: Number, default: 0, min: 0 },
-    conveyance: { type: Number, default: 0, min: 0 },
-    specialAllowance: { type: Number, default: 0, min: 0 },
-    otherAllowance: { type: Number, default: 0, min: 0 },
-    pfApplicable: { type: Boolean, default: true },
-    monthlyTds: { type: Number, default: 0, min: 0 },
+    annualSalary: { type: Number, default: 0, min: 0 },
+    monthlyAllowance: { type: Number, default: 0, min: 0 }, // e.g. London weighting, car allowance
+    taxCode: { type: String, default: '1257L', uppercase: true, trim: true },
+    niCategory: { type: String, enum: NI_CATEGORIES, default: 'A' },
+    pensionEnrolled: { type: Boolean, default: true }, // workplace pension (auto-enrolment)
+    studentLoanPlan: { type: String, enum: STUDENT_LOAN_PLANS, default: 'none' },
+    postgraduateLoan: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -80,7 +83,7 @@ const userSchema = new mongoose.Schema(
     exitDate: Date,
 
     // Finance
-    panNumber: String,
+    niNumber: { type: String, uppercase: true, trim: true }, // National Insurance number
     bankDetails: { type: bankDetailsSchema, default: () => ({}) },
     salary: { type: salarySchema, default: () => ({}) },
 
@@ -106,8 +109,8 @@ userSchema.virtual('fullName').get(function fullName() {
 
 userSchema.virtual('monthlyGross').get(function monthlyGross() {
   if (!this.salary) return 0;
-  const { basic = 0, hra = 0, conveyance = 0, specialAllowance = 0, otherAllowance = 0 } = this.salary;
-  return basic + hra + conveyance + specialAllowance + otherAllowance;
+  const { annualSalary = 0, monthlyAllowance = 0 } = this.salary;
+  return Math.round((annualSalary / 12 + monthlyAllowance) * 100) / 100;
 });
 
 userSchema.pre('save', async function hashPassword() {

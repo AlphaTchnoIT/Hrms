@@ -34,13 +34,13 @@ const EMPLOYEE_FIELDS = [
   'workLocation',
   'status',
   'exitDate',
-  'panNumber',
+  'niNumber',
   'bankDetails',
   'salary',
 ];
 
 const REF_FIELDS = ['department', 'designation', 'reportingManager'];
-const SENSITIVE_FIELDS = ['salary', 'bankDetails', 'panNumber'];
+const SENSITIVE_FIELDS = ['salary', 'bankDetails', 'niNumber'];
 
 function buildEmployeeFilter(query) {
   const filter = {};
@@ -128,7 +128,7 @@ export async function getOrgChart(_req, res) {
 export async function getMyTeam(req, res) {
   const filter = req.query.scope === 'all' ? { _id: { $in: await getTeamMemberIds(req.user._id, { scope: 'all' }) } } : { reportingManager: req.user._id };
   const team = await User.find({ ...filter, status: 'active' })
-    .select('-salary -bankDetails -panNumber')
+    .select('-salary -bankDetails -niNumber')
     .populate(USER_POPULATE)
     .sort({ firstName: 1 });
   sendSuccess(res, { data: team });

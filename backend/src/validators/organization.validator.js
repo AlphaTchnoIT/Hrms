@@ -34,6 +34,42 @@ export const announcementSchema = z.object({
   expiresAt: optionalDate('Expiry date'),
 });
 
+const amount = (label) => z.coerce.number({ invalid_type_error: `${label} must be a number` }).min(0, `${label} cannot be negative`).max(10000000);
+const rate = (label) => z.coerce.number({ invalid_type_error: `${label} must be a number` }).min(0, `${label} cannot be negative`).max(100, `${label} cannot exceed 100%`);
+const taxBands = (label) =>
+  z
+    .array(z.object({ upTo: z.coerce.number().positive().nullable(), rate: rate(`${label} rate`) }))
+    .min(1, `Add at least one ${label} band`)
+    .max(8)
+    .refine((bands) => bands[bands.length - 1].upTo === null, `The last ${label} band must have no upper limit`);
+
+// UK PAYE rates (Settings -> UK payroll)
+const ukPayrollSchema = z.object({
+  taxYear: requiredText('Tax year', { max: 9 }),
+  personalAllowance: amount('Personal allowance'),
+  taxBands: taxBands('tax'),
+  scottishTaxBands: taxBands('Scottish tax'),
+  niPrimaryThreshold: amount('NI primary threshold'),
+  niUpperEarningsLimit: amount('NI upper earnings limit'),
+  niMainRate: rate('NI main rate'),
+  niUpperRate: rate('NI upper rate'),
+  niSecondaryThreshold: amount('Employer NI threshold'),
+  niEmployerRate: rate('Employer NI rate'),
+  pensionLowerLimit: amount('Pension lower limit'),
+  pensionUpperLimit: amount('Pension upper limit'),
+  pensionEmployeeRate: rate('Employee pension rate'),
+  pensionEmployerRate: rate('Employer pension rate'),
+  studentLoanThresholds: z.object({
+    plan1: amount('Plan 1 threshold'),
+    plan2: amount('Plan 2 threshold'),
+    plan4: amount('Plan 4 threshold'),
+    plan5: amount('Plan 5 threshold'),
+    postgrad: amount('Postgraduate loan threshold'),
+  }),
+  studentLoanRate: rate('Student loan rate'),
+  postgradLoanRate: rate('Postgraduate loan rate'),
+});
+
 export const settingsSchema = z
   .object({
     companyName: requiredText('Company name', { min: 2, max: 100 }),
@@ -47,8 +83,22 @@ export const settingsSchema = z
       } catch {
         return false;
       }
-    }, 'Enter a valid timezone (e.g. Asia/Kolkata)'),
-    currency: optional(z.string().trim().length(3, 'Currency must be a 3 letter code')),
+    }, 'Enter a valid timezone (e.g. Europe/London)'),
+    currency: optional(
+      z
+        .string()
+        .trim()
+        .toUpperCase()
+        .length(3, 'Currency must be a 3 letter code')
+        .refine((code) => {
+          try {
+            new Intl.NumberFormat('en-GB', { style: 'currency', currency: code });
+            return true;
+          } catch {
+            return false;
+          }
+        }, 'Enter a valid currency code (e.g. GBP)')
+    ),
     officeStartTime: timeStr('Office start time'),
     officeEndTime: timeStr('Office end time'),
     graceMinutes: intRange('Grace period', 0, 120),
@@ -56,9 +106,7 @@ export const settingsSchema = z
     fullDayMinutes: intRange('Full day minutes', 60, 1440),
     weeklyOffs: z.array(intRange('Weekly off', 0, 6)).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
-    pfRate: z.coerce.number().min(0, 'PF rate cannot be negative').max(100, 'PF rate cannot exceed 100%'),
-    pfCeiling: z.coerce.number().min(0, 'PF cap cannot be negative'),
-    professionalTax: z.coerce.number().min(0, 'Professional tax cannot be negative').max(2500, 'Professional tax cannot exceed ₹2,500'),
+    payroll: ukPayrollSchema,
     attendanceBasedLop: z.boolean(),
     kpiTargets: z.object({
       quality: percent('Quality target'),

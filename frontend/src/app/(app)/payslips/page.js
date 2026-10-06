@@ -12,7 +12,7 @@ export default function MyPayslipsPage() {
   const columns = [
     { key: 'month', header: 'Month', render: (p) => <span className="font-medium">{MONTHS[p.month - 1]} {p.year}</span> },
     { key: 'paidDays', header: 'Paid days' },
-    { key: 'lopDays', header: 'LOP days' },
+    { key: 'lopDays', header: 'Unpaid days' },
     { key: 'gross', header: 'Gross', render: (p) => formatCurrency(p.grossEarnings) },
     { key: 'deductions', header: 'Deductions', render: (p) => formatCurrency(p.totalDeductions) },
     { key: 'net', header: 'Net pay', render: (p) => <strong className="text-brand-700">{formatCurrency(p.netPay)}</strong> },

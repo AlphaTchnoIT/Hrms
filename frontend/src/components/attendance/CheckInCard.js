@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { Clock, LogIn, LogOut, MapPin, Timer } from 'lucide-react';
 import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
-import { formatTime, minutesToHours } from '@/lib/format';
+import { formatTime, minutesToHours, formatDate, getDisplayTimeZone, getTimeZoneLabel } from '@/lib/format';
 import { Badge, Button, Skeleton } from '@/components/ui';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { ATTENDANCE_UPDATED_EVENT } from '@/components/layout/AttendanceChip';
@@ -100,7 +100,7 @@ export default function CheckInCard({ onChange }) {
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10" />
         <div className="relative flex items-start justify-between gap-2">
           <p className="text-sm text-brand-100">
-            {now?.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }) || ' '}
+            {now ? formatDate(now, { weekday: 'long', day: 'numeric', month: 'long' }) : ' '}
           </p>
           {record?.isLate && (
             <Badge color="yellow" className="bg-amber-100">
@@ -109,10 +109,10 @@ export default function CheckInCard({ onChange }) {
           )}
         </div>
         <p className="relative mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
-          {now?.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) || '--:--'}
+          {now?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: getDisplayTimeZone() }) || '--:--'}
         </p>
         <p className="relative mt-2 flex items-center gap-1.5 text-xs text-brand-100">
-          <Clock className="h-3.5 w-3.5" /> General shift · {data?.officeStartTime} – {data?.officeEndTime}
+          <Clock className="h-3.5 w-3.5" /> General shift · {data?.officeStartTime} – {data?.officeEndTime} ({getTimeZoneLabel()})
         </p>
       </div>
 

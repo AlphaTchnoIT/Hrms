@@ -19,11 +19,11 @@ export function defaultShift(date, settings) {
   };
 }
 
-// Sick / emergency / other approved leave, decided from the leave type code or name
+// Sick / emergency (UK: Time Off for Dependants) / other approved leave, decided from the leave type code or name
 export function leaveStatus(leaveType) {
   const key = `${leaveType?.code || ''} ${leaveType?.name || ''}`.toLowerCase();
   if (/\bsl\b|sick/.test(key)) return 'sick-leave';
-  if (/\beml\b|emergency/.test(key)) return 'emergency-leave';
+  if (/\beml\b|\btod\b|emergency|dependant/.test(key)) return 'emergency-leave';
   return 'approved-leave';
 }
 

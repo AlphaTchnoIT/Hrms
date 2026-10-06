@@ -8,7 +8,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { expenseSchema } from '@/lib/validation';
 import { EXPENSE_CATEGORIES } from '@/lib/constants';
-import { formatCurrency, formatDate, titleCase, toInputDate } from '@/lib/format';
+import { formatCurrency, formatDate, titleCase, toInputDate, getCurrencySymbol } from '@/lib/format';
 import { Badge, Button, Card, DataTable, Input, Modal, PageHeader, Select, StatCard, Textarea, useConfirm } from '@/components/ui';
 
 const emptyExpense = () => ({ title: '', category: 'travel', amount: '', expenseDate: toInputDate(), description: '', receiptUrl: '' });
@@ -49,7 +49,7 @@ function ExpenseFormModal({ open, onClose, onSaved }) {
         <Input label="Title" required placeholder="e.g. Cab to client office" {...form.register('title')} />
         <div className="grid grid-cols-2 gap-4">
           <Select label="Category" required placeholder={false} options={EXPENSE_CATEGORIES} {...form.register('category')} />
-          <Input label="Amount" type="number" min="1" step="0.01" prefix="₹" required {...form.register('amount')} />
+          <Input label="Amount" type="number" min="1" step="0.01" prefix={getCurrencySymbol()} required {...form.register('amount')} />
         </div>
         <Input label="Expense date" type="date" required max={toInputDate()} {...form.register('expenseDate')} />
         <Input

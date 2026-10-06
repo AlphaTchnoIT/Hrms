@@ -20,7 +20,7 @@ export const expenseSchema = z.object({
   amount: z.coerce
     .number({ invalid_type_error: 'Amount must be a number' })
     .positive('Amount must be greater than 0')
-    .max(500000, 'Amount cannot exceed ₹5,00,000'),
+    .max(100000, 'Amount cannot exceed 100,000'),
   expenseDate: dateStr('Expense date').refine((d) => d <= today(), 'Expense date cannot be in the future'),
   description: optionalText('Description', 500),
   receiptUrl: optional(url('Receipt link')),

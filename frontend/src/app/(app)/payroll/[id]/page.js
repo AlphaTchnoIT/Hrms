@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { CheckCircle2, Download, IndianRupee, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CheckCircle2, Download, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CurrencyIcon } from '@/components/shared/CurrencyIcon';
 import api from '@/lib/api';
 import { useFetch } from '@/hooks/useFetch';
 import { HR_ROLES } from '@/lib/constants';
@@ -76,13 +77,22 @@ export default function PayrollRunPage() {
         { header: 'Code', value: (p) => p.employeeSnapshot.employeeCode },
         { header: 'Name', value: (p) => p.employeeSnapshot.name },
         { header: 'Department', value: (p) => p.employeeSnapshot.department },
+        { header: 'NI number', value: (p) => p.employeeSnapshot.niNumber },
+        { header: 'Tax code', value: (p) => p.employeeSnapshot.taxCode },
         { header: 'Bank', value: (p) => p.employeeSnapshot.bankName },
+        { header: 'Sort code', value: (p) => p.employeeSnapshot.sortCode },
         { header: 'Account', value: (p) => p.employeeSnapshot.accountNumber },
         { header: 'Paid days', value: (p) => p.paidDays },
-        { header: 'LOP days', value: (p) => p.lopDays },
+        { header: 'Unpaid days', value: (p) => p.lopDays },
         { header: 'Gross', value: (p) => p.grossEarnings },
-        { header: 'Deductions', value: (p) => p.totalDeductions },
+        ...['Income Tax', 'National Insurance', 'Pension', 'Student Loan', 'Postgraduate Loan'].map((name) => ({
+          header: name,
+          value: (p) => p.deductions.filter((d) => d.name.startsWith(name)).reduce((sum, d) => sum + d.amount, 0),
+        })),
+        { header: 'Total deductions', value: (p) => p.totalDeductions },
         { header: 'Net pay', value: (p) => p.netPay },
+        { header: 'Employer NI', value: (p) => p.employerContributions?.find((c) => c.name.includes('National Insurance'))?.amount || 0 },
+        { header: 'Employer pension', value: (p) => p.employerContributions?.find((c) => c.name.includes('pension'))?.amount || 0 },
       ],
       payslips
     );
@@ -101,7 +111,7 @@ export default function PayrollRunPage() {
       ),
     },
     { key: 'paidDays', header: 'Paid days', render: (p) => `${p.paidDays} / ${p.totalDays}` },
-    { key: 'lop', header: 'LOP', render: (p) => (p.lopDays ? <span className="text-red-600">{p.lopDays}</span> : 0) },
+    { key: 'lop', header: 'Unpaid days', render: (p) => (p.lopDays ? <span className="text-red-600">{p.lopDays}</span> : 0) },
     { key: 'gross', header: 'Gross', render: (p) => formatCurrency(p.grossEarnings) },
     { key: 'deductions', header: 'Deductions', render: (p) => formatCurrency(p.totalDeductions) },
     { key: 'net', header: 'Net pay', render: (p) => <strong>{formatCurrency(p.netPay)}</strong> },
@@ -141,9 +151,9 @@ export default function PayrollRunPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Employees" value={run.employeeCount} icon={Users} />
-        <StatCard label="Total gross" value={formatCurrency(run.totalGross)} icon={IndianRupee} tone="blue" />
-        <StatCard label="Total deductions" value={formatCurrency(run.totalDeductions)} icon={IndianRupee} tone="red" />
-        <StatCard label="Net payout" value={formatCurrency(run.totalNet)} icon={IndianRupee} tone="green" />
+        <StatCard label="Total gross" value={formatCurrency(run.totalGross)} icon={CurrencyIcon} tone="blue" />
+        <StatCard label="Total deductions" value={formatCurrency(run.totalDeductions)} icon={CurrencyIcon} tone="red" />
+        <StatCard label="Net payout" value={formatCurrency(run.totalNet)} icon={CurrencyIcon} tone="green" />
       </div>
 
       <Card noPadding>
