@@ -40,6 +40,17 @@ export const GOAL_STATUS = ['not-started', 'in-progress', 'completed'];
 export const ASSET_CATEGORIES = ['laptop', 'desktop', 'monitor', 'mobile', 'accessory', 'furniture', 'other'];
 export const ASSET_STATUS = ['available', 'assigned', 'maintenance', 'retired'];
 export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company'];
+export const HOLIDAY_REGIONS = [
+  { value: 'england-wales', label: 'England & Wales' },
+  { value: 'scotland', label: 'Scotland' },
+  { value: 'northern-ireland', label: 'Northern Ireland' },
+];
+export const RIGHT_TO_WORK_STATUS = [
+  { value: 'not-checked', label: 'Not checked yet' },
+  { value: 'british-irish', label: 'British / Irish citizen' },
+  { value: 'settled', label: 'Settled status / ILR (no expiry)' },
+  { value: 'time-limited', label: 'Time-limited (visa, pre-settled)' },
+];
 export const ANNOUNCEMENT_CATEGORIES = ['general', 'policy', 'event', 'celebration', 'urgent'];
 export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

@@ -1,4 +1,5 @@
-import { Attendance, Holiday, LeaveRequest, Roster } from '../models/index.js';
+import { Attendance, LeaveRequest, Roster } from '../models/index.js';
+import { buildHolidayLookup, findHolidays } from './calendar.service.js';
 import { addDays, dayOfWeek, eachDate, minutesOfDayInTz, monthRange, timeToMinutes, toDateStr, todayInTz } from '../utils/date.js';
 
 // Length of a shift in minutes. Night shifts end the next day (end < start).
@@ -40,13 +41,13 @@ export async function getWorkforce(users, from, to, settings) {
       'leaveType',
       'name code color'
     ),
-    Holiday.find({ date: { $gte: from, $lte: to }, type: { $ne: 'optional' } }),
+    findHolidays(from, to),
   ]);
 
   const key = (userId, date) => `${userId}|${date}`;
   const rosterMap = new Map(rosters.map((r) => [key(r.user, r.date), r]));
   const recordMap = new Map(records.map((r) => [key(r.user, r.date), r]));
-  const holidayMap = Object.fromEntries(holidays.map((h) => [h.date, h.name]));
+  const holidayOf = buildHolidayLookup(holidays);
   const leaveMap = new Map();
   leaves.forEach((leave) =>
     eachDate(leave.fromDate > from ? leave.fromDate : from, leave.toDate < to ? leave.toDate : to).forEach((date) =>
@@ -68,7 +69,7 @@ export async function getWorkforce(users, from, to, settings) {
           roster: rosterMap.get(key(user._id, date)),
           record: recordMap.get(key(user._id, date)),
           leave: leaveMap.get(key(user._id, date)),
-          holiday: holidayMap[date],
+          holiday: holidayOf(date, user.holidayRegion),
         })
       );
     result[String(user._id)] = { days, summary: summarize(days, settings) };

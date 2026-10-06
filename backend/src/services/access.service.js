@@ -109,7 +109,7 @@ export function isQA(user) {
  * - others: nobody
  * scope 'all' includes indirect reportees as well.
  */
-export async function getScopedUsers(user, { managerId, scope, select = 'firstName lastName employeeCode avatar role reportingManager dateOfJoining department designation' } = {}) {
+export async function getScopedUsers(user, { managerId, scope, select = 'firstName lastName employeeCode avatar role reportingManager dateOfJoining department designation holidayRegion' } = {}) {
   const filter = { status: 'active' };
   const teamOf = async (id) => (scope === 'all' ? { _id: { $in: await getTeamMemberIds(id, { scope }) } } : { reportingManager: id });
 

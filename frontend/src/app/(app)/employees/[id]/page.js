@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ArrowLeft, KeyRound, Pencil, UserX } from 'lucide-react';
+import { ArrowLeft, Download, Eraser, KeyRound, Pencil, UserX } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
@@ -193,6 +193,38 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  // UK GDPR subject access request: everything held about this employee
+  const exportData = async () => {
+    try {
+      const res = await api.get(`/employees/${id}/export`);
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `personal-data-${employee.employeeCode || id}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const anonymise = async () => {
+    const ok = await confirm({
+      title: `Anonymise ${employee.firstName}'s record?`,
+      message: 'Name, contact, address, bank, NI number and right to work details are removed for good. Anonymous attendance, leave and payroll totals are kept. This cannot be undone.',
+      confirmText: 'Anonymise',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await api.post(`/employees/${id}/anonymise`);
+      toast.success(res.message);
+      refetch();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   if (loading && !employee) return <PageLoader />;
   if (error) return <ErrorMessage message={error} onRetry={refetch} />;
   if (!employee) return null;
@@ -216,9 +248,17 @@ export default function EmployeeDetailPage() {
                 <Button size="sm" variant="secondary" icon={KeyRound} onClick={() => setResetOpen(true)}>
                   Reset password
                 </Button>
+                <Button size="sm" variant="secondary" icon={Download} onClick={exportData}>
+                  Export data
+                </Button>
                 {employee.status === 'active' && (
                   <Button size="sm" variant="danger-soft" icon={UserX} onClick={deactivate}>
                     Deactivate
+                  </Button>
+                )}
+                {employee.status !== 'active' && !employee.anonymisedAt && (
+                  <Button size="sm" variant="danger-soft" icon={Eraser} onClick={anonymise}>
+                    Anonymise
                   </Button>
                 )}
               </>

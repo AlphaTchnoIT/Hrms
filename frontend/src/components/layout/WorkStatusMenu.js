@@ -157,6 +157,9 @@ export default function WorkStatusMenu() {
           <Link href="/my-status" onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50">
             View my day
           </Link>
+          <p className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-[11px] leading-snug text-slate-500">
+            Your status and its times are visible to your team lead, managers and HR. Colleagues only see available / busy / away.
+          </p>
         </div>
       )}
     </div>

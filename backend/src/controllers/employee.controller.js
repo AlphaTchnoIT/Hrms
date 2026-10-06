@@ -1,9 +1,12 @@
-import { User, generateCode } from '../models/index.js';
+import { Settings, User, generateCode } from '../models/index.js';
 import { ROLES } from '../constants/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { buildMeta, escapeRegex, getPagination } from '../utils/pagination.js';
 import { emptyToNull, pick } from '../utils/helpers.js';
+import { generateTemporaryPassword } from '../utils/password.js';
+import { anonymiseAllowedFrom, anonymiseEmployee, buildPersonalDataExport } from '../services/gdpr.service.js';
+import { todayInTz } from '../utils/date.js';
 import { canManageEmployee, getTeamMemberIds, isHR, wouldCreateReportingLoop } from '../services/access.service.js';
 
 export const USER_POPULATE = [
@@ -32,6 +35,10 @@ const EMPLOYEE_FIELDS = [
   'employmentType',
   'dateOfJoining',
   'workLocation',
+  'holidayRegion',
+  'workingDaysPerWeek',
+  'probationEndDate',
+  'rightToWork',
   'status',
   'exitDate',
   'niNumber',
@@ -156,7 +163,8 @@ export async function createEmployee(req, res) {
   const body = emptyToNull(pick(req.body, EMPLOYEE_FIELDS), REF_FIELDS);
   assertRoleAllowed(req.user, body.role);
 
-  const password = req.body.password || 'Welcome@123';
+  // No shared default password: HR sets one or gets a random one to pass on; either way it must be changed at first login
+  const temporaryPassword = req.body.password || generateTemporaryPassword();
   if (await User.exists({ email: body.email })) throw ApiError.field('email', 'An employee with this email already exists');
 
   if (body.reportingManager && !(await User.exists({ _id: body.reportingManager, status: 'active' }))) {
@@ -164,10 +172,14 @@ export async function createEmployee(req, res) {
   }
 
   const employeeCode = await generateCode('employee', 'EMP');
-  const employee = await User.create({ ...body, password, employeeCode });
+  const employee = await User.create({ ...body, password: temporaryPassword, mustChangePassword: true, employeeCode });
 
   const populated = await User.findById(employee._id).populate(USER_POPULATE);
-  sendSuccess(res, { data: populated, message: `Employee ${employeeCode} created`, status: 201 });
+  sendSuccess(res, {
+    data: { ...populated.toJSON(), temporaryPassword: req.body.password ? undefined : temporaryPassword },
+    message: `Employee ${employeeCode} created`,
+    status: 201,
+  });
 }
 
 // PUT /api/employees/:id  (HR)
@@ -193,7 +205,7 @@ export async function updateEmployee(req, res) {
   }
 
   // Merge nested objects so a partial update doesn't wipe other keys
-  ['address', 'emergencyContact', 'bankDetails', 'salary'].forEach((key) => {
+  ['address', 'emergencyContact', 'bankDetails', 'salary', 'rightToWork'].forEach((key) => {
     if (body[key]) body[key] = { ...(employee[key]?.toObject?.() || {}), ...body[key] };
   });
 
@@ -202,6 +214,33 @@ export async function updateEmployee(req, res) {
 
   const populated = await User.findById(employee._id).populate(USER_POPULATE);
   sendSuccess(res, { data: populated, message: 'Employee updated' });
+}
+
+// GET /api/employees/:id/export  (HR) - all personal data held about the employee (subject access request)
+export async function exportEmployeeData(req, res) {
+  const data = await buildPersonalDataExport(req.params.id);
+  if (!data) throw ApiError.notFound('Employee not found');
+  sendSuccess(res, { data });
+}
+
+/*
+ * POST /api/employees/:id/anonymise  (HR) - UK GDPR: remove a leaver's personal details
+ * once the retention period (Settings -> data retention, default 6 years) has passed since they left.
+ */
+export async function anonymiseLeaver(req, res) {
+  const employee = await User.findById(req.params.id);
+  if (!employee) throw ApiError.notFound('Employee not found');
+  if (employee.anonymisedAt) throw ApiError.badRequest('This employee is already anonymised');
+  if (employee.status === 'active' || !employee.exitDate) throw ApiError.badRequest('Only leavers with an exit date can be anonymised');
+  if (employee.role === ROLES.ADMIN && req.user.role !== ROLES.ADMIN) throw ApiError.forbidden();
+
+  const settings = await Settings.getSettings();
+  const allowedFrom = anonymiseAllowedFrom(employee, settings.dataRetentionYears || 6);
+  if (allowedFrom > todayInTz(settings.timezone)) {
+    throw ApiError.badRequest(`Records must be kept until ${allowedFrom} (${settings.dataRetentionYears} years after leaving)`);
+  }
+  await anonymiseEmployee(employee);
+  sendSuccess(res, { message: 'Personal details removed. Anonymous records are kept for reporting.' });
 }
 
 // PATCH /api/employees/:id/reset-password  (HR)
@@ -213,8 +252,9 @@ export async function resetPassword(req, res) {
   if (employee.role === ROLES.ADMIN && req.user.role !== ROLES.ADMIN) throw ApiError.forbidden();
 
   employee.password = newPassword;
+  employee.mustChangePassword = true; // they choose their own at next login
   await employee.save();
-  sendSuccess(res, { message: 'Password reset successfully' });
+  sendSuccess(res, { message: 'Password reset. They will be asked to choose a new one when they log in.' });
 }
 
 // DELETE /api/employees/:id  (HR) - soft delete: marks employee as terminated

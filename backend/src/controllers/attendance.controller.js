@@ -91,7 +91,7 @@ export async function checkIn(req, res) {
   );
 
   // Start the day as "Available" on the Live Work Status
-  const defaultStatus = getDefaultStatus(settings);
+  const defaultStatus = settings.features?.workStatus !== false && getDefaultStatus(settings);
   if (defaultStatus) await startStatus(req.user._id, defaultStatus, { settings, at: punch.time });
 
   const message = lateByMinutes > 0 ? `Checked in (late by ${lateByMinutes} min)` : 'Checked in successfully';

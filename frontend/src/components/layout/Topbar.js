@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronRight, KeyRound, LogOut, Menu, UserRound } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { ChevronDown, ChevronRight, Download, FileText, KeyRound, LogOut, Menu, UserRound } from 'lucide-react';
+import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { findNavItem } from '@/lib/navigation';
 import { Avatar, Badge } from '@/components/ui';
@@ -21,6 +23,22 @@ function UserMenu() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // UK GDPR: everyone can download a copy of the personal data held about them
+  const downloadMyData = async () => {
+    try {
+      const res = await api.get('/auth/me/export');
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `my-data-${user?.employeeCode || 'export'}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setOpen(false);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -58,6 +76,22 @@ function UserMenu() {
               </Link>
             ))}
             <button
+              onClick={downloadMyData}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4 text-slate-400" /> Download my data
+            </button>
+            {user?.company?.privacyNoticeUrl && (
+              <a
+                href={user.company.privacyNoticeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <FileText className="h-4 w-4 text-slate-400" /> Privacy notice
+              </a>
+            )}
+            <button
               onClick={logout}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
@@ -72,6 +106,7 @@ function UserMenu() {
 
 export default function Topbar({ onMenuClick }) {
   const pathname = usePathname();
+  const { features } = useAuth();
   const { section, item } = findNavItem(pathname);
 
   return (
@@ -93,7 +128,7 @@ export default function Topbar({ onMenuClick }) {
 
       <div className="ml-auto flex items-center gap-2">
         <AttendanceChip />
-        <WorkStatusMenu />
+        {features.workStatus && <WorkStatusMenu />}
         <NotificationBell />
         <UserMenu />
       </div>

@@ -23,6 +23,15 @@ const settingsSchema = new mongoose.Schema(
     weeklyOffs: { type: [Number], default: [0, 6] }, // 0 = Sunday, 6 = Saturday
     requireLocationForCheckIn: { type: Boolean, default: false },
 
+    // Modules that can be switched off (e.g. a company that runs payroll elsewhere or does not track status)
+    features: {
+      payroll: { type: Boolean, default: true },
+      workStatus: { type: Boolean, default: true },
+    },
+    // UK GDPR
+    privacyNoticeUrl: String,
+    dataRetentionYears: { type: Number, default: 6, min: 1, max: 20 }, // leavers can be anonymised after this
+
     // Payroll: unpaid days (absences / unpaid leave) reduce pay; UK PAYE rates below
     attendanceBasedLop: { type: Boolean, default: true },
     payroll: {

@@ -40,6 +40,7 @@ export default function LeaveBalanceCards({ balances, loading }) {
                 </div>
                 <p className="mt-2.5 text-xs text-slate-500">
                   {b.used} used{b.pending ? ` · ${b.pending} pending approval` : ''}
+                  {b.carriedForward ? ` · incl. ${b.carriedForward} carried over` : ''}
                 </p>
               </>
             ) : (

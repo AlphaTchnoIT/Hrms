@@ -45,6 +45,8 @@ export const leaveTypeSchema = z.object({
     .refine((v) => Number.isInteger(v * 2), 'Use whole or half days'),
   isPaid: z.boolean().optional(),
   allowHalfDay: z.boolean().optional(),
+  proRata: z.boolean().optional(),
+  carryForwardMax: z.coerce.number().min(0, 'Carry-over cannot be negative').max(60, 'Carry-over cannot exceed 60 days').optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Pick a valid colour').optional(),
   description: optionalText('Description', 300),
   isActive: z.boolean().optional(),

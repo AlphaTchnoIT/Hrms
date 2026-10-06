@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { employeeSchema } from '@/lib/validation';
-import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, MARITAL_STATUS, NI_CATEGORIES, ROLES, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, HOLIDAY_REGIONS, MARITAL_STATUS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS } from '@/lib/constants';
 import { formatCurrency, getFullName, toInputDate, getCurrencySymbol } from '@/lib/format';
 import { Button, Card, Checkbox, FormSection, Input, Select } from '@/components/ui';
 
@@ -25,6 +25,16 @@ export function toFormValues(employee = {}) {
     employmentType: employee.employmentType || 'full-time',
     dateOfJoining: toInputDate(employee.dateOfJoining || new Date()),
     workLocation: employee.workLocation || '',
+    holidayRegion: employee.holidayRegion || 'england-wales',
+    workingDaysPerWeek: employee.workingDaysPerWeek ?? 5,
+    probationEndDate: employee.probationEndDate || '',
+    rightToWork: {
+      status: employee.rightToWork?.status || 'not-checked',
+      documentType: employee.rightToWork?.documentType || '',
+      shareCode: employee.rightToWork?.shareCode || '',
+      checkedOn: employee.rightToWork?.checkedOn || '',
+      expiryDate: employee.rightToWork?.expiryDate || '',
+    },
     gender: employee.gender || '',
     dateOfBirth: employee.dateOfBirth ? toInputDate(employee.dateOfBirth) : '',
     maritalStatus: employee.maritalStatus || '',
@@ -98,6 +108,19 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Select label="Employment type" required placeholder={false} options={EMPLOYMENT_TYPES} {...register('employmentType')} />
           <Input label="Date of joining" type="date" required {...register('dateOfJoining')} />
           <Input label="Work location" placeholder="e.g. London" {...register('workLocation')} />
+          <Select label="Bank holidays" placeholder={false} options={HOLIDAY_REGIONS} hint="Which UK nation's bank holidays apply" {...register('holidayRegion')} />
+          <Input label="Working days per week" type="number" min="0.5" max="7" step="0.5" hint="Part-time holiday is pro-rated on this" {...register('workingDaysPerWeek')} />
+          <Input label="Probation ends" type="date" hint="Manager and HR are reminded 2 weeks before" {...register('probationEndDate')} />
+        </FormSection>
+
+        <FormSection title="Right to work" description="Home Office check before the first day. Time-limited permission needs a follow-up check before it expires.">
+          <Select label="Status" placeholder={false} options={RIGHT_TO_WORK_STATUS} {...register('rightToWork.status')} />
+          <Input label="Document / check type" placeholder="e.g. UK passport, eVisa share code" {...register('rightToWork.documentType')} />
+          <Input label="Share code" placeholder="W12 3AB 45C" {...register('rightToWork.shareCode')} />
+          <Input label="Checked on" type="date" {...register('rightToWork.checkedOn')} />
+          {values.rightToWork?.status === 'time-limited' && (
+            <Input label="Permission expires" type="date" required hint="HR is reminded 60 and 30 days before" {...register('rightToWork.expiryDate')} />
+          )}
         </FormSection>
 
         <FormSection title="Personal details" description="Used for HR records and celebrations.">

@@ -8,12 +8,14 @@ import {
   listRuns,
   markRunPaid,
 } from '../controllers/payroll.controller.js';
-import { authorize } from '../middlewares/auth.middleware.js';
+import { authorize, requireFeature } from '../middlewares/auth.middleware.js';
 import { HR_ROLES } from '../constants/index.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { payrollRunSchema } from '../validators/workflow.validator.js';
 
 const router = Router();
+
+router.use(requireFeature('payroll'));
 
 router.get('/my-payslips', getMyPayslips);
 router.get('/payslips/:id', getPayslip);

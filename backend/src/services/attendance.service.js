@@ -1,4 +1,5 @@
-import { Attendance, Holiday, LeaveRequest } from '../models/index.js';
+import { Attendance, LeaveRequest } from '../models/index.js';
+import { buildHolidayLookup, findHolidays } from './calendar.service.js';
 import { eachDate, monthRange, timeToMinutes, toDateStr, todayInTz, dayOfWeek } from '../utils/date.js';
 
 // Decide present / half-day / absent based on worked minutes
@@ -22,7 +23,7 @@ export async function loadMonthData(userIds, year, month) {
   const { start, end } = monthRange(year, month);
   const [records, holidays, leaves] = await Promise.all([
     Attendance.find({ user: { $in: userIds }, date: { $gte: start, $lte: end } }).sort('date'),
-    Holiday.find({ date: { $gte: start, $lte: end }, type: { $ne: 'optional' } }),
+    findHolidays(start, end),
     LeaveRequest.find({
       user: { $in: userIds },
       status: 'approved',
@@ -31,15 +32,14 @@ export async function loadMonthData(userIds, year, month) {
     }).populate('leaveType', 'name code color isPaid'),
   ]);
 
-  const holidayMap = Object.fromEntries(holidays.map((h) => [h.date, h.name]));
-  return { start, end, records, holidayMap, leaves };
+  return { start, end, records, holidayOf: buildHolidayLookup(holidays), leaves };
 }
 
 /*
  * Builds the day-by-day attendance of one employee for a month.
  * Priority of a day: attendance record > holiday > weekly off > approved leave > absent.
  */
-export function buildMonthDays({ user, settings, start, end, records, holidayMap, leaves }) {
+export function buildMonthDays({ user, settings, start, end, records, holidayOf, leaves }) {
   const today = todayInTz(settings.timezone);
   const joinDate = user.dateOfJoining ? toDateStr(user.dateOfJoining) : start;
   const exitDate = user.exitDate ? toDateStr(user.exitDate) : null;
@@ -57,7 +57,7 @@ export function buildMonthDays({ user, settings, start, end, records, holidayMap
 
   const days = eachDate(start, end).map((date) => {
     const record = recordMap[date] || null;
-    const holiday = holidayMap[date] || null;
+    const holiday = holidayOf(date, user.holidayRegion);
     const isWeeklyOff = settings.weeklyOffs.includes(dayOfWeek(date));
     const leave = leaveMap[date] || null;
 

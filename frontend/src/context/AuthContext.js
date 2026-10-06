@@ -71,6 +71,8 @@ export function AuthProvider({ children }) {
       isIT: hasRole(IT_ROLES),
       // Direct and total (direct + indirect) reportees
       team: user?.team || { direct: 0, all: 0 },
+      // Modules the company switched on (Settings -> Modules)
+      features: { payroll: user?.company?.features?.payroll !== false, workStatus: user?.company?.features?.workStatus !== false },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, loading, loadUser, accessRoles, hasRole]

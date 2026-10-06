@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ANNOUNCEMENT_CATEGORIES, HOLIDAY_TYPES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
-import { dateStr, intRange, optional, optionalDate, optionalObjectId, optionalText, requiredText, timeStr, email, phone } from './common.js';
+import { ANNOUNCEMENT_CATEGORIES, HOLIDAY_REGIONS, HOLIDAY_TYPES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
+import { dateStr, intRange, optional, optionalDate, optionalObjectId, optionalText, requiredText, timeStr, email, phone, url } from './common.js';
 
 const percent = (label) => intRange(label, 0, 100);
 
@@ -24,6 +24,7 @@ export const holidaySchema = z.object({
   date: dateStr('Date'),
   type: z.enum(HOLIDAY_TYPES, { errorMap: () => ({ message: 'Select a holiday type' }) }),
   description: optionalText('Description', 300),
+  regions: z.array(z.enum(HOLIDAY_REGIONS)).default([]), // empty = whole UK
 });
 
 export const announcementSchema = z.object({
@@ -107,6 +108,9 @@ export const settingsSchema = z
     weeklyOffs: z.array(intRange('Weekly off', 0, 6)).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
     payroll: ukPayrollSchema,
+    features: z.object({ payroll: z.boolean(), workStatus: z.boolean() }),
+    privacyNoticeUrl: optional(url('Privacy notice link')),
+    dataRetentionYears: intRange('Data retention (years)', 1, 20),
     attendanceBasedLop: z.boolean(),
     kpiTargets: z.object({
       quality: percent('Quality target'),

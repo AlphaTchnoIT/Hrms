@@ -42,6 +42,9 @@ function SettingsForm({ settings }) {
       weeklyOffs: settings.weeklyOffs || [],
       requireLocationForCheckIn: settings.requireLocationForCheckIn,
       attendanceBasedLop: settings.attendanceBasedLop,
+      features: { payroll: settings.features?.payroll !== false, workStatus: settings.features?.workStatus !== false },
+      privacyNoticeUrl: settings.privacyNoticeUrl || '',
+      dataRetentionYears: settings.dataRetentionYears ?? 6,
     },
     { schema: settingsSchema }
   );
@@ -55,8 +58,9 @@ function SettingsForm({ settings }) {
   const onSubmit = form.handleSubmit(async (data) => {
     const res = await api.put('/settings', data);
     toast.success(res.message);
-    // Timezone and currency apply to every screen; reload so already-open pages pick them up
-    if (data.timezone !== getDisplayTimeZone() || data.currency !== getDisplayCurrency()) window.location.reload();
+    // Timezone, currency and modules apply to every screen; reload so open pages pick them up
+    const featuresChanged = data.features.payroll !== settings.features?.payroll || data.features.workStatus !== settings.features?.workStatus;
+    if (featuresChanged || data.timezone !== getDisplayTimeZone() || data.currency !== getDisplayCurrency()) window.location.reload();
   });
 
   return (
@@ -106,6 +110,20 @@ function SettingsForm({ settings }) {
             description="Employees must allow location access to check in or out"
             {...register('requireLocationForCheckIn', { type: 'checkbox' })}
           />
+        </FormSection>
+
+        <FormSection title="Modules" description="Switch off what your company does not use. Hidden for everyone and blocked on the server.">
+          <Checkbox label="Payroll & payslips" description="Off if payroll is run by an accountant or another system" {...register('features.payroll', { type: 'checkbox' })} />
+          <Checkbox
+            label="Live Work Status"
+            description="Employees share what they are working on; managers see it live. Do a DPIA and tell staff before switching on."
+            {...register('features.workStatus', { type: 'checkbox' })}
+          />
+        </FormSection>
+
+        <FormSection title="Data protection (UK GDPR)" description="Shown to everyone in their account menu. Leavers can be anonymised after the retention period.">
+          <Input label="Privacy notice link" placeholder="https://yourcompany.co.uk/staff-privacy" className="sm:col-span-2" {...register('privacyNoticeUrl')} />
+          <Input label="Keep leavers' records for (years)" type="number" min="1" max="20" required hint="UK practice is 6 years after leaving" {...register('dataRetentionYears')} />
         </FormSection>
 
         <FormSection title="Payroll" description="Tax, NI and pension rates are under UK payroll rates below.">

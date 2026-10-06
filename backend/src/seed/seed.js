@@ -89,6 +89,10 @@ async function seedEmployees({ departments, designations }) {
       reportingManager: e.manager ? usersByEmail[e.manager]._id : null,
       employmentType: e.employmentType || 'full-time',
       workLocation: e.workLocation || 'London',
+      holidayRegion: e.holidayRegion || 'england-wales',
+      workingDaysPerWeek: e.workingDaysPerWeek || 5,
+      probationEndDate: e.probationEndDate,
+      rightToWork: e.rightToWork || { status: 'british-irish', documentType: 'UK passport', checkedOn: e.dateOfJoining },
       niNumber: `QQ${String(123450 + index * 11).padStart(6, '0')}${'ABCD'[index % 4]}`, // QQ = HMRC specimen prefix
       address: { line1: `${10 + index} Example Road`, city: 'London', county: 'Greater London', country: 'United Kingdom', postcode: `E${1 + (index % 9)} 4AB` },
       emergencyContact: { name: 'Family Member', relation: 'Partner', phone: '+44 7700 900999' },
@@ -161,12 +165,14 @@ async function seedLeaves(users, leaveTypes, today) {
 }
 
 async function seedAttendance(users, settings, today, leaveDatesByUser) {
-  const holidayDates = new Set(HOLIDAYS.filter((h) => h.type !== 'optional').map((h) => h.date));
+  // Each person skips the bank holidays of their own UK nation
+  const holidayDatesFor = (region) => new Set(HOLIDAYS.filter((h) => h.type !== 'optional' && (!h.regions?.length || h.regions.includes(region))).map((h) => h.date));
   const records = [];
 
   Object.values(users).forEach((user) => {
     const joinDate = user.dateOfJoining.toISOString().slice(0, 10);
     const leaveDates = leaveDatesByUser[user._id] || new Set();
+    const holidayDates = holidayDatesFor(user.holidayRegion);
 
     // Last 75 days, excluding today (users check in live today)
     for (let i = 75; i >= 1; i -= 1) {

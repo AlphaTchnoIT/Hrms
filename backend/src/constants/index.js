@@ -42,6 +42,15 @@ export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company']
  * NI categories: A standard, M under 21, H apprentice under 25, C over State Pension age, X not liable.
  */
 export const NI_CATEGORIES = ['A', 'M', 'H', 'C', 'X'];
+
+// UK nations have different bank holidays
+export const HOLIDAY_REGIONS = ['england-wales', 'scotland', 'northern-ireland'];
+
+// Right to work in the UK (Home Office checks): time-limited permission needs a follow-up check before it expires
+export const RIGHT_TO_WORK_STATUS = ['not-checked', 'british-irish', 'settled', 'time-limited'];
+
+// Modules a company can switch off in Settings
+export const FEATURES = ['payroll', 'workStatus'];
 export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
 
 export const DEFAULT_UK_PAYROLL = {

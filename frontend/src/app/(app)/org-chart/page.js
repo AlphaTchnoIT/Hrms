@@ -114,10 +114,10 @@ function PersonNode({ node, depth, expanded, onToggle, highlight, meId, canEdit,
 }
 
 export default function OrgChartPage() {
-  const { user, isHR } = useAuth();
+  const { user, isHR, features } = useAuth();
   const { data, loading, error, refetch } = useFetch('/employees/org-chart');
   const departments = useFetch('/departments');
-  const presenceRes = useFetch('/work-status/presence');
+  const presenceRes = useFetch(features.workStatus ? '/work-status/presence' : null);
   const presence = presenceRes.data || {};
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');

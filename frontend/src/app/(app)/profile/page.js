@@ -8,12 +8,13 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
-import { changePasswordSchema, personalInfoSchema } from '@/lib/validation';
+import { personalInfoSchema } from '@/lib/validation';
 import { BLOOD_GROUPS, GENDERS, MARITAL_STATUS } from '@/lib/constants';
 import { formatDate, titleCase, toInputDate } from '@/lib/format';
 import { Badge, Button, Card, DataTable, FormSection, Input, Select, Tabs } from '@/components/ui';
 import ProfileHeader from '@/components/employees/ProfileHeader';
 import ProfileOverview from '@/components/employees/ProfileOverview';
+import ChangePasswordForm from '@/components/auth/ChangePasswordForm';
 
 const TABS = [
   { value: 'overview', label: 'Overview' },
@@ -93,25 +94,9 @@ function EditPersonalInfo({ user, onSaved, onCancel }) {
 }
 
 function ChangePassword() {
-  const empty = { currentPassword: '', newPassword: '', confirmPassword: '' };
-  const form = useForm(empty, { schema: changePasswordSchema });
-
-  const onSubmit = form.handleSubmit(async (data) => {
-    const res = await api.patch('/auth/change-password', data);
-    toast.success(res.message);
-    form.reset(empty);
-  });
-
   return (
-    <Card title="Change password" subtitle="Use at least 8 characters with a letter and a number" icon={ShieldCheck} className="max-w-lg">
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <Input label="Current password" type="password" autoComplete="current-password" required {...form.register('currentPassword')} />
-        <Input label="New password" type="password" autoComplete="new-password" required {...form.register('newPassword')} />
-        <Input label="Confirm new password" type="password" autoComplete="new-password" required {...form.register('confirmPassword')} />
-        <Button type="submit" loading={form.submitting}>
-          Update password
-        </Button>
-      </form>
+    <Card title="Change password" subtitle="Use at least 8 characters with a letter and a number. Other devices will be signed out." icon={ShieldCheck} className="max-w-lg">
+      <ChangePasswordForm />
     </Card>
   );
 }

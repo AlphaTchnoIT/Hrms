@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, NI_CATEGORIES, ROLES, STUDENT_LOAN_PLANS } from '../constants/index.js';
+import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS } from '../constants/index.js';
 import {
   dateStr,
   email,
@@ -95,6 +95,19 @@ const employeeFields = personalInfoSchema.extend({
   dateOfJoining: dateStr('Date of joining'),
   exitDate: optionalDate('Exit date'),
   workLocation: optionalText('Work location', 100),
+  holidayRegion: z.enum(HOLIDAY_REGIONS, { errorMap: () => ({ message: 'Select a bank holiday region' }) }).optional(),
+  workingDaysPerWeek: z.coerce.number().min(0.5, 'At least half a day a week').max(7, 'At most 7 days a week').optional(),
+  probationEndDate: optionalDate('Probation end date'),
+  rightToWork: z
+    .object({
+      status: z.enum(RIGHT_TO_WORK_STATUS).optional(),
+      documentType: optionalText('Document', 80),
+      shareCode: optional(z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3} ?[A-Z0-9]{3} ?[A-Z0-9]{3}$/, 'Share code is 9 characters (e.g. W12 3AB 45C)')),
+      checkedOn: optionalDate('Check date'),
+      expiryDate: optionalDate('Permission expiry date'),
+    })
+    .refine((r) => r.status !== 'time-limited' || r.expiryDate, { path: ['expiryDate'], message: 'Time-limited permission needs an expiry date' })
+    .optional(),
   // National Insurance number, e.g. "QQ 12 34 56 C" (spaces are removed)
   niNumber: optional(
     z

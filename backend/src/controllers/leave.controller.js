@@ -5,7 +5,7 @@ import { sendSuccess } from '../utils/response.js';
 import { buildMeta, getPagination } from '../utils/pagination.js';
 import { addDays, isValidDateStr, todayInTz } from '../utils/date.js';
 import { getWorkingDates } from '../services/calendar.service.js';
-import { adjustBalance, getBalancesForUser, getOrCreateBalance, getQuarterlyLeaveSummary } from '../services/leave.service.js';
+import { adjustBalance, getBalancesForUser, getOrCreateBalance, getQuarterlyLeaveSummary, calculateEntitlement } from '../services/leave.service.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
 
@@ -63,7 +63,7 @@ export async function applyLeave(req, res) {
   if (!leaveType || !leaveType.isActive) throw ApiError.field('leaveType', 'Please select a valid leave type');
   if (isHalfDay && !leaveType.allowHalfDay) throw ApiError.field('isHalfDay', `${leaveType.name} cannot be taken as half day`);
 
-  const workingDates = await getWorkingDates(fromDate, toDate, settings);
+  const workingDates = await getWorkingDates(fromDate, toDate, settings, req.user.holidayRegion);
   if (!workingDates.length) throw ApiError.field('fromDate', 'Selected dates fall on holidays / weekly offs');
   const days = isHalfDay ? 0.5 : workingDates.length;
 
@@ -204,7 +204,7 @@ export async function cancelLeave(req, res) {
 
 /* ---------------------------------- Leave types ---------------------------------- */
 
-const LEAVE_TYPE_FIELDS = ['name', 'code', 'annualQuota', 'isPaid', 'allowHalfDay', 'color', 'description', 'isActive'];
+const LEAVE_TYPE_FIELDS = ['name', 'code', 'annualQuota', 'isPaid', 'allowHalfDay', 'proRata', 'carryForwardMax', 'color', 'description', 'isActive'];
 
 export async function listLeaveTypes(req, res) {
   const filter = req.query.all === 'true' ? {} : { isActive: true };
@@ -222,15 +222,21 @@ export async function updateLeaveType(req, res) {
   const leaveType = await LeaveType.findById(req.params.id);
   if (!leaveType) throw ApiError.notFound('Leave type not found');
 
-  const quotaChanged = body.annualQuota !== undefined && Number(body.annualQuota) !== leaveType.annualQuota;
+  const entitlementChanged =
+    (body.annualQuota !== undefined && Number(body.annualQuota) !== leaveType.annualQuota) ||
+    (body.proRata !== undefined && Boolean(body.proRata) !== Boolean(leaveType.proRata));
   leaveType.set(body);
   await leaveType.save();
 
-  // Apply the new quota to everyone's current-year balance
-  if (quotaChanged) {
-    await LeaveBalance.updateMany(
-      { leaveType: leaveType._id, year: new Date().getFullYear() },
-      { allocated: leaveType.annualQuota }
+  // Recalculate everyone's current-year entitlement (pro-rata per person), keeping carried-over days
+  if (entitlementChanged) {
+    const year = new Date().getFullYear();
+    const balances = await LeaveBalance.find({ leaveType: leaveType._id, year }).populate('user', 'dateOfJoining exitDate workingDaysPerWeek');
+    await Promise.all(
+      balances.map((balance) => {
+        balance.allocated = calculateEntitlement(leaveType, balance.user, year) + (balance.carriedForward || 0);
+        return balance.save();
+      })
     );
   }
 

@@ -37,7 +37,10 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Manager workspace** | My Team Home (only assigned reports), team performance dashboard, Attention Required list |
 | **Reports & analytics** | Reports Centre (12 reports, CSV export) and Management Dashboard (attrition, attendance, KPI achievement, QA, teams requiring attention) |
 | **Recruitment (ATS)** | Internal job posting with eligibility, external candidates, pipeline statuses, interview scheduling with panel feedback, document collection, public status page, email + in-app notifications |
-| **Learning** | Training programmes & assignments, in-app knowledge tests (auto-graded, attempts, time limit), automatic hourly reminders, training records |
+| **Learning** | Training programmes & assignments, in-app knowledge tests (auto-graded, attempts, time limit, answer key, report cards), automatic hourly reminders, training records |
+| **UK HR** | Right to work checks (follow-up reminders 60 / 30 days before time-limited permission expires), probation reminders, bank holidays per nation (England & Wales, Scotland, Northern Ireland), holiday pro-rata for part-time staff and joiners, carry-over |
+| **Accounts & security** | One-time passwords for new accounts with a forced change at first login, forgot / reset password by email, sessions ended when a password changes, login and reset rate limits |
+| **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll or Live Work Status per company |
 | **IT helpdesk** | Tickets with categories/priority, conversation, internal notes, assignment, resolve / reopen |
 | **Grievances & ideas** | Confidential (optionally anonymous) grievances visible only to HR; feedback & suggestions with management response |
 | **Leave summary** | Leave taken per type summed per quarter |
@@ -107,6 +110,26 @@ Open http://localhost:3000
 | Team lead (employee role) | thomas@hrms.com |
 | QA auditor | qa@hrms.com |
 | IT support | it@hrms.com |
+
+### Setting up a real company (no demo data)
+
+```bash
+# Empty database only. Creates UK settings, leave types, bank holidays and the first admin
+npm run setup -- --company "Acme Ltd" --email jane@acme.co.uk --first Jane --last Smith
+```
+
+The admin's one-time password is printed once and must be changed at first login.
+
+### Going live for a UK client (checklist)
+
+1. **Hosting in the UK / EU**: MongoDB Atlas cluster in London (`eu-west-2`) or another EU region; API and web app in an EU region. One deployment + database per client.
+2. **Backend env**: strong `JWT_SECRET`, `CLIENT_URL` = the client's web address, `SMTP_*` set (password reset emails need it), `NODE_ENV=production`.
+3. **Frontend env**: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_DEMO_MODE=false`.
+4. Run `npm run setup` (never `npm run seed` – it wipes the database).
+5. In **Settings**: company details, office hours, UK payroll rates for the current tax year, modules (switch off Payroll if payroll is run elsewhere), privacy notice link, retention years.
+6. **UK GDPR paperwork** (client + you): data processing agreement, staff privacy notice, and a DPIA before switching on Live Work Status. Turn on database backups.
+7. **Payroll**: payslips and figures come from this app, but RTI submissions (FPS / EPS) to HMRC must be made from HMRC-recognised payroll software. SSP / SMP and P45 / P60 are not produced.
+8. Run `npm test` (payroll and leave rules) after changing rates or rules.
 
 ## Validation
 

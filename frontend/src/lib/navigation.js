@@ -57,10 +57,10 @@ export const NAVIGATION = [
     items: [
       { label: 'My Profile', href: '/profile', icon: UserRound },
       { label: 'Attendance', href: '/attendance', icon: CalendarCheck },
-      { label: 'My Work Status', href: '/my-status', icon: Activity },
+      { label: 'My Work Status', href: '/my-status', icon: Activity, feature: 'workStatus' },
       { label: 'My Roster', href: '/roster', icon: CalendarRange },
       { label: 'Leave', href: '/leave', icon: CalendarDays },
-      { label: 'Payslips', href: '/payslips', icon: WalletCards },
+      { label: 'Payslips', href: '/payslips', icon: WalletCards, feature: 'payroll' },
       { label: 'Expenses', href: '/expenses', icon: Receipt },
       { label: 'Performance', href: '/performance', icon: Gauge },
       { label: 'QA Feedback', href: '/quality', icon: Star },
@@ -74,7 +74,7 @@ export const NAVIGATION = [
     roles: APPROVER_ROLES,
     items: [
       { label: 'My Team Home', href: '/team/home', icon: House },
-      { label: 'Live Status', href: '/team/live-status', icon: Radio },
+      { label: 'Live Status', href: '/team/live-status', icon: Radio, feature: 'workStatus' },
       { label: 'Team Performance', href: '/team/performance', icon: LineChart },
       { label: 'Action Plans', href: '/team/action-plans', icon: ListChecks },
       { label: 'Team Roster', href: '/team/roster', icon: CalendarClock },
@@ -130,18 +130,19 @@ export const NAVIGATION = [
     roles: HR_ROLES,
     items: [
       { label: 'Recruitment (ATS)', href: '/recruitment', icon: UserSearch },
-      { label: 'Payroll', href: '/payroll', icon: CurrencyBadgeIcon },
+      { label: 'Payroll', href: '/payroll', icon: CurrencyBadgeIcon, feature: 'payroll' },
       { label: 'Leave Policies', href: '/leave-types', icon: UserCog },
       { label: 'Settings', href: '/settings', icon: Settings, roles: [ROLES.ADMIN] },
     ],
   },
 ];
 
-// `roles` = the user's access roles, e.g. ['employee', 'manager'] for a team lead
-export function getNavigationForRole(roles = []) {
+// `roles` = the user's access roles, e.g. ['employee', 'manager'] for a team lead; `features` = modules switched on
+export function getNavigationForRole(roles = [], features = {}) {
   const allowed = (list) => !list || roles.some((role) => list.includes(role));
+  const enabled = (item) => !item.feature || features[item.feature] !== false;
   return NAVIGATION.filter((section) => allowed(section.roles))
-    .map((section) => ({ ...section, items: section.items.filter((item) => allowed(item.roles)) }))
+    .map((section) => ({ ...section, items: section.items.filter((item) => allowed(item.roles) && enabled(item)) }))
     .filter((section) => section.items.length);
 }
 

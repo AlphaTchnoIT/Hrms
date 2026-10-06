@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowRight, Briefcase, CalendarCheck, ShieldCheck, Wallet } from 'lucide-react';
@@ -14,10 +15,13 @@ const DEMO_ACCOUNTS = [
   { role: 'HR', email: 'hr@hrms.com' },
   { role: 'Manager', email: 'manager@hrms.com' },
   { role: 'Employee', email: 'employee@hrms.com' },
+  { role: 'Team Lead', email: 'thomas@hrms.com' },
   { role: 'QA', email: 'qa@hrms.com' },
   { role: 'IT', email: 'it@hrms.com' },
 ];
 const DEMO_PASSWORD = 'Password@123';
+// Client deployments set NEXT_PUBLIC_DEMO_MODE=false so the demo logins are not shown
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
 const FEATURES = [
   [CalendarCheck, 'One-click web check-in', 'Live attendance, late marks and regularization'],
@@ -93,11 +97,17 @@ export default function LoginPage() {
           <form onSubmit={onSubmit} noValidate className="mt-8 space-y-5">
             <Input label="Work email" type="email" autoComplete="email" placeholder="you@company.com" {...form.register('email')} />
             <Input label="Password" type="password" autoComplete="current-password" placeholder="Enter your password" {...form.register('password')} />
+            <div className="-mt-2 text-right">
+              <Link href="/forgot-password" className="text-sm font-medium text-brand-600 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <Button type="submit" size="lg" loading={form.submitting} className="w-full">
               Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
 
+          {DEMO_MODE && (
           <div className="mt-10">
             <div className="flex items-center gap-3 text-xs text-slate-400">
               <span className="h-px flex-1 bg-slate-200" /> Try a demo account <span className="h-px flex-1 bg-slate-200" />
@@ -117,6 +127,7 @@ export default function LoginPage() {
             </div>
             <p className="mt-3 text-center text-[11px] text-slate-400">Demo password: {DEMO_PASSWORD}</p>
           </div>
+          )}
         </div>
       </div>
     </div>

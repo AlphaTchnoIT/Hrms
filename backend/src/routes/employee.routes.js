@@ -5,6 +5,8 @@ import {
   getDirectory,
   getEmployee,
   getMyTeam,
+  anonymiseLeaver,
+  exportEmployeeData,
   getOrgChart,
   listEmployees,
   resetPassword,
@@ -27,6 +29,8 @@ router.post('/', authorize(HR_ROLES), validate(createEmployeeSchema), createEmpl
 router.get('/:id', getEmployee);
 router.put('/:id', authorize(HR_ROLES), validate(updateEmployeeSchema), updateEmployee);
 router.patch('/:id/reset-password', authorize(HR_ROLES), validate(resetPasswordSchema), resetPassword);
+router.get('/:id/export', authorize(HR_ROLES), exportEmployeeData);
+router.post('/:id/anonymise', authorize(HR_ROLES), anonymiseLeaver);
 router.delete('/:id', authorize(HR_ROLES), deactivateEmployee);
 
 export default router;

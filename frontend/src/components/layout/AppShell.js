@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
+import ChangePasswordForm from '@/components/auth/ChangePasswordForm';
+import PublicCard from '@/components/auth/PublicCard';
 import { useAuth } from '@/context/AuthContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
 // Wraps every logged-in page: redirects to /login if not authenticated
 export default function AppShell({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,6 +26,21 @@ export default function AppShell({ children }) {
         <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
         <p className="text-sm text-slate-500">Loading your workspace…</p>
       </div>
+    );
+  }
+
+  // Password set by HR (new account or reset): choose your own before using the app
+  if (user.mustChangePassword) {
+    return (
+      <PublicCard title={`Welcome, ${user.firstName}`} subtitle="For your security, please choose your own password before you continue.">
+        <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <KeyRound className="mt-0.5 h-4 w-4 shrink-0" /> Use the temporary password from HR as your current password.
+        </div>
+        <ChangePasswordForm currentLabel="Temporary password" submitLabel="Set my password" />
+        <button onClick={logout} className="mt-4 text-sm text-slate-500 hover:text-slate-800">
+          Log out
+        </button>
+      </PublicCard>
     );
   }
 

@@ -6,6 +6,13 @@ export const loginSchema = z.object({
   password: z.string({ required_error: 'Password is required' }).min(1, 'Password is required'),
 });
 
+export const forgotPasswordSchema = z.object({ email });
+
+export const resetPasswordWithTokenSchema = z.object({
+  token: z.string({ required_error: 'Reset link is missing' }).regex(/^[a-f0-9]{64}$/, 'This reset link is invalid'),
+  newPassword: password,
+});
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string({ required_error: 'Current password is required' }).min(1, 'Current password is required'),

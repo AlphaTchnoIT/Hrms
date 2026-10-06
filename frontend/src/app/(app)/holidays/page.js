@@ -9,9 +9,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { holidaySchema } from '@/lib/validation';
-import { HOLIDAY_TYPES } from '@/lib/constants';
+import { HOLIDAY_REGIONS, HOLIDAY_TYPES } from '@/lib/constants';
 import { formatDate, toInputDate } from '@/lib/format';
-import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Select, Skeleton, Textarea, useConfirm } from '@/components/ui';
+import { Badge, Button, Card, Checkbox, EmptyState, Input, Modal, PageHeader, Select, Skeleton, Textarea, useConfirm } from '@/components/ui';
 
 const TYPE_COLORS = { 'bank-holiday': 'red', regional: 'purple', optional: 'gray', company: 'blue' };
 
@@ -22,9 +22,12 @@ function HolidayModal({ holiday, year, onClose, onSaved }) {
       date: holiday?.date || '',
       type: holiday?.type || 'bank-holiday',
       description: holiday?.description || '',
+      regions: holiday?.regions || [],
     },
     { schema: holidaySchema }
   );
+  const toggleRegion = (region) =>
+    form.setField('regions', form.values.regions.includes(region) ? form.values.regions.filter((r) => r !== region) : [...form.values.regions, region]);
 
   const onSubmit = form.handleSubmit(async (data) => {
     const res = holiday ? await api.put(`/holidays/${holiday._id}`, data) : await api.post('/holidays', data);
@@ -55,6 +58,15 @@ function HolidayModal({ holiday, year, onClose, onSaved }) {
           <Input label="Date" type="date" required min={`${year - 1}-01-01`} max={`${year + 1}-12-31`} {...form.register('date')} />
           <Select label="Type" required placeholder={false} options={HOLIDAY_TYPES} {...form.register('type')} />
         </div>
+        <div>
+          <p className="form-label">Applies to</p>
+          <div className="flex flex-wrap gap-4">
+            {HOLIDAY_REGIONS.map((r) => (
+              <Checkbox key={r.value} label={r.label} checked={form.values.regions.includes(r.value)} onChange={() => toggleRegion(r.value)} />
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Tick none for a UK-wide holiday.</p>
+        </div>
         <Textarea label="Description" maxLength={300} {...form.register('description')} />
         <p className="text-xs text-slate-500">Optional holidays are not excluded from working days or leave counts.</p>
       </form>
@@ -63,11 +75,15 @@ function HolidayModal({ holiday, year, onClose, onSaved }) {
 }
 
 export default function HolidaysPage() {
-  const { isHR } = useAuth();
+  const { isHR, user } = useAuth();
   const confirm = useConfirm();
   const [year, setYear] = useState(new Date().getFullYear());
+  // Employees see their own nation's bank holidays by default; HR can look at every region
+  const [region, setRegion] = useState(isHR ? '' : user?.holidayRegion || 'england-wales');
   const [editing, setEditing] = useState(undefined);
-  const { data, loading, refetch } = useFetch('/holidays', { params: { year } });
+  const { data: all, loading, refetch } = useFetch('/holidays', { params: { year } });
+  const data = all && (region ? all.filter((h) => !h.regions?.length || h.regions.includes(region)) : all);
+  const regionLabel = (h) => (h.regions?.length ? h.regions.map((r) => HOLIDAY_REGIONS.find((o) => o.value === r)?.label || r).join(', ') : 'Whole UK');
   const today = toInputDate();
   const nextHoliday = (data || []).find((h) => h.date >= today);
 
@@ -90,6 +106,7 @@ export default function HolidaysPage() {
         subtitle={`${data?.length || 0} holidays in ${year}${nextHoliday ? ` · Next: ${nextHoliday.name} on ${formatDate(nextHoliday.date)}` : ''}`}
         actions={
           <>
+            <Select className="w-48" placeholder="All UK regions" options={HOLIDAY_REGIONS} value={region} onChange={(e) => setRegion(e.target.value)} />
             <Select
               className="w-28"
               placeholder={false}
@@ -133,9 +150,10 @@ export default function HolidaysPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-900">{h.name}</p>
                 <p className="text-xs text-slate-500">{formatDate(h.date, { weekday: 'long' })}</p>
-                <Badge color={TYPE_COLORS[h.type]} className="mt-1.5">
-                  {h.type}
-                </Badge>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Badge color={TYPE_COLORS[h.type]}>{h.type}</Badge>
+                  <span className="text-[11px] text-slate-500">{regionLabel(h)}</span>
+                </div>
               </div>
               {isHR && (
                 <div className="flex flex-col gap-1">

@@ -73,7 +73,7 @@ export async function getDashboard(req, res) {
     await Promise.all([
       Attendance.findOne({ user: user._id, date: today }),
       getBalancesForUser(user._id, Number(today.slice(0, 4))),
-      Holiday.find({ date: { $gte: today } }).sort('date').limit(5),
+      Holiday.find({ date: { $gte: today }, $or: [{ regions: { $size: 0 } }, { regions: user.holidayRegion || 'england-wales' }] }).sort('date').limit(5),
       Announcement.find({ $or: [{ expiresAt: null }, { expiresAt: { $gte: new Date() } }] })
         .populate('createdBy', 'firstName lastName')
         .sort({ isPinned: -1, createdAt: -1 })

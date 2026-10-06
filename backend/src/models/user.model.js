@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS, NI_CATEGORIES, STUDENT_LOAN_PLANS } from '../constants/index.js';
+import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS } from '../constants/index.js';
 
 /*
  * User = Employee.
@@ -46,6 +46,18 @@ const salarySchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Right to work check (Home Office). shareCode is for online checks; expiryDate only for time-limited permission
+const rightToWorkSchema = new mongoose.Schema(
+  {
+    status: { type: String, enum: RIGHT_TO_WORK_STATUS, default: 'not-checked' },
+    documentType: String, // e.g. "UK passport", "eVisa / share code", "BRP"
+    shareCode: String,
+    checkedOn: String, // "YYYY-MM-DD"
+    expiryDate: String, // "YYYY-MM-DD"
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     employeeCode: { type: String, unique: true, sparse: true },
@@ -60,6 +72,11 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
     },
     password: { type: String, required: true, minlength: 6, select: false },
+    // Set when HR creates the account or resets the password: the user must pick their own password first
+    mustChangePassword: { type: Boolean, default: false },
+    passwordChangedAt: Date, // tokens issued before this are rejected
+    passwordResetToken: { type: String, select: false }, // sha256 of the emailed token
+    passwordResetExpires: { type: Date, select: false },
     role: { type: String, enum: Object.values(ROLES), default: ROLES.EMPLOYEE },
 
     // Personal
@@ -79,6 +96,11 @@ const userSchema = new mongoose.Schema(
     employmentType: { type: String, enum: EMPLOYMENT_TYPES, default: 'full-time' },
     dateOfJoining: { type: Date, default: Date.now },
     workLocation: String,
+    holidayRegion: { type: String, enum: HOLIDAY_REGIONS, default: 'england-wales' }, // which bank holidays apply
+    workingDaysPerWeek: { type: Number, default: 5, min: 0.5, max: 7 }, // part-time holiday is pro-rated on this
+    probationEndDate: String, // "YYYY-MM-DD"
+    rightToWork: { type: rightToWorkSchema, default: () => ({}) },
+    anonymisedAt: Date, // personal data removed after the retention period (UK GDPR)
     status: { type: String, enum: EMPLOYEE_STATUS, default: 'active' },
     exitDate: Date,
 
@@ -116,6 +138,8 @@ userSchema.virtual('monthlyGross').get(function monthlyGross() {
 userSchema.pre('save', async function hashPassword() {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
+  // A second earlier so a token issued right after the change is still valid
+  if (!this.isNew) this.passwordChangedAt = new Date(Date.now() - 1000);
 });
 
 userSchema.methods.comparePassword = function comparePassword(candidate) {

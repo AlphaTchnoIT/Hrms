@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui';
 import DetailItem from '@/components/shared/DetailItem';
 import { formatCurrency, formatDate, getFullName, titleCase } from '@/lib/format';
-import { NI_CATEGORIES, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS } from '@/lib/constants';
 
 // Read-only view of an employee's details (used on My Profile and Employee detail)
 export default function ProfileOverview({ employee, showSensitive = false }) {
@@ -21,6 +21,9 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
           <DetailItem label="Employment type" value={titleCase(employee.employmentType)} />
           <DetailItem label="Date of joining" value={formatDate(employee.dateOfJoining)} />
           <DetailItem label="Work location" value={employee.workLocation} />
+          <DetailItem label="Bank holidays" value={labelOf(HOLIDAY_REGIONS, employee.holidayRegion || 'england-wales')} />
+          <DetailItem label="Working days / week" value={employee.workingDaysPerWeek ?? 5} />
+          <DetailItem label="Probation ends" value={employee.probationEndDate ? formatDate(employee.probationEndDate) : null} />
           <DetailItem label="Role" value={titleCase(employee.role)} />
         </dl>
       </Card>
@@ -53,6 +56,18 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
 
       {showSensitive && (
         <>
+          <Card title="Right to work">
+            <dl className="grid grid-cols-2 gap-4">
+              <DetailItem label="Status" value={labelOf(RIGHT_TO_WORK_STATUS, employee.rightToWork?.status || 'not-checked')} />
+              <DetailItem label="Document / check" value={employee.rightToWork?.documentType} />
+              <DetailItem label="Share code" value={employee.rightToWork?.shareCode} />
+              <DetailItem label="Checked on" value={employee.rightToWork?.checkedOn ? formatDate(employee.rightToWork.checkedOn) : null} />
+              {employee.rightToWork?.status === 'time-limited' && (
+                <DetailItem label="Permission expires" value={employee.rightToWork.expiryDate ? formatDate(employee.rightToWork.expiryDate) : null} />
+              )}
+            </dl>
+          </Card>
+
           <Card title="Bank & National Insurance">
             <dl className="grid grid-cols-2 gap-4">
               <DetailItem label="Bank" value={employee.bankDetails?.bankName} />

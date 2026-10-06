@@ -3,7 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { pick } from '../utils/helpers.js';
 
-const FIELDS = ['name', 'date', 'type', 'description'];
+const FIELDS = ['name', 'date', 'type', 'description', 'regions'];
 
 // GET /api/holidays?year=2026
 export async function listHolidays(req, res) {

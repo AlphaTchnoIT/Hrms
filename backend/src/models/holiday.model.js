@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { HOLIDAY_TYPES } from '../constants/index.js';
+import { HOLIDAY_REGIONS, HOLIDAY_TYPES } from '../constants/index.js';
 
 const holidaySchema = new mongoose.Schema(
   {
@@ -7,6 +7,7 @@ const holidaySchema = new mongoose.Schema(
     date: { type: String, required: [true, 'Date is required'] }, // "YYYY-MM-DD"
     type: { type: String, enum: HOLIDAY_TYPES, default: 'bank-holiday' },
     description: String,
+    regions: { type: [{ type: String, enum: HOLIDAY_REGIONS }], default: [] }, // empty = the whole UK
   },
   { timestamps: true }
 );

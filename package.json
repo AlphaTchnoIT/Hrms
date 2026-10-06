@@ -9,7 +9,9 @@
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "build": "npm run build --prefix frontend",
     "start": "concurrently -n api,web -c blue,magenta \"npm start --prefix backend\" \"npm start --prefix frontend\"",
-    "seed:upgrade": "npm run seed:upgrade --prefix backend"
+    "seed:upgrade": "npm run seed:upgrade --prefix backend",
+    "setup": "npm run setup --prefix backend --",
+    "test": "npm test --prefix backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

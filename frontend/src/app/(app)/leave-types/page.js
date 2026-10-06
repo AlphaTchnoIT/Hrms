@@ -21,6 +21,8 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
       annualQuota: item?.annualQuota ?? '',
       isPaid: item?.isPaid ?? true,
       allowHalfDay: item?.allowHalfDay ?? true,
+      proRata: item?.proRata ?? false,
+      carryForwardMax: item?.carryForwardMax ?? 0,
       color: item?.color || COLORS[0],
       description: item?.description || '',
       isActive: item?.isActive ?? true,
@@ -54,8 +56,8 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
     >
       <form id="leave-type-form" onSubmit={onSubmit} noValidate className="space-y-4">
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Name" required className="col-span-2" placeholder="e.g. Casual Leave" {...register('name')} />
-          <Input label="Code" required placeholder="CL" maxLength={6} {...register('code')} />
+          <Input label="Name" required className="col-span-2" placeholder="e.g. Annual Leave" {...register('name')} />
+          <Input label="Code" required placeholder="AL" maxLength={6} {...register('code')} />
         </div>
         <Input
           label="Days per year"
@@ -64,9 +66,13 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
           step="0.5"
           required={values.isPaid}
           disabled={!values.isPaid}
-          hint={item ? "Changing this updates everyone's balance for this year" : 'Credited to every employee each year'}
+          hint={item ? "Changing this recalculates everyone's balance for this year" : 'Full-time, full-year entitlement'}
           {...register('annualQuota')}
         />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Checkbox label="Pro-rata" description="Part-time (working days ÷ 5) and joiners / leavers get a share" {...register('proRata', { type: 'checkbox' })} />
+          <Input label="Carry over to next year" type="number" min="0" max="60" step="0.5" hint="Max unused days that move into next year" {...register('carryForwardMax')} />
+        </div>
         <div>
           <label className="form-label">Colour</label>
           <div className="flex flex-wrap gap-2">
@@ -84,7 +90,7 @@ function LeaveTypeModal({ item, onClose, onSaved }) {
         </div>
         <Textarea label="Description" maxLength={300} {...register('description')} />
         <div className="grid gap-3 sm:grid-cols-3">
-          <Checkbox label="Paid leave" description="Unpaid = loss of pay" {...register('isPaid', { type: 'checkbox' })} />
+          <Checkbox label="Paid leave" description="Unpaid days reduce pay" {...register('isPaid', { type: 'checkbox' })} />
           <Checkbox label="Allow half day" {...register('allowHalfDay', { type: 'checkbox' })} />
           <Checkbox label="Active" {...register('isActive', { type: 'checkbox' })} />
         </div>

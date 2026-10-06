@@ -132,6 +132,18 @@ const employeeBase = z.object({
   dateOfBirth: dobRule,
   maritalStatus: z.string().optional(),
   bloodGroup: z.string().optional(),
+  holidayRegion: z.string().optional(),
+  workingDaysPerWeek: number('Working days per week', { min: 0.5, max: 7, required: true }),
+  probationEndDate: z.string().optional(),
+  rightToWork: z
+    .object({
+      status: z.string().optional(),
+      documentType: text('Document', 80),
+      shareCode: optional(z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3} ?[A-Z0-9]{3} ?[A-Z0-9]{3}$/, 'Share code is 9 characters (e.g. W12 3AB 45C)')),
+      checkedOn: z.string().optional(),
+      expiryDate: z.string().optional(),
+    })
+    .refine((r) => r.status !== 'time-limited' || r.expiryDate, { path: ['expiryDate'], message: 'Add the date the permission expires' }),
   niNumber: optional(
     z
       .string()
@@ -200,6 +212,8 @@ export const leaveTypeSchema = z.object({
   annualQuota: number('Days per year', { max: 365 }).refine((v) => Number.isInteger(v * 2), 'Use whole or half days'),
   isPaid: z.boolean(),
   allowHalfDay: z.boolean(),
+  proRata: z.boolean(),
+  carryForwardMax: number('Carry-over days', { max: 60 }).refine((v) => Number.isInteger(v * 2), 'Use whole or half days'),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Pick a valid colour'),
   description: text('Description', 300),
   isActive: z.boolean(),
@@ -272,6 +286,7 @@ export const holidaySchema = z.object({
   date: date('Date'),
   type: select('a type'),
   description: text('Description', 300),
+  regions: z.array(z.string()),
 });
 
 export const announcementSchema = z.object({
@@ -326,6 +341,9 @@ export const settingsSchema = z
     weeklyOffs: z.array(z.number()).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
     attendanceBasedLop: z.boolean(),
+    features: z.object({ payroll: z.boolean(), workStatus: z.boolean() }),
+    privacyNoticeUrl: optional(z.string().trim().url('Enter a valid link (https://...)')),
+    dataRetentionYears: number('Retention years', { min: 1, max: 20, int: true, required: true }),
   })
   .refine((d) => d.officeEndTime > d.officeStartTime, { path: ['officeEndTime'], message: 'End time must be after start time' })
   .refine((d) => d.halfDayMinutes < d.fullDayMinutes, { path: ['halfDayMinutes'], message: 'Half day must be less than full day' });

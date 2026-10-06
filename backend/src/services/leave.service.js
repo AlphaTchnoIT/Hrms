@@ -1,19 +1,51 @@
-import { LeaveBalance, LeaveRequest, LeaveType } from '../models/index.js';
+import { LeaveBalance, LeaveRequest, LeaveType, User } from '../models/index.js';
 import { quarterOf } from '../utils/date.js';
 import { getWorkingDates } from './calendar.service.js';
 
-// Returns the balance document for a user/leaveType/year, creating it with the yearly quota if missing
+const roundHalf = (n) => Math.round(n * 2) / 2;
+
+/*
+ * Entitlement for a year. Pro-rata leave (UK annual leave) is scaled by
+ * working days per week / 5 and by the part of the year the person is employed, rounded to half days.
+ */
+export function calculateEntitlement(leaveType, user, year) {
+  const quota = leaveType?.annualQuota || 0;
+  if (!leaveType?.proRata || !user) return quota;
+  const yearStart = Date.UTC(year, 0, 1);
+  const yearEnd = Date.UTC(year, 11, 31);
+  const joined = user.dateOfJoining ? Math.max(new Date(user.dateOfJoining).getTime(), yearStart) : yearStart;
+  const left = user.exitDate ? Math.min(new Date(user.exitDate).getTime(), yearEnd) : yearEnd;
+  const daysInYear = (yearEnd - yearStart) / 86400000 + 1;
+  const employedDays = Math.max(0, Math.floor((left - joined) / 86400000) + 1);
+  const partTime = Math.min(1, (user.workingDaysPerWeek ?? 5) / 5);
+  return roundHalf(quota * partTime * (employedDays / daysInYear));
+}
+
+// Unused days from last year that move into this year (up to the leave type's carry-over limit)
+async function carriedForwardDays(userId, leaveType, year) {
+  if (!leaveType?.carryForwardMax) return 0;
+  const previous = await LeaveBalance.findOne({ user: userId, leaveType: leaveType._id, year: year - 1 });
+  if (!previous) return 0;
+  return Math.min(leaveType.carryForwardMax, Math.max(0, previous.allocated - previous.used - previous.pending));
+}
+
+// Returns the balance document for a user/leaveType/year, creating it with the year's entitlement if missing
 export async function getOrCreateBalance(userId, leaveTypeId, year) {
   let balance = await LeaveBalance.findOne({ user: userId, leaveType: leaveTypeId, year });
   if (balance) return balance;
 
-  const leaveType = await LeaveType.findById(leaveTypeId);
+  const [leaveType, user] = await Promise.all([
+    LeaveType.findById(leaveTypeId),
+    User.findById(userId).select('dateOfJoining exitDate workingDaysPerWeek'),
+  ]);
+  const carriedForward = await carriedForwardDays(userId, leaveType, year);
   try {
     balance = await LeaveBalance.create({
       user: userId,
       leaveType: leaveTypeId,
       year,
-      allocated: leaveType?.annualQuota || 0,
+      allocated: calculateEntitlement(leaveType, user, year) + carriedForward,
+      carriedForward,
     });
   } catch (error) {
     // Another request created it at the same moment
@@ -33,6 +65,7 @@ export async function getBalancesForUser(userId, year) {
     return {
       leaveType: type,
       allocated: balance.allocated,
+      carriedForward: balance.carriedForward || 0,
       used: balance.used,
       pending: balance.pending,
       available: balance.allocated - balance.used - balance.pending,
@@ -59,9 +92,12 @@ export async function getQuarterlyLeaveSummary(userIds, year, settings) {
       'leaveType',
       'name code color isPaid'
     ),
-    getWorkingDates(from, to, settings),
+    User.find({ _id: { $in: userIds } }).select('holidayRegion'),
   ]);
-  const working = new Set(workingDates);
+  // Bank holidays differ by UK nation, so working days are worked out per region
+  const regionOf = Object.fromEntries(workingDates.map((u) => [String(u._id), u.holidayRegion]));
+  const workingByRegion = {};
+  for (const region of new Set(Object.values(regionOf))) workingByRegion[region] = new Set(await getWorkingDates(from, to, settings, region));
 
   const result = {};
   userIds.forEach((id) => (result[String(id)] = { typeMap: {}, quarters: [0, 0, 0, 0], total: 0 }));
@@ -88,7 +124,7 @@ export async function getQuarterlyLeaveSummary(userIds, year, settings) {
     let date = leave.fromDate < from ? from : leave.fromDate;
     const end = leave.toDate > to ? to : leave.toDate;
     while (date <= end) {
-      if (working.has(date)) add(date, 1);
+      if (workingByRegion[regionOf[String(leave.user)]]?.has(date)) add(date, 1);
       const next = new Date(`${date}T00:00:00Z`);
       next.setUTCDate(next.getUTCDate() + 1);
       date = next.toISOString().slice(0, 10);

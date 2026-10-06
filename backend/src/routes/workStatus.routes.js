@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { getDayTimeline, getMyStatus, getPresence, getStatusOptions, getTeamStatus, setMyStatus } from '../controllers/workStatus.controller.js';
-import { authorize } from '../middlewares/auth.middleware.js';
+import { authorize, requireFeature } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { APPROVER_ROLES } from '../constants/index.js';
 import { setStatusSchema } from '../validators/workStatus.validator.js';
 
 const router = Router();
+
+router.use(requireFeature('workStatus'));
 
 router.get('/options', getStatusOptions);
 router.get('/me', getMyStatus);

@@ -68,13 +68,40 @@ export async function runReminders() {
     });
   }
 
+  // Right to work: time-limited permission expiring in 60 / 30 days or already expired -> HR (UK: follow-up check needed)
+  const hrTeam = await User.find({ role: { $in: ['hr', 'admin'] }, status: 'active' }).distinct('_id');
+  const expiring = await User.find({ status: 'active', 'rightToWork.status': 'time-limited', 'rightToWork.expiryDate': { $lte: addDays(today, 60) } }).select(
+    'firstName lastName rightToWork'
+  );
+  for (const person of expiring) {
+    const expiry = person.rightToWork.expiryDate;
+    const stage = expiry < today ? 'expired' : expiry <= addDays(today, 30) ? '30' : '60';
+    const message =
+      stage === 'expired'
+        ? `${person.firstName} ${person.lastName}'s permission to work expired on ${expiry}. Check it now.`
+        : `${person.firstName} ${person.lastName}'s permission to work expires on ${expiry}. Do a follow-up right to work check.`;
+    for (const hrId of hrTeam) {
+      await send(`rtw-${stage}:${person._id}:${expiry}:${hrId}`, hrId, { title: 'Right to work check due', message, link: `/employees/${person._id}` });
+    }
+  }
+
+  // Probation ending in the next 14 days -> manager and HR (review meeting / confirmation letter)
+  const probations = await User.find({ status: 'active', probationEndDate: { $gte: today, $lte: addDays(today, 14) } }).select('firstName lastName probationEndDate reportingManager');
+  for (const person of probations) {
+    const payload = { title: 'Probation review due', message: `${person.firstName} ${person.lastName}'s probation ends on ${person.probationEndDate}` };
+    for (const userId of [person.reportingManager, ...hrTeam].filter(Boolean)) {
+      const isHrUser = hrTeam.some((id) => String(id) === String(userId));
+      await send(`probation:${person._id}:${person.probationEndDate}:${userId}`, userId, { ...payload, link: isHrUser ? `/employees/${person._id}` : '/team/home' });
+    }
+  }
+
   // Interviews in the next 24 hours
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 3600 * 1000);
   const apps = await Application.find({ interviews: { $elemMatch: { scheduledAt: { $gte: now, $lte: tomorrow }, result: 'pending' } } }).populate('job', 'title');
   for (const app of apps) {
     for (const interview of app.interviews.filter((i) => i.result === 'pending' && i.scheduledAt >= now && i.scheduledAt <= tomorrow)) {
-      const when = interview.scheduledAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: settings.timezone });
+      const when = interview.scheduledAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: settings.timezone });
       const payload = { title: 'Interview reminder', message: `${interview.round} for ${app.job?.title} at ${when}`, link: '/careers?tab=interviews' };
       for (const panelist of interview.interviewers) await send(`interview:${interview._id}:${panelist}`, panelist, payload);
       if (app.applicant) await send(`interview:${interview._id}:${app.applicant}`, app.applicant, { ...payload, link: '/careers' });

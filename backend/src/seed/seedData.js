@@ -29,7 +29,7 @@ export const DESIGNATIONS = [
 
 // UK leave: 25 days annual leave (plus bank holidays), company sick pay and statutory-style leave
 export const LEAVE_TYPES = [
-  { name: 'Annual Leave', code: 'AL', annualQuota: 25, isPaid: true, color: '#10b981', description: 'Holiday entitlement, on top of bank holidays' },
+  { name: 'Annual Leave', code: 'AL', annualQuota: 25, isPaid: true, proRata: true, carryForwardMax: 5, color: '#10b981', description: 'Holiday entitlement on top of bank holidays; pro-rata for part-time and joiners, up to 5 days carry over' },
   { name: 'Sick Leave', code: 'SL', annualQuota: 10, isPaid: true, color: '#ef4444', description: 'Company sick pay when you are unwell' },
   { name: 'Compassionate Leave', code: 'CPL', annualQuota: 5, isPaid: true, color: '#8b5cf6', description: 'Bereavement or serious family illness' },
   { name: 'Time Off for Dependants', code: 'TOD', annualQuota: 3, isPaid: true, color: '#f97316', description: 'Unexpected emergencies involving a dependant' },
@@ -37,25 +37,38 @@ export const LEAVE_TYPES = [
   { name: 'Unpaid Leave', code: 'UL', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Agreed time off without pay' },
 ];
 
-// Bank holidays in England & Wales (2026 and 2027)
+// UK bank holidays 2026 and 2027. regions: [] = whole UK, otherwise only those nations
+const EW = 'england-wales';
+const SCO = 'scotland';
+const NI = 'northern-ireland';
 export const HOLIDAYS = [
-  { name: "New Year's Day", date: '2026-01-01', type: 'bank-holiday' },
-  { name: 'Good Friday', date: '2026-04-03', type: 'bank-holiday' },
-  { name: 'Easter Monday', date: '2026-04-06', type: 'bank-holiday' },
-  { name: 'Early May bank holiday', date: '2026-05-04', type: 'bank-holiday' },
-  { name: 'Spring bank holiday', date: '2026-05-25', type: 'bank-holiday' },
-  { name: 'Summer bank holiday', date: '2026-08-31', type: 'bank-holiday' },
-  { name: 'Christmas Day', date: '2026-12-25', type: 'bank-holiday' },
-  { name: 'Boxing Day (substitute day)', date: '2026-12-28', type: 'bank-holiday' },
-  { name: 'Company Wellbeing Day', date: '2026-12-24', type: 'company' },
-  { name: "New Year's Day", date: '2027-01-01', type: 'bank-holiday' },
-  { name: 'Good Friday', date: '2027-03-26', type: 'bank-holiday' },
-  { name: 'Easter Monday', date: '2027-03-29', type: 'bank-holiday' },
-  { name: 'Early May bank holiday', date: '2027-05-03', type: 'bank-holiday' },
-  { name: 'Spring bank holiday', date: '2027-05-31', type: 'bank-holiday' },
-  { name: 'Summer bank holiday', date: '2027-08-30', type: 'bank-holiday' },
-  { name: 'Christmas Day (substitute day)', date: '2027-12-27', type: 'bank-holiday' },
-  { name: 'Boxing Day (substitute day)', date: '2027-12-28', type: 'bank-holiday' },
+  { name: "New Year's Day", date: '2026-01-01', type: 'bank-holiday', regions: [] },
+  { name: '2nd January', date: '2026-01-02', type: 'regional', regions: [SCO] },
+  { name: "St Patrick's Day", date: '2026-03-17', type: 'regional', regions: [NI] },
+  { name: 'Good Friday', date: '2026-04-03', type: 'bank-holiday', regions: [] },
+  { name: 'Easter Monday', date: '2026-04-06', type: 'bank-holiday', regions: [EW, NI] },
+  { name: 'Early May bank holiday', date: '2026-05-04', type: 'bank-holiday', regions: [] },
+  { name: 'Spring bank holiday', date: '2026-05-25', type: 'bank-holiday', regions: [] },
+  { name: 'Battle of the Boyne (substitute day)', date: '2026-07-13', type: 'regional', regions: [NI] },
+  { name: 'Summer bank holiday (Scotland)', date: '2026-08-03', type: 'regional', regions: [SCO] },
+  { name: 'Summer bank holiday', date: '2026-08-31', type: 'bank-holiday', regions: [EW, NI] },
+  { name: "St Andrew's Day", date: '2026-11-30', type: 'regional', regions: [SCO] },
+  { name: 'Company Wellbeing Day', date: '2026-12-24', type: 'company', regions: [] },
+  { name: 'Christmas Day', date: '2026-12-25', type: 'bank-holiday', regions: [] },
+  { name: 'Boxing Day (substitute day)', date: '2026-12-28', type: 'bank-holiday', regions: [] },
+  { name: "New Year's Day", date: '2027-01-01', type: 'bank-holiday', regions: [] },
+  { name: '2nd January (substitute day)', date: '2027-01-04', type: 'regional', regions: [SCO] },
+  { name: "St Patrick's Day", date: '2027-03-17', type: 'regional', regions: [NI] },
+  { name: 'Good Friday', date: '2027-03-26', type: 'bank-holiday', regions: [] },
+  { name: 'Easter Monday', date: '2027-03-29', type: 'bank-holiday', regions: [EW, NI] },
+  { name: 'Early May bank holiday', date: '2027-05-03', type: 'bank-holiday', regions: [] },
+  { name: 'Spring bank holiday', date: '2027-05-31', type: 'bank-holiday', regions: [] },
+  { name: 'Battle of the Boyne', date: '2027-07-12', type: 'regional', regions: [NI] },
+  { name: 'Summer bank holiday (Scotland)', date: '2027-08-02', type: 'regional', regions: [SCO] },
+  { name: 'Summer bank holiday', date: '2027-08-30', type: 'bank-holiday', regions: [EW, NI] },
+  { name: "St Andrew's Day", date: '2027-11-30', type: 'regional', regions: [SCO] },
+  { name: 'Christmas Day (substitute day)', date: '2027-12-27', type: 'bank-holiday', regions: [] },
+  { name: 'Boxing Day (substitute day)', date: '2027-12-28', type: 'bank-holiday', regions: [] },
 ];
 
 export const DEFAULT_PASSWORD = 'Password@123';
@@ -98,12 +111,14 @@ export const EMPLOYEES = [
   {
     firstName: 'Harry', lastName: 'Evans', email: 'harry@hrms.com', role: 'employee', gender: 'male',
     dept: 'Engineering', desig: 'Intern', manager: 'thomas@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2005-05-17',
+    probationEndDate: '2026-10-16',
     salary: { annualSalary: 24000, taxCode: '1257L', niCategory: 'M', studentLoanPlan: 'plan5' },
   },
   {
     firstName: 'Grace', lastName: 'Walker', email: 'grace@hrms.com', role: 'employee', gender: 'female',
     dept: 'Human Resources', desig: 'HR Executive', manager: 'hr@hrms.com', dateOfJoining: '2023-02-01', dateOfBirth: '1996-08-30',
-    salary: { annualSalary: 31000, taxCode: '1257L' },
+    employmentType: 'part-time', workingDaysPerWeek: 3,
+    salary: { annualSalary: 18600, taxCode: '1257L' }, // 3 days a week (pro-rata of £31,000)
   },
   {
     firstName: 'Jack', lastName: 'Robinson', email: 'jack@hrms.com', role: 'employee', gender: 'male',
@@ -123,11 +138,12 @@ export const EMPLOYEES = [
   {
     firstName: 'Olivia', lastName: 'Scott', email: 'qa@hrms.com', role: 'qa', gender: 'female',
     dept: 'Quality', desig: 'QA Auditor', manager: 'hr@hrms.com', dateOfJoining: '2022-05-02', dateOfBirth: '1992-07-21',
-    workLocation: 'Glasgow (remote)', salary: { annualSalary: 36000, taxCode: 'S1257L' },
+    workLocation: 'Glasgow (remote)', holidayRegion: 'scotland', salary: { annualSalary: 36000, taxCode: 'S1257L' },
   },
   {
     firstName: 'Daniel', lastName: 'Green', email: 'it@hrms.com', role: 'it', gender: 'male',
     dept: 'IT Support', desig: 'IT Support Engineer', manager: 'admin@hrms.com', dateOfJoining: '2023-04-10', dateOfBirth: '1994-01-30',
+    rightToWork: { status: 'time-limited', documentType: 'eVisa (Skilled Worker)', shareCode: 'W7K 4PZ 92Q', checkedOn: '2023-04-03', expiryDate: '2026-11-20' },
     salary: { annualSalary: 35000, taxCode: '1257L' },
   },
 ];
