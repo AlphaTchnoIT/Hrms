@@ -4,6 +4,8 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { CalendarDays, Plus } from 'lucide-react';
 import api from '@/lib/api';
+import { currentLeaveYear, leaveYearLabel } from '@/lib/ukRules';
+import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { toInputDate } from '@/lib/format';
 import { Badge, Button, Card, DataTable, ErrorMessage, PageHeader, Tabs, useConfirm } from '@/components/ui';
@@ -22,7 +24,9 @@ const STATUS_TABS = [
 
 export default function LeavePage() {
   const confirm = useConfirm();
-  const year = new Date().getFullYear();
+  const { user } = useAuth();
+  const startMonth = user?.company?.policies?.leaveYearStartMonth || 1;
+  const year = currentLeaveYear(startMonth);
   const [status, setStatus] = useState('');
   const [applyOpen, setApplyOpen] = useState(false);
 
@@ -101,7 +105,7 @@ export default function LeavePage() {
     <div>
       <PageHeader
         title="Leave"
-        subtitle={`Your balances and requests for ${year}`}
+        subtitle={`Your balances and requests for the ${leaveYearLabel(year, startMonth)} leave year`}
         actions={
           <Button icon={Plus} onClick={() => setApplyOpen(true)} disabled={!balances.data}>
             Apply leave

@@ -7,6 +7,7 @@ import { createResetToken, hashToken } from '../utils/password.js';
 import { env } from '../config/env.js';
 import { sendEmail } from '../services/notification.service.js';
 import { buildPersonalDataExport } from '../services/gdpr.service.js';
+import { getPolicies } from '../services/policy.service.js';
 import { USER_POPULATE } from './employee.controller.js';
 import { getAccessRoles, getTeamSize } from '../services/access.service.js';
 
@@ -29,6 +30,7 @@ async function buildSessionUser(userId) {
       currency: settings.currency,
       features: { payroll: settings.features?.payroll !== false, workStatus: settings.features?.workStatus !== false },
       privacyNoticeUrl: settings.privacyNoticeUrl || null,
+      policies: { leaveYearStartMonth: getPolicies(settings).leaveYearStartMonth, fitNoteAfterDays: getPolicies(settings).fitNoteAfterDays },
     },
   };
 }

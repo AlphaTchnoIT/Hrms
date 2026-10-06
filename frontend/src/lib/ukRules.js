@@ -50,3 +50,14 @@ export function statutoryNoticeWeeks(dateOfJoining) {
   if (days < 31) return 0;
   return Math.min(12, Math.max(1, Math.floor(days / 365.25)));
 }
+
+// Leave year (Settings -> policies) that today falls in, named by the calendar year it starts
+export function currentLeaveYear(startMonth = 1, today = new Date()) {
+  const month = today.getMonth() + 1;
+  return month >= startMonth ? today.getFullYear() : today.getFullYear() - 1;
+}
+
+// 2026 -> "2026" (January start) or "2026/27" (any other start month)
+export function leaveYearLabel(year, startMonth = 1) {
+  return startMonth === 1 ? String(year) : `${year}/${String(year + 1).slice(2)}`;
+}

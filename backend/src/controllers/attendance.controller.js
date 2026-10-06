@@ -20,6 +20,7 @@ import {
 } from '../services/attendance.service.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
+import { getPolicies } from '../services/policy.service.js';
 import { endCurrentStatus, getDayLogs, getDefaultStatus, startStatus, summarize } from '../services/workStatus.service.js';
 
 function getMonthYear(query) {
@@ -223,7 +224,8 @@ export async function applyRegularization(req, res) {
   const today = todayInTz(settings.timezone);
 
   if (date > today) throw ApiError.field('date', 'You cannot regularise a future date');
-  if (date < addDays(today, -30)) throw ApiError.field('date', 'Regularisation is allowed only for the last 30 days');
+  const { regularisationWindowDays } = getPolicies(settings);
+  if (date < addDays(today, -regularisationWindowDays)) throw ApiError.field('date', `Regularisation is allowed only for the last ${regularisationWindowDays} days`);
   if (date < toDateStr(req.user.dateOfJoining)) throw ApiError.field('date', 'Date is before your joining date');
 
   const duplicate = await Regularization.findOne({ user: req.user._id, date, status: 'pending' });

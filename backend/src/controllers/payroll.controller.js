@@ -98,6 +98,7 @@ export async function getPayslip(req, res) {
       company: {
         name: settings.companyName,
         address: settings.companyAddress,
+        payeReference: settings.registrations?.payeReference,
         email: settings.companyEmail,
         currency: settings.currency,
       },

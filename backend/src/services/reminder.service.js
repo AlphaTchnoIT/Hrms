@@ -1,7 +1,8 @@
-import { ActionPlan, Application, Holiday, KnowledgeTest, Settings, TestAttempt, TrainingAssignment, User, Warning } from '../models/index.js';
+import { ActionPlan, Application, ComplianceItem, Holiday, KnowledgeTest, Settings, TestAttempt, TrainingAssignment, User, Warning } from '../models/index.js';
 import { addDays, todayInTz } from '../utils/date.js';
 import { notifyOnce, sendEmail } from './notification.service.js';
 import { syncUkBankHolidays } from './bankHolidays.service.js';
+import { getPolicies } from './policy.service.js';
 
 /*
  * Automatic reminders. Each reminder has a dedupe key so running this often never sends duplicates.
@@ -71,12 +72,13 @@ export async function runReminders() {
 
   // Right to work: time-limited permission expiring in 60 / 30 days or already expired -> HR (UK: follow-up check needed)
   const hrTeam = await User.find({ role: { $in: ['hr', 'admin'] }, status: 'active' }).distinct('_id');
-  const expiring = await User.find({ status: 'active', 'rightToWork.status': 'time-limited', 'rightToWork.expiryDate': { $lte: addDays(today, 60) } }).select(
+  const policies = getPolicies(settings);
+  const expiring = await User.find({ status: 'active', 'rightToWork.status': 'time-limited', 'rightToWork.expiryDate': { $lte: addDays(today, policies.rightToWorkFirstReminderDays) } }).select(
     'firstName lastName rightToWork'
   );
   for (const person of expiring) {
     const expiry = person.rightToWork.expiryDate;
-    const stage = expiry < today ? 'expired' : expiry <= addDays(today, 30) ? '30' : '60';
+    const stage = expiry < today ? 'expired' : expiry <= addDays(today, policies.rightToWorkSecondReminderDays) ? 'second' : 'first';
     const message =
       stage === 'expired'
         ? `${person.firstName} ${person.lastName}'s permission to work expired on ${expiry}. Check it now.`
@@ -87,7 +89,7 @@ export async function runReminders() {
   }
 
   // Probation ending in the next 14 days -> manager and HR (review meeting / confirmation letter)
-  const probations = await User.find({ status: 'active', probationEndDate: { $gte: today, $lte: addDays(today, 14) } }).select('firstName lastName probationEndDate reportingManager');
+  const probations = await User.find({ status: 'active', probationEndDate: { $gte: today, $lte: addDays(today, policies.probationReminderDays) } }).select('firstName lastName probationEndDate reportingManager');
   for (const person of probations) {
     const payload = { title: 'Probation review due', message: `${person.firstName} ${person.lastName}'s probation ends on ${person.probationEndDate}` };
     for (const userId of [person.reportingManager, ...hrTeam].filter(Boolean)) {
@@ -103,6 +105,17 @@ export async function runReminders() {
       await syncUkBankHolidays({ from: `${year}-01-01`, to: `${year}-12-31` });
     } catch (error) {
       console.error(`Bank holiday sync for ${year} failed:`, error.message);
+    }
+  }
+
+  // Compliance checklist: items whose review date has come (e.g. yearly policy review) -> admins
+  const dueReviews = await ComplianceItem.find({ status: { $ne: 'not-applicable' }, nextReviewOn: { $lte: today } });
+  if (dueReviews.length) {
+    const admins = await User.find({ role: 'admin', status: 'active' }).distinct('_id');
+    for (const item of dueReviews) {
+      for (const adminId of admins) {
+        await send(`compliance:${item._id}:${item.nextReviewOn}:${adminId}`, adminId, { title: 'Compliance review due', message: `"${item.title}" was due for review on ${item.nextReviewOn}`, link: '/compliance' });
+      }
     }
   }
 

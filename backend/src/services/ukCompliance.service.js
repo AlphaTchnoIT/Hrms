@@ -84,17 +84,22 @@ const dateDiffDays = (a, b) => Math.round((new Date(`${a}T00:00:00Z`) - new Date
  * - SPP: lower of the flat rate or 90% of AWE, up to 2 weeks; paid per calendar day
  * `sickDays` = working days on SSP leave this month (from the attendance calendar).
  */
-export function calculateStatutoryPay({ salary, workingDaysPerWeek = 5, leaves = [], sickDays = 0, monthStart, monthEnd, rates }) {
+export function calculateStatutoryPay({ salary, workingDaysPerWeek = 5, leaves = [], sickDays = 0, sspSickDays, monthStart, monthEnd, rates, policies = {} }) {
   const awe = averageWeeklyEarnings(salary);
+  const pct = (rates.statutoryPercent ?? 90) / 100;
   const items = [];
 
-  if (sickDays > 0) {
-    const weekly = Math.min(rates.sspWeeklyRate, awe * 0.8);
-    items.push({ name: 'Statutory Sick Pay (SSP)', amount: round2((weekly / Math.max(1, workingDaysPerWeek)) * sickDays) });
+  // SSP days: only days within the first sspMaxWeeks of each sickness spell (sspSickDays) when given
+  const paidSickDays = sspSickDays ?? sickDays;
+  if (paidSickDays > 0) {
+    const weekly = Math.min(rates.sspWeeklyRate, awe * ((rates.sspPercent ?? 80) / 100));
+    items.push({ name: 'Statutory Sick Pay (SSP)', amount: round2((weekly / Math.max(1, workingDaysPerWeek)) * paidSickDays) });
   }
 
   let smp = 0;
   let spp = 0;
+  let enhanced = 0;
+  const dailyPay = ((salary?.annualSalary || 0) + (salary?.monthlyAllowance || 0) * 12) / 365;
   leaves.forEach((leave) => {
     const kind = leave.leaveType?.statutoryPay;
     if (!['smp', 'spp'].includes(kind)) return;
@@ -102,13 +107,26 @@ export function calculateStatutoryPay({ salary, workingDaysPerWeek = 5, leaves =
     const to = leave.toDate < monthEnd ? leave.toDate : monthEnd;
     for (let offset = dateDiffDays(from, leave.fromDate); offset <= dateDiffDays(to, leave.fromDate); offset += 1) {
       const week = Math.floor(offset / 7) + 1;
-      if (kind === 'smp' && week <= 39) smp += (week <= 6 ? awe * 0.9 : Math.min(rates.statutoryFlatRate, awe * 0.9)) / 7;
-      if (kind === 'spp' && week <= 2) spp += Math.min(rates.statutoryFlatRate, awe * 0.9) / 7;
+      if (kind === 'smp' && week <= (rates.smpWeeks ?? 39)) {
+        const day = (week <= (rates.smpHigherRateWeeks ?? 6) ? awe * pct : Math.min(rates.statutoryFlatRate, awe * pct)) / 7;
+        smp += day;
+        // Company policy: top SMP up to a % of normal pay for the first weeks
+        if (week <= (policies.enhancedMaternityWeeks || 0)) enhanced += Math.max(0, (dailyPay * (policies.enhancedMaternityPercent ?? 100)) / 100 - day);
+      }
+      if (kind === 'spp' && week <= (rates.sppWeeks ?? 2)) spp += Math.min(rates.statutoryFlatRate, awe * pct) / 7;
     }
   });
   if (smp > 0) items.push({ name: 'Statutory Maternity Pay (SMP)', amount: round2(smp) });
+  if (enhanced > 0) items.push({ name: 'Enhanced maternity pay (company)', amount: round2(enhanced) });
   if (spp > 0) items.push({ name: 'Statutory Paternity Pay (SPP)', amount: round2(spp) });
   return items;
+}
+
+// SSP is paid for at most sspMaxWeeks of a sickness spell: working days on SSP leave that are still within that limit
+export function sspPayableDays(days, maxWeeks = 28) {
+  return days
+    .filter((d) => d.status === 'leave' && d.leave?.leaveType?.statutoryPay === 'ssp' && dateDiffDays(d.date, d.leave.fromDate) < maxWeeks * 7)
+    .reduce((sum, d) => sum + (d.leave.isHalfDay ? 0.5 : 1), 0);
 }
 
 // Bradford Factor = spells² x days (sickness absence over the last 52 weeks)

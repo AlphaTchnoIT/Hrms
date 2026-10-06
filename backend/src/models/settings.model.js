@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { DEFAULT_UK_PAYROLL, DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
+import { DEFAULT_POLICIES, DEFAULT_UK_PAYROLL, DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
 
 /*
  * Company-wide settings. Only one document exists in this collection.
@@ -28,6 +28,21 @@ const settingsSchema = new mongoose.Schema(
       payroll: { type: Boolean, default: true },
       workStatus: { type: Boolean, default: true },
     },
+    // Company HR policies (see DEFAULT_POLICIES)
+    policies: {
+      type: new mongoose.Schema(Object.fromEntries(Object.keys(DEFAULT_POLICIES).map((key) => [key, Number])), { _id: false }),
+      default: () => ({ ...DEFAULT_POLICIES }),
+    },
+    // UK registrations, shown on payslips / used for filings
+    registrations: {
+      payeReference: String, // employer PAYE reference, e.g. 123/AB45678
+      accountsOfficeReference: String, // e.g. 123PA00045678
+      companiesHouseNumber: String,
+      icoRegistrationNumber: String,
+      pensionProvider: String,
+      pensionSchemeReference: String,
+    },
+
     // UK GDPR
     privacyNoticeUrl: String,
     dataRetentionYears: { type: Number, default: 6, min: 1, max: 20 }, // leavers can be anonymised after this
@@ -60,6 +75,13 @@ const settingsSchema = new mongoose.Schema(
           minimumWage: { age21: Number, age18: Number, under18: Number, apprentice: Number },
           mileageRate: Number,
           mileageRateAfter10k: Number,
+          mileageThresholdMiles: Number,
+          sspPercent: Number,
+          sspMaxWeeks: Number,
+          statutoryPercent: Number,
+          smpHigherRateWeeks: Number,
+          smpWeeks: Number,
+          sppWeeks: Number,
         },
         { _id: false }
       ),

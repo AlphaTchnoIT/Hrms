@@ -18,6 +18,8 @@ const FIELDS = [
   'requireLocationForCheckIn',
   'payroll',
   'features',
+  'policies',
+  'registrations',
   'privacyNoticeUrl',
   'dataRetentionYears',
   'attendanceBasedLop',

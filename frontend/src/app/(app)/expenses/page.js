@@ -15,6 +15,8 @@ const emptyExpense = () => ({ title: '', category: 'travel', amount: '', miles: 
 
 function ExpenseFormModal({ open, onClose, onSaved }) {
   const form = useForm(emptyExpense(), { schema: expenseSchema });
+  const settings = useFetch(open ? '/settings' : null);
+  const mileage = settings.data?.payroll || { mileageRate: 0.45, mileageRateAfter10k: 0.25, mileageThresholdMiles: 10000 };
 
   useEffect(() => {
     if (open) form.reset(emptyExpense());
@@ -58,7 +60,7 @@ function ExpenseFormModal({ open, onClose, onSaved }) {
               min="1"
               step="0.1"
               required
-              hint={`Paid at the HMRC rate: ${formatCurrency(0.45)}/mile (${formatCurrency(0.25)} after 10,000 miles in the tax year)`}
+              hint={`Paid at the HMRC rate: ${formatCurrency(mileage.mileageRate)}/mile (${formatCurrency(mileage.mileageRateAfter10k)} after ${Number(mileage.mileageThresholdMiles).toLocaleString('en-GB')} miles in the tax year)`}
               {...form.register('miles')}
             />
           ) : (

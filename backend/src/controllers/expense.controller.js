@@ -5,6 +5,8 @@ import { buildMeta, getPagination } from '../utils/pagination.js';
 import { pick } from '../utils/helpers.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
+import { getPolicies } from '../services/policy.service.js';
+import { addDays, todayInTz } from '../utils/date.js';
 
 /*
  * HMRC approved mileage allowance (cars and vans): 45p a mile for the first 10,000 business miles
@@ -20,7 +22,7 @@ async function mileageAmount(userId, miles, expenseDate) {
     { $group: { _id: null, miles: { $sum: '$miles' } } },
   ]);
   const before = previous[0]?.miles || 0;
-  const atFullRate = Math.max(0, Math.min(miles, 10000 - before));
+  const atFullRate = Math.max(0, Math.min(miles, (rates.mileageThresholdMiles ?? 10000) - before));
   return Math.round((atFullRate * rates.mileageRate + (miles - atFullRate) * rates.mileageRateAfter10k) * 100) / 100;
 }
 
@@ -39,8 +41,11 @@ const EXPENSE_POPULATE = [
 // POST /api/expenses
 export async function createExpense(req, res) {
   const body = pick(req.body, FIELDS);
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-  if (body.expenseDate < ninetyDaysAgo) throw ApiError.field('expenseDate', 'Claims must be submitted within 90 days of the expense');
+  const settings = await Settings.getSettings();
+  const { expenseClaimWindowDays } = getPolicies(settings);
+  if (body.expenseDate < addDays(todayInTz(settings.timezone), -expenseClaimWindowDays)) {
+    throw ApiError.field('expenseDate', `Claims must be submitted within ${expenseClaimWindowDays} days of the expense`);
+  }
 
   if (body.category === 'mileage') body.amount = await mileageAmount(req.user._id, body.miles, body.expenseDate);
   else delete body.miles;

@@ -24,6 +24,7 @@ import { getQuarterlyLeaveSummary } from '../services/leave.service.js';
 import { activeWarningFilter } from '../services/relations.service.js';
 import { leaveStatus } from '../services/workforce.service.js';
 import { payrollRates } from '../services/payroll.service.js';
+import { getPolicies } from '../services/policy.service.js';
 import { autoEnrolmentStatus, bradfordFactor, genderPayGap, minimumWageCheck, statutoryNoticeWeeks } from '../services/ukCompliance.service.js';
 
 const name = (u) => (u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : '');
@@ -258,6 +259,7 @@ export async function runReport(req, res) {
     case 'bradford': {
       const today = todayInTz(settings.timezone);
       const since = addDays(today, -364);
+      const policies = getPolicies(settings);
       const leaves = await LeaveRequest.find({ user: { $in: ids }, status: 'approved', toDate: { $gte: since }, fromDate: { $lte: today } }).populate('leaveType', 'name code');
       const sick = leaves.filter((l) => leaveStatus(l.leaveType) === 'sick-leave' || l.leaveType?.code === 'SSP');
       columns = [col('code', 'Code'), col('name', 'Name'), col('spells', 'Spells'), col('days', 'Days'), col('score', 'Bradford Factor'), col('level', 'Level')];
@@ -266,7 +268,7 @@ export async function runReport(req, res) {
           const mine = sick.filter((l) => String(l.user) === String(u._id));
           const days = mine.reduce((sum, l) => sum + (l.days || 0), 0);
           const score = bradfordFactor(mine.length, days);
-          const level = score >= 500 ? 'Formal review' : score >= 200 ? 'Written warning trigger' : score >= 51 ? 'Informal chat' : 'No concern';
+          const level = score >= policies.bradfordFormal ? 'Formal review' : score >= policies.bradfordWarning ? 'Written warning trigger' : score >= policies.bradfordInformal ? 'Informal chat' : 'No concern';
           return { code: u.employeeCode, name: name(u), spells: mine.length, days, score, level };
         })
         .sort((a, b) => b.score - a.score);
@@ -285,7 +287,7 @@ export async function runReport(req, res) {
         const actions = [];
         const rtw = p.rightToWork || {};
         if (!rtw.status || rtw.status === 'not-checked') actions.push('Right to work not checked');
-        if (rtw.status === 'time-limited' && rtw.expiryDate && rtw.expiryDate <= addDays(today, 60)) actions.push(rtw.expiryDate < today ? 'Right to work expired' : 'Follow-up RTW check due');
+        if (rtw.status === 'time-limited' && rtw.expiryDate && rtw.expiryDate <= addDays(today, getPolicies(settings).rightToWorkFirstReminderDays)) actions.push(rtw.expiryDate < today ? 'Right to work expired' : 'Follow-up RTW check due');
         const wage = minimumWageCheck(p, rates);
         if (wage && !wage.ok) actions.push('Below minimum wage');
         const pension = autoEnrolmentStatus(p, rates);

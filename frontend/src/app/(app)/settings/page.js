@@ -24,6 +24,7 @@ import RoleGuard from '@/components/layout/RoleGuard';
 import PerformanceSettings from '@/components/settings/PerformanceSettings';
 import WorkStatusSettings from '@/components/settings/WorkStatusSettings';
 import UkPayrollSettings from '@/components/settings/UkPayrollSettings';
+import UkPolicySettings from '@/components/settings/UkPolicySettings';
 
 function SettingsForm({ settings }) {
   const form = useForm(
@@ -159,6 +160,7 @@ export default function SettingsPage() {
         <>
           <PerformanceSettings settings={data} />
           <WorkStatusSettings settings={data} />
+          <UkPolicySettings settings={data} />
           <UkPayrollSettings settings={data} />
           <SettingsForm settings={data} />
         </>

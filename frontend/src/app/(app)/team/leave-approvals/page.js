@@ -4,6 +4,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, X } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { APPROVER_ROLES } from '@/lib/constants';
 import { formatDate, formatDateTime, titleCase } from '@/lib/format';
@@ -22,6 +23,8 @@ const TABS = [
 ];
 
 export default function LeaveApprovalsPage() {
+  const { user } = useAuth();
+  const fitNoteAfterDays = user?.company?.policies?.fitNoteAfterDays || 7;
   const [status, setStatus] = useState('pending');
   const [page, setPage] = useState(1);
   const [review, setReview] = useState(null); // { leave, action }
@@ -66,13 +69,13 @@ export default function LeaveApprovalsPage() {
       key: 'days',
       header: 'Days',
       render: (l) => {
-        // UK: sickness of more than 7 days in a row needs a fit note from a doctor
+        // UK: sickness longer than the policy (default 7 calendar days) needs a fit note from a doctor
         const calendarDays = (new Date(l.toDate) - new Date(l.fromDate)) / 86400000 + 1;
         const sick = /sick|ssp/i.test(`${l.leaveType?.name} ${l.leaveType?.code}`);
         return (
           <span>
             {l.days}
-            {sick && calendarDays > 7 && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">Fit note needed</span>}
+            {sick && calendarDays > fitNoteAfterDays && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">Fit note needed</span>}
           </span>
         );
       },

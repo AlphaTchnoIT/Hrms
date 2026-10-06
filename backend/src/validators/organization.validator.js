@@ -80,6 +80,43 @@ const ukPayrollSchema = z.object({
   }),
   mileageRate: amount('Mileage rate'),
   mileageRateAfter10k: amount('Mileage rate after 10,000 miles'),
+  mileageThresholdMiles: amount('Mileage threshold'),
+  sspPercent: rate('SSP %'),
+  sspMaxWeeks: intRange('SSP maximum weeks', 1, 52),
+  statutoryPercent: rate('SMP / SPP %'),
+  smpHigherRateWeeks: intRange('SMP weeks at the % rate', 0, 52),
+  smpWeeks: intRange('SMP weeks', 1, 52),
+  sppWeeks: intRange('SPP weeks', 1, 52),
+});
+
+// Company HR policies (Settings -> UK employment policies)
+const policiesSchema = z
+  .object({
+    leaveYearStartMonth: intRange('Leave year start month', 1, 12),
+    leaveBackdateDays: intRange('Days in the past for leave', 0, 365),
+    leaveAdvanceDays: intRange('Days ahead for leave', 1, 730),
+    regularisationWindowDays: intRange('Regularisation window', 1, 365),
+    expenseClaimWindowDays: intRange('Expense claim window', 1, 365),
+    fitNoteAfterDays: intRange('Fit note after (days)', 1, 60),
+    probationReminderDays: intRange('Probation reminder (days)', 1, 90),
+    rightToWorkFirstReminderDays: intRange('First right to work reminder', 1, 365),
+    rightToWorkSecondReminderDays: intRange('Second right to work reminder', 1, 365),
+    bradfordInformal: intRange('Bradford informal level', 1, 10000),
+    bradfordWarning: intRange('Bradford warning level', 1, 10000),
+    bradfordFormal: intRange('Bradford formal level', 1, 10000),
+    enhancedMaternityWeeks: intRange('Enhanced maternity weeks', 0, 52),
+    enhancedMaternityPercent: intRange('Enhanced maternity %', 0, 100),
+  })
+  .refine((p) => p.bradfordInformal < p.bradfordWarning && p.bradfordWarning < p.bradfordFormal, { path: ['bradfordWarning'], message: 'Bradford levels must go up: informal < warning < formal' })
+  .refine((p) => p.rightToWorkSecondReminderDays < p.rightToWorkFirstReminderDays, { path: ['rightToWorkSecondReminderDays'], message: 'The second reminder must be closer to the expiry than the first' });
+
+const registrationsSchema = z.object({
+  payeReference: optional(z.string().trim().toUpperCase().regex(/^\d{3}\/[A-Z0-9]{1,10}$/, 'Employer PAYE reference looks like 123/AB45678')),
+  accountsOfficeReference: optional(z.string().trim().toUpperCase().regex(/^\d{3}P[A-Z]\d{8}$/, 'Accounts Office reference looks like 123PA00045678')),
+  companiesHouseNumber: optional(z.string().trim().toUpperCase().regex(/^(?:\d{8}|[A-Z]{2}\d{6})$/, 'Company number is 8 characters (e.g. 01234567 or SC123456)')),
+  icoRegistrationNumber: optional(z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8,10}$/, 'ICO registration number looks like ZA123456')),
+  pensionProvider: optionalText('Pension provider', 80),
+  pensionSchemeReference: optionalText('Pension scheme reference', 40),
 });
 
 export const settingsSchema = z
@@ -120,6 +157,8 @@ export const settingsSchema = z
     requireLocationForCheckIn: z.boolean(),
     payroll: ukPayrollSchema,
     features: z.object({ payroll: z.boolean(), workStatus: z.boolean() }),
+    policies: policiesSchema,
+    registrations: registrationsSchema,
     privacyNoticeUrl: optional(url('Privacy notice link')),
     dataRetentionYears: intRange('Data retention (years)', 1, 20),
     attendanceBasedLop: z.boolean(),

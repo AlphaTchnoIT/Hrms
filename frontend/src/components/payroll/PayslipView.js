@@ -21,6 +21,7 @@ export default function PayslipView({ payslip, company }) {
         <div>
           <h2 className="text-xl font-bold text-slate-800">{company?.name}</h2>
           <p className="max-w-sm text-xs text-slate-500">{company?.address}</p>
+          {company?.payeReference && <p className="text-xs text-slate-500">Employer PAYE ref: {company.payeReference}</p>}
         </div>
         <div className="sm:text-right">
           <p className="text-xs uppercase tracking-wide text-slate-500">Payslip for</p>

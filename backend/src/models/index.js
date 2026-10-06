@@ -23,3 +23,4 @@ export { JobPosting, Application } from './recruitment.model.js';
 export { TrainingProgram, TrainingAssignment, KnowledgeTest, TestAttempt } from './learning.model.js';
 export { Ticket, Grievance, Suggestion } from './support.model.js';
 export { WorkStatusLog } from './workStatus.model.js';
+export { ComplianceItem } from './compliance.model.js';

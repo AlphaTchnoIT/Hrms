@@ -5,11 +5,18 @@ import { sendSuccess } from '../utils/response.js';
 import { buildMeta, getPagination } from '../utils/pagination.js';
 import { addDays, isValidDateStr, todayInTz } from '../utils/date.js';
 import { getWorkingDates } from '../services/calendar.service.js';
+import { getPolicies, leaveYearOf } from '../services/policy.service.js';
 import { adjustBalance, getBalancesForUser, getOrCreateBalance, getQuarterlyLeaveSummary, calculateEntitlement } from '../services/leave.service.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
 
 const yearOf = (dateStr) => Number(dateStr.slice(0, 4));
+// Leave year (Settings -> policies: January-December, April-March, ...) a date belongs to
+async function leaveYearFor(dateStr) {
+  const settings = await Settings.getSettings();
+  return leaveYearOf(dateStr, getPolicies(settings).leaveYearStartMonth);
+}
+const currentLeaveYear = async () => leaveYearFor(todayInTz((await Settings.getSettings()).timezone));
 
 const LEAVE_POPULATE = [
   { path: 'user', select: 'firstName lastName employeeCode avatar' },
@@ -21,21 +28,21 @@ const LEAVE_POPULATE = [
 
 // GET /api/leaves/balances?year=
 export async function getMyBalances(req, res) {
-  const year = Number(req.query.year) || new Date().getFullYear();
+  const year = Number(req.query.year) || (await currentLeaveYear());
   sendSuccess(res, { data: await getBalancesForUser(req.user._id, year) });
 }
 
 // GET /api/leaves/balances/:userId?year=  (HR / manager)
 export async function getEmployeeBalances(req, res) {
   if (!(await canManageEmployee(req.user, req.params.userId))) throw ApiError.forbidden();
-  const year = Number(req.query.year) || new Date().getFullYear();
+  const year = Number(req.query.year) || (await currentLeaveYear());
   sendSuccess(res, { data: await getBalancesForUser(req.params.userId, year) });
 }
 
 // PUT /api/leaves/balances/:userId  { leaveType, year, allocated }  (HR)
 export async function updateEmployeeBalance(req, res) {
   const { leaveType, allocated } = req.body;
-  const year = req.body.year || new Date().getFullYear();
+  const year = req.body.year || (await currentLeaveYear());
 
   const balance = await getOrCreateBalance(req.params.userId, leaveType, year);
   if (allocated < balance.used + balance.pending) {
@@ -56,8 +63,9 @@ export async function applyLeave(req, res) {
 
   const settings = await Settings.getSettings();
   const today = todayInTz(settings.timezone);
-  if (fromDate < addDays(today, -60)) throw ApiError.field('fromDate', 'Leave cannot be applied for dates older than 60 days');
-  if (fromDate > addDays(today, 365)) throw ApiError.field('fromDate', 'Leave can be applied up to one year in advance');
+  const policies = getPolicies(settings);
+  if (fromDate < addDays(today, -policies.leaveBackdateDays)) throw ApiError.field('fromDate', `Leave cannot be requested for dates more than ${policies.leaveBackdateDays} days ago`);
+  if (fromDate > addDays(today, policies.leaveAdvanceDays)) throw ApiError.field('fromDate', `Leave can be requested up to ${policies.leaveAdvanceDays} days ahead`);
 
   const leaveType = await LeaveType.findById(leaveTypeId);
   if (!leaveType || !leaveType.isActive) throw ApiError.field('leaveType', 'Please select a valid leave type');
@@ -75,7 +83,7 @@ export async function applyLeave(req, res) {
   });
   if (overlap) throw ApiError.field('fromDate', 'You already have a leave request overlapping these dates');
 
-  const year = yearOf(fromDate);
+  const year = await leaveYearFor(fromDate);
   if (leaveType.isPaid) {
     const balance = await getOrCreateBalance(req.user._id, leaveType._id, year);
     if (balance.available < days) {
@@ -158,7 +166,7 @@ export async function reviewLeave(req, res) {
   if (String(leave.user) === String(req.user._id)) throw ApiError.forbidden('You cannot approve your own leave');
   if (!(await canManageEmployee(req.user, leave.user))) throw ApiError.forbidden();
 
-  const year = yearOf(leave.fromDate);
+  const year = await leaveYearFor(leave.fromDate);
   if (action === 'approve') {
     await adjustBalance(leave.user, leave.leaveType._id, year, { pending: -leave.days, used: leave.days });
     leave.status = 'approved';
@@ -187,7 +195,7 @@ export async function cancelLeave(req, res) {
 
   const settings = await Settings.getSettings();
   const today = todayInTz(settings.timezone);
-  const year = yearOf(leave.fromDate);
+  const year = await leaveYearFor(leave.fromDate);
 
   if (leave.status === 'pending') {
     await adjustBalance(leave.user, leave.leaveType, year, { pending: -leave.days });
@@ -230,11 +238,12 @@ export async function updateLeaveType(req, res) {
 
   // Recalculate everyone's current-year entitlement (pro-rata per person), keeping carried-over days
   if (entitlementChanged) {
-    const year = new Date().getFullYear();
+    const year = await currentLeaveYear();
+    const { leaveYearStartMonth } = getPolicies(await Settings.getSettings());
     const balances = await LeaveBalance.find({ leaveType: leaveType._id, year }).populate('user', 'dateOfJoining exitDate workingDaysPerWeek');
     await Promise.all(
       balances.map((balance) => {
-        balance.allocated = calculateEntitlement(leaveType, balance.user, year) + (balance.carriedForward || 0);
+        balance.allocated = calculateEntitlement(leaveType, balance.user, year, leaveYearStartMonth) + (balance.carriedForward || 0);
         return balance.save();
       })
     );

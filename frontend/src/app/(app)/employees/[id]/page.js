@@ -18,6 +18,7 @@ import AttendanceSummary from '@/components/attendance/AttendanceSummary';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import LeaveDates from '@/components/leave/LeaveDates';
 import { zonedParts } from '@/lib/format';
+import { currentLeaveYear } from '@/lib/ukRules';
 
 function EmployeeAttendance({ employeeId }) {
   const now = zonedParts();
@@ -77,7 +78,8 @@ function AdjustBalanceModal({ employeeId, balance, year, onClose, onSaved }) {
 }
 
 function EmployeeLeaves({ employeeId, canEdit }) {
-  const year = new Date().getFullYear();
+  const { user } = useAuth();
+  const year = currentLeaveYear(user?.company?.policies?.leaveYearStartMonth || 1);
   const balances = useFetch(`/leaves/balances/${employeeId}`, { params: { year } });
   const history = useFetch('/leaves', { params: { user: employeeId, limit: 50 } });
   const [editing, setEditing] = useState(null);

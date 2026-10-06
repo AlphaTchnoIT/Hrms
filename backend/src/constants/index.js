@@ -100,6 +100,36 @@ export const DEFAULT_UK_PAYROLL = {
   // HMRC approved mileage allowance for cars and vans: per mile for the first 10,000 business miles in a tax year, then after
   mileageRate: 0.45,
   mileageRateAfter10k: 0.25,
+  mileageThresholdMiles: 10000,
+  // Statutory pay rules (law): change only if the law changes
+  sspPercent: 80, // SSP = lower of the weekly rate or this % of average weekly earnings
+  sspMaxWeeks: 28,
+  statutoryPercent: 90, // SMP / SPP: % of average weekly earnings
+  smpHigherRateWeeks: 6, // SMP weeks paid at the % above (no cap)
+  smpWeeks: 39,
+  sppWeeks: 2,
+};
+
+/*
+ * Company HR policies (Settings -> UK employment policies). Defaults follow common UK practice;
+ * set them to what the company's contracts and handbook say (after its employment lawyer's review).
+ */
+export const DEFAULT_POLICIES = {
+  leaveYearStartMonth: 1, // 1 = January-December, 4 = April-March
+  leaveBackdateDays: 60, // leave can be requested this many days in the past
+  leaveAdvanceDays: 365, // and this far ahead
+  regularisationWindowDays: 30,
+  expenseClaimWindowDays: 90,
+  fitNoteAfterDays: 7, // sickness longer than this (calendar days) needs a fit note
+  probationReminderDays: 14,
+  rightToWorkFirstReminderDays: 60,
+  rightToWorkSecondReminderDays: 30,
+  bradfordInformal: 51,
+  bradfordWarning: 200,
+  bradfordFormal: 500,
+  // Company maternity top-up on SMP leave: first N weeks paid at this % of normal pay (0 weeks = statutory only)
+  enhancedMaternityWeeks: 0,
+  enhancedMaternityPercent: 100,
 };
 
 export const ANNOUNCEMENT_CATEGORIES = ['general', 'policy', 'event', 'celebration', 'urgent'];

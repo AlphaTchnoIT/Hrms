@@ -18,7 +18,8 @@ const AMOUNT_FIELDS = [
   ['sspWeeklyRate', 'SSP weekly rate', 'Statutory Sick Pay: lower of this or 80% of weekly earnings'],
   ['statutoryFlatRate', 'SMP / SPP weekly rate', 'After week 6 of SMP, and SPP: lower of this or 90% of weekly earnings'],
   ['mileageRate', 'Mileage rate (per mile)', 'HMRC approved rate for the first 10,000 business miles'],
-  ['mileageRateAfter10k', 'Mileage rate after 10,000 miles', 'HMRC approved rate after 10,000 miles in the tax year'],
+  ['mileageRateAfter10k', 'Mileage rate after the threshold', 'HMRC approved rate after the threshold miles in the tax year'],
+  ['mileageThresholdMiles', 'Mileage threshold (miles)', 'Business miles per tax year at the higher rate'],
 ];
 const WAGE_BANDS = [
   ['age21', '21 and over (National Living Wage)'],
@@ -34,6 +35,14 @@ const RATE_FIELDS = [
   ['pensionEmployerRate', 'Employer pension'],
   ['studentLoanRate', 'Student loan rate'],
   ['postgradLoanRate', 'Postgraduate loan rate'],
+  ['sspPercent', 'SSP: % of weekly earnings (if lower than the rate)'],
+  ['statutoryPercent', 'SMP / SPP: % of weekly earnings'],
+];
+const WEEK_FIELDS = [
+  ['sspMaxWeeks', 'SSP: maximum weeks per spell'],
+  ['smpHigherRateWeeks', 'SMP: weeks at the % rate'],
+  ['smpWeeks', 'SMP: total weeks'],
+  ['sppWeeks', 'SPP: weeks'],
 ];
 const LOAN_PLANS = [
   ['plan1', 'Plan 1'],
@@ -92,7 +101,7 @@ export default function UkPayrollSettings({ settings }) {
     const num = (v) => Number(v);
     const bands = (list) => list.map((b, i) => ({ upTo: i === list.length - 1 ? null : num(b.upTo), rate: num(b.rate) }));
     const payload = {
-      ...Object.fromEntries([...AMOUNT_FIELDS, ...RATE_FIELDS].map(([key]) => [key, num(rates[key])])),
+      ...Object.fromEntries([...AMOUNT_FIELDS, ...RATE_FIELDS, ...WEEK_FIELDS].map(([key]) => [key, num(rates[key])])),
       taxYear: rates.taxYear,
       taxBands: bands(rates.taxBands),
       scottishTaxBands: bands(rates.scottishTaxBands),
@@ -141,6 +150,12 @@ export default function UkPayrollSettings({ settings }) {
       <FormSection title="Student loan thresholds" description="Annual repayment thresholds per plan.">
         {LOAN_PLANS.map(([key, label]) => (
           <Input key={key} label={label} type="number" min="0" prefix={getCurrencySymbol()} value={rates.studentLoanThresholds?.[key] ?? ''} onChange={(e) => setLoan(key, e.target.value)} />
+        ))}
+      </FormSection>
+
+      <FormSection title="Statutory pay periods" description="Set by law. Change only if the law changes.">
+        {WEEK_FIELDS.map(([key, label]) => (
+          <Input key={key} label={label} type="number" min="0" max="52" value={rates[key] ?? ''} error={err(key)} onChange={(e) => set(key, e.target.value)} />
         ))}
       </FormSection>
 

@@ -40,6 +40,8 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Learning** | Training programmes & assignments, in-app knowledge tests (auto-graded, attempts, time limit, answer key, report cards), automatic hourly reminders, training records |
 | **UK HR** | Right to work checks (follow-up reminders 60 / 30 days before time-limited permission expires), probation reminders, bank holidays per nation with **Sync from GOV.UK** (auto-loads next year), holiday pro-rata for part-time staff and joiners, carry-over, notice periods vs the statutory minimum, 48-hour week opt-out, fit note flag for 7+ day sickness, HMRC mileage claims (45p / 25p) |
 | **UK pay rules** | Statutory Sick / Maternity / Paternity Pay through payroll, workplace pension auto-enrolment status (eligible / non-eligible / entitled, opt-out date), National Minimum Wage check on contracted hours, payroll warnings before paying |
+| **Admin-controlled UK policies** | Settings -> UK employment policies: leave year (e.g. April - March), request windows, fit note rule, reminder timings, Bradford Factor levels, enhanced maternity pay; company registrations (PAYE, Accounts Office, Companies House, ICO, pension). Statutory figures (rates, weeks, %) in Settings -> UK payroll rates |
+| **Compliance checklist** | 20 built-in UK items (contracts, ACAS-based policies, right to work, insurance, PAYE / RTI, pension, ICO, DPA, international transfers, privacy notice, DPIA, retention, gender pay gap, modern slavery) with status, reviewer (lawyer / accountant), review dates, documents and reminders; add your own items |
 | **UK reports** | Bradford Factor (sickness), gender pay gap (mean, median, quartiles), UK compliance (right to work, minimum wage, pension, probation, notice) |
 | **Accounts & security** | One-time passwords for new accounts with a forced change at first login, forgot / reset password by email, sessions ended when a password changes, login and reset rate limits |
 | **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll or Live Work Status per company |
@@ -132,6 +134,7 @@ The admin's one-time password is printed once and must be changed at first login
 6. **UK GDPR paperwork** (client + you): data processing agreement, staff privacy notice, and a DPIA before switching on Live Work Status. Turn on database backups.
 7. **Payroll**: payslips and figures come from this app, but RTI submissions (FPS / EPS) to HMRC must be made from HMRC-recognised payroll software. SSP / SMP and P45 / P60 are not produced.
 8. Run `npm test` (payroll and leave rules) after changing rates or rules.
+9. Work through **Administration -> Compliance checklist** with the client's employment lawyer and accountant, and set **Settings -> UK employment policies** to match their contracts and handbook.
 
 ## Validation
 

@@ -21,6 +21,7 @@ import learningRoutes from './learning.routes.js';
 import supportRoutes from './support.routes.js';
 import publicRoutes from './public.routes.js';
 import workStatusRoutes from './workStatus.routes.js';
+import complianceRoutes from './compliance.routes.js';
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.use('/careers', careersRouter);
 router.use('/learning', learningRoutes);
 router.use('/support', supportRoutes);
 router.use('/work-status', workStatusRoutes);
+router.use('/compliance', complianceRoutes);
 router.use('/', reportRoutes);
 router.use('/', organizationRoutes);
 router.use('/', commonRoutes);

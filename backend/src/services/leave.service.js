@@ -1,6 +1,7 @@
-import { LeaveBalance, LeaveRequest, LeaveType, User } from '../models/index.js';
+import { LeaveBalance, LeaveRequest, LeaveType, Settings, User } from '../models/index.js';
 import { quarterOf } from '../utils/date.js';
 import { getWorkingDates } from './calendar.service.js';
+import { getPolicies, leaveYearRange } from './policy.service.js';
 
 const roundHalf = (n) => Math.round(n * 2) / 2;
 
@@ -8,11 +9,12 @@ const roundHalf = (n) => Math.round(n * 2) / 2;
  * Entitlement for a year. Pro-rata leave (UK annual leave) is scaled by
  * working days per week / 5 and by the part of the year the person is employed, rounded to half days.
  */
-export function calculateEntitlement(leaveType, user, year) {
+export function calculateEntitlement(leaveType, user, year, startMonth = 1) {
   const quota = leaveType?.annualQuota || 0;
   if (!leaveType?.proRata || !user) return quota;
-  const yearStart = Date.UTC(year, 0, 1);
-  const yearEnd = Date.UTC(year, 11, 31);
+  const range = leaveYearRange(year, startMonth);
+  const yearStart = Date.parse(`${range.from}T00:00:00Z`);
+  const yearEnd = Date.parse(`${range.to}T00:00:00Z`);
   const joined = user.dateOfJoining ? Math.max(new Date(user.dateOfJoining).getTime(), yearStart) : yearStart;
   const left = user.exitDate ? Math.min(new Date(user.exitDate).getTime(), yearEnd) : yearEnd;
   const daysInYear = (yearEnd - yearStart) / 86400000 + 1;
@@ -34,9 +36,10 @@ export async function getOrCreateBalance(userId, leaveTypeId, year) {
   let balance = await LeaveBalance.findOne({ user: userId, leaveType: leaveTypeId, year });
   if (balance) return balance;
 
-  const [leaveType, user] = await Promise.all([
+  const [leaveType, user, settings] = await Promise.all([
     LeaveType.findById(leaveTypeId),
     User.findById(userId).select('dateOfJoining exitDate workingDaysPerWeek'),
+    Settings.getSettings(),
   ]);
   const carriedForward = await carriedForwardDays(userId, leaveType, year);
   try {
@@ -44,7 +47,7 @@ export async function getOrCreateBalance(userId, leaveTypeId, year) {
       user: userId,
       leaveType: leaveTypeId,
       year,
-      allocated: calculateEntitlement(leaveType, user, year) + carriedForward,
+      allocated: calculateEntitlement(leaveType, user, year, getPolicies(settings).leaveYearStartMonth) + carriedForward,
       carriedForward,
     });
   } catch (error) {

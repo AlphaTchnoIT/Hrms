@@ -15,6 +15,7 @@ import {
 import { sendSuccess } from '../utils/response.js';
 import { addDays, todayInTz } from '../utils/date.js';
 import { getBalancesForUser } from '../services/leave.service.js';
+import { getPolicies, leaveYearOf } from '../services/policy.service.js';
 import { getManagedUserFilter, isHR, isManager } from '../services/access.service.js';
 import { getWorkforce } from '../services/workforce.service.js';
 import { currentRange, getPerformanceSummaries } from '../services/performance.service.js';
@@ -72,7 +73,7 @@ export async function getDashboard(req, res) {
   const [todayAttendance, leaveBalances, upcomingHolidays, announcements, celebrations, whoIsOut, myPending] =
     await Promise.all([
       Attendance.findOne({ user: user._id, date: today }),
-      getBalancesForUser(user._id, Number(today.slice(0, 4))),
+      getBalancesForUser(user._id, leaveYearOf(today, getPolicies(settings).leaveYearStartMonth)),
       Holiday.find({ date: { $gte: today }, $or: [{ regions: { $size: 0 } }, { regions: user.holidayRegion || 'england-wales' }] }).sort('date').limit(5),
       Announcement.find({ $or: [{ expiresAt: null }, { expiresAt: { $gte: new Date() } }] })
         .populate('createdBy', 'firstName lastName')

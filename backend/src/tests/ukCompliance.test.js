@@ -87,3 +87,30 @@ test('gender pay gap', () => {
   assert.equal(result.medianGap, 20);
   assert.equal(result.quartiles.length, 4);
 });
+
+test('leave year: January-December or April-March', async () => {
+  const { leaveYearOf, leaveYearRange } = await import('../services/policy.service.js');
+  assert.equal(leaveYearOf('2026-03-10', 1), 2026);
+  assert.equal(leaveYearOf('2026-03-10', 4), 2025);
+  assert.equal(leaveYearOf('2026-04-01', 4), 2026);
+  assert.deepEqual(leaveYearRange(2026, 1), { from: '2026-01-01', to: '2026-12-31' });
+  assert.deepEqual(leaveYearRange(2026, 4), { from: '2026-04-01', to: '2027-03-31' });
+});
+
+test('enhanced maternity pay tops SMP up to the company %', () => {
+  // £36,500 a year = £100 a day; AWE 701.92 -> 90% = 631.73 a week. Company: 4 weeks at 100%
+  const leave = { fromDate: '2026-10-01', toDate: '2027-06-30', leaveType: { statutoryPay: 'smp' } };
+  const pay = calculateStatutoryPay({ salary: { annualSalary: 36500 }, leaves: [leave], monthStart: '2026-10-01', monthEnd: '2026-10-07', rates, policies: { enhancedMaternityWeeks: 4, enhancedMaternityPercent: 100 } });
+  const total = pay.reduce((s, p) => s + p.amount, 0);
+  assert.equal(Math.round(total), 700); // 7 days at full normal pay
+});
+
+test('SSP stops after 28 weeks of a spell', async () => {
+  const { sspPayableDays } = await import('../services/ukCompliance.service.js');
+  const spell = { fromDate: '2026-01-01', isHalfDay: false, leaveType: { statutoryPay: 'ssp' } };
+  const days = [
+    { date: '2026-07-14', status: 'leave', leave: spell }, // day 194: within 28 weeks (196 days)
+    { date: '2026-07-16', status: 'leave', leave: spell }, // day 196: past the limit
+  ];
+  assert.equal(sspPayableDays(days, 28), 1);
+});

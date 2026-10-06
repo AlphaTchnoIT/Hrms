@@ -3,7 +3,8 @@ import { monthRange } from '../utils/date.js';
 import { roundMoney } from '../utils/helpers.js';
 import { buildMonthDays, loadMonthData } from './attendance.service.js';
 import { DEFAULT_UK_PAYROLL } from '../constants/index.js';
-import { autoEnrolmentStatus, calculateStatutoryPay, minimumWageCheck } from './ukCompliance.service.js';
+import { autoEnrolmentStatus, calculateStatutoryPay, minimumWageCheck, sspPayableDays } from './ukCompliance.service.js';
+import { getPolicies } from './policy.service.js';
 
 /*
  * UK PAYE payroll, monthly.
@@ -185,14 +186,12 @@ export async function runPayroll({ month, year, processedBy }) {
   const payslips = employees.map((employee) => {
     const { days, summary } = buildMonthDays({ user: employee, settings, ...monthData });
     // Statutory pay replaces salary on SSP / SMP / SPP leave (that leave is unpaid by the company)
-    const sickDays = days
-      .filter((d) => d.status === 'leave' && d.leave?.leaveType?.statutoryPay === 'ssp')
-      .reduce((sum, d) => sum + (d.leave.isHalfDay ? 0.5 : 1), 0);
     const statutoryPay = calculateStatutoryPay({
       salary: employee.salary,
       workingDaysPerWeek: employee.workingDaysPerWeek,
       leaves: monthData.leaves.filter((l) => String(l.user) === String(employee._id)),
-      sickDays,
+      sspSickDays: sspPayableDays(days, rates.sspMaxWeeks),
+      policies: getPolicies(settings),
       monthStart: start,
       monthEnd: end,
       rates,
