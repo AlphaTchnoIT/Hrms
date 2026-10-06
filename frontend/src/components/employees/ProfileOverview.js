@@ -27,7 +27,7 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
           <DetailItem label="Contracted hours / week" value={employee.contractedHoursPerWeek ?? 37.5} />
           <DetailItem label="Notice period" value={employee.noticePeriodWeeks !== undefined && employee.noticePeriodWeeks !== null ? `${employee.noticePeriodWeeks} weeks` : null} />
           <DetailItem label="48-hour opt-out" value={employee.wtrOptOut ? 'Signed' : 'No'} />
-          <DetailItem label="Role" value={titleCase(employee.role)} />
+          <DetailItem label="Role" value={{ hr: 'HR', qa: 'QA Auditor', it: 'IT Support' }[employee.role] || titleCase(employee.role)} />
         </dl>
       </Card>
 

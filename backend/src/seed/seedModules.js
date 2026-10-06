@@ -54,10 +54,10 @@ export async function seedModules({ users, settings, today, random, randomInt })
 
   /* ---------- Roster: next two weeks, a mix of shifts for the engineering team ---------- */
   const shifts = {
-    'employee@hrms.com': { shiftName: 'General', startTime: '09:30', endTime: '18:30', offs: [0, 6] },
+    'employee@hrms.com': { shiftName: 'General', startTime: '09:00', endTime: '17:30', offs: [0, 6] },
     'thomas@hrms.com': { shiftName: 'Morning', startTime: '07:00', endTime: '16:00', offs: [0, 1] },
     'sophie@hrms.com': { shiftName: 'Evening', startTime: '13:00', endTime: '22:00', offs: [5, 6] },
-    'harry@hrms.com': { shiftName: 'General', startTime: '09:30', endTime: '18:30', offs: [0, 6] },
+    'harry@hrms.com': { shiftName: 'General', startTime: '09:00', endTime: '17:30', offs: [0, 6] },
   };
   const rosterDocs = [];
   Object.entries(shifts).forEach(([email, s]) => {

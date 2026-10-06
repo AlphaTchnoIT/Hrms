@@ -169,7 +169,7 @@ export const RATING_LABELS = { 1: 'Unsatisfactory', 2: 'Needs improvement', 3: '
 export const ACTION_PLAN_STATUS = ['open', 'in-progress', 'completed', 'closed'];
 export const SHIFT_PRESETS = [
   { shiftName: 'Morning', startTime: '07:00', endTime: '16:00' },
-  { shiftName: 'General', startTime: '09:30', endTime: '18:30' },
+  { shiftName: 'General', startTime: '09:00', endTime: '17:30' },
   { shiftName: 'Evening', startTime: '13:00', endTime: '22:00' },
   { shiftName: 'Night', startTime: '22:00', endTime: '07:00' },
 ];

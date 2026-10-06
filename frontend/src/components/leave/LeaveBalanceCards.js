@@ -1,5 +1,12 @@
 import { Skeleton } from '@/components/ui';
 
+// Leave paid through payroll as statutory pay instead of salary
+const STATUTORY_TEXT = {
+  ssp: 'Paid as Statutory Sick Pay (SSP) through payroll',
+  smp: 'Paid as Statutory Maternity Pay (SMP) through payroll',
+  spp: 'Paid as Statutory Paternity Pay (SPP) through payroll',
+};
+
 // One card per leave type showing available / used / pending
 export default function LeaveBalanceCards({ balances, loading }) {
   if (loading && !balances) {
@@ -49,7 +56,9 @@ export default function LeaveBalanceCards({ balances, loading }) {
                   <span className="text-3xl font-semibold tracking-tight text-slate-900">{b.used}</span>
                   <span className="text-sm text-slate-500">days taken</span>
                 </p>
-                <p className="mt-6 text-xs text-slate-500">Unpaid leave · salary is deducted</p>
+                <p className="mt-6 text-xs text-slate-500">
+                  {STATUTORY_TEXT[b.leaveType.statutoryPay] || 'Unpaid leave · salary is deducted'}
+                </p>
               </>
             )}
           </div>

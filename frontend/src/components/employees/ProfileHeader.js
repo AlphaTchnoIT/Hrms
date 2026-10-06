@@ -8,9 +8,10 @@ export default function ProfileHeader({ employee, actions }) {
     <div className="card overflow-hidden">
       <div className="h-24 bg-gradient-to-r from-brand-600 to-violet-500" />
       <div className="flex flex-col gap-4 px-6 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end">
-          <Avatar name={name} src={employee.avatar} size="xl" className="ring-4 ring-white" />
-          <div className="pb-1">
+        {/* Only the avatar overlaps the banner; the name stays on white */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <Avatar name={name} src={employee.avatar} size="xl" className="-mt-12 ring-4 ring-white" />
+          <div className="pb-1 sm:pt-3">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold text-slate-800">{name}</h1>
               <Badge status={employee.status} />
@@ -36,7 +37,7 @@ export default function ProfileHeader({ employee, actions }) {
             </div>
           </div>
         </div>
-        {actions && <div className="flex gap-2">{actions}</div>}
+        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { holidaySchema } from '@/lib/validation';
 import { HOLIDAY_REGIONS, HOLIDAY_TYPES } from '@/lib/constants';
-import { formatDate, toInputDate } from '@/lib/format';
+import { formatDate, titleCase, toInputDate } from '@/lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, Input, Modal, PageHeader, Select, Skeleton, Textarea, useConfirm } from '@/components/ui';
 
 const TYPE_COLORS = { 'bank-holiday': 'red', regional: 'purple', optional: 'gray', company: 'blue' };
@@ -171,7 +171,7 @@ export default function HolidaysPage() {
                 <p className="truncate font-semibold text-slate-900">{h.name}</p>
                 <p className="text-xs text-slate-500">{formatDate(h.date, { weekday: 'long' })}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <Badge color={TYPE_COLORS[h.type]}>{h.type}</Badge>
+                  <Badge color={TYPE_COLORS[h.type]}>{titleCase(h.type)}</Badge>
                   <span className="text-[11px] text-slate-500">{regionLabel(h)}</span>
                 </div>
               </div>

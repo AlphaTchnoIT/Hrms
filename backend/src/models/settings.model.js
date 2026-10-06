@@ -48,7 +48,7 @@ const settingsSchema = new mongoose.Schema(
     dataRetentionYears: { type: Number, default: 6, min: 1, max: 20 }, // leavers can be anonymised after this
 
     // Payroll: unpaid days (absences / unpaid leave) reduce pay; UK PAYE rates below
-    attendanceBasedLop: { type: Boolean, default: true },
+    attendanceBasedLop: { type: Boolean, default: false }, // UK: only deduct absence pay after HR has checked it
     payroll: {
       type: new mongoose.Schema(
         {

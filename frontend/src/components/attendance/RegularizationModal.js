@@ -8,7 +8,7 @@ import { regularizationSchema } from '@/lib/validation';
 import { toInputDate } from '@/lib/format';
 import { Button, Input, Modal, Textarea } from '@/components/ui';
 
-const EMPTY = { date: '', checkInTime: '09:30', checkOutTime: '18:30', reason: '' };
+const EMPTY = { date: '', checkInTime: '09:00', checkOutTime: '17:30', reason: '' };
 
 // Request to fix a missed or wrong punch
 export default function RegularizationModal({ open, onClose, defaultDate, onSaved }) {

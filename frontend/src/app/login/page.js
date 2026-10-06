@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   const onSubmit = form.handleSubmit(async ({ email, password }) => {
     const loggedIn = await login(email, password);
-    toast.success(`Welcome back, ${loggedIn.firstName}!`);
+    toast.success(loggedIn.mustChangePassword ? `Welcome, ${loggedIn.firstName}!` : `Welcome back, ${loggedIn.firstName}!`);
     router.replace('/dashboard');
   });
 

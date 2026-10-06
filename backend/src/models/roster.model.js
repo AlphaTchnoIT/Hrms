@@ -9,8 +9,8 @@ const rosterSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     date: { type: String, required: true }, // "YYYY-MM-DD"
     shiftName: { type: String, trim: true, default: 'General' },
-    startTime: { type: String, default: '09:30' }, // "HH:mm"
-    endTime: { type: String, default: '18:30' }, // may be earlier than start for night shifts
+    startTime: { type: String, default: '09:00' }, // "HH:mm"
+    endTime: { type: String, default: '17:30' }, // may be earlier than start for night shifts
     isWeeklyOff: { type: Boolean, default: false },
     notes: String,
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

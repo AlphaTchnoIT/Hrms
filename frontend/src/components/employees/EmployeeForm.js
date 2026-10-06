@@ -108,7 +108,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           {isEdit ? (
             <Select label="Status" placeholder={false} options={EMPLOYEE_STATUS} {...register('status')} />
           ) : (
-            <Input label="Initial password" type="password" {...register('password')} hint="Leave empty to use Welcome@123" />
+            <Input label="Initial password" type="password" {...register('password')} hint="Leave empty to generate a one-time password (shown once, must be changed at first login)" />
           )}
         </FormSection>
 
