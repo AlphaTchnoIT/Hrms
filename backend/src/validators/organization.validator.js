@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ANNOUNCEMENT_CATEGORIES, HOLIDAY_TYPES } from '../constants/index.js';
+import { ANNOUNCEMENT_CATEGORIES, HOLIDAY_TYPES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
 import { dateStr, intRange, optional, optionalDate, optionalObjectId, optionalText, requiredText, timeStr, email, phone } from './common.js';
 
 const percent = (label) => intRange(label, 0, 100);
@@ -83,6 +83,18 @@ export const settingsSchema = z
     shortLoginPercent: intRange('Short login %', 50, 100),
     idleAlertMinutes: intRange('Idle alert minutes', 0, 600),
     calibrationTolerance: intRange('Calibration tolerance', 0, 50),
+    workStatuses: z
+      .array(
+        z.object({
+          key: z.string().trim().regex(/^[a-z0-9-]{2,40}$/, 'Status key can only use lowercase letters, numbers and dashes'),
+          label: requiredText('Status name', { max: 40 }),
+          category: z.enum(WORK_STATUS_CATEGORIES, { errorMap: () => ({ message: 'Choose a valid category' }) }),
+          active: z.boolean().default(true),
+        })
+      )
+      .max(30, 'At most 30 statuses')
+      .refine((list) => new Set(list.map((s) => s.key)).size === list.length, 'Two statuses have the same key')
+      .refine((list) => list.some((s) => s.active && s.category === 'productive'), 'Keep at least one active productive status'),
   })
   .partial()
   .superRefine((data, ctx) => {

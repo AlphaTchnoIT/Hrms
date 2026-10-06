@@ -114,3 +114,19 @@ export const GRIEVANCE_CATEGORIES = ['workplace', 'harassment', 'discrimination'
 export const GRIEVANCE_STATUS = ['submitted', 'under-review', 'resolved', 'closed'];
 export const SUGGESTION_TYPES = ['feedback', 'idea', 'suggestion'];
 export const SUGGESTION_STATUS = ['new', 'under-review', 'planned', 'implemented', 'declined'];
+
+// Live Work Status: what an employee is doing right now (agent states / AUX codes)
+export const WORK_STATUS_CATEGORIES = ['productive', 'approved', 'system', 'break', 'inactive'];
+export const DEFAULT_WORK_STATUSES = [
+  { key: 'available', label: 'Available', category: 'productive' },
+  { key: 'email', label: 'Email handling', category: 'productive' },
+  { key: 'social', label: 'Social media', category: 'productive' },
+  { key: 'back-office', label: 'Back office', category: 'productive' },
+  { key: 'meeting', label: 'Meeting', category: 'approved' },
+  { key: 'training', label: 'Training', category: 'approved' },
+  { key: 'coaching', label: 'Coaching / 1:1', category: 'approved' },
+  { key: 'it-issue', label: 'IT issue / system down', category: 'system' },
+  { key: 'break', label: 'Break', category: 'break' },
+  { key: 'lunch', label: 'Lunch', category: 'break' },
+  { key: 'away', label: 'Away', category: 'inactive' },
+];

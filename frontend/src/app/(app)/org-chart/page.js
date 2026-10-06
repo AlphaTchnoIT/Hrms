@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { getFullName } from '@/lib/format';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorMessage, PageHeader, PageLoader, Select } from '@/components/ui';
+import PresenceAvatar from '@/components/workStatus/PresenceAvatar';
 
 /*
  * Company org chart, built from each employee's reporting manager.
@@ -48,7 +49,7 @@ function ancestorIds(byId, id) {
   return ids;
 }
 
-function PersonNode({ node, depth, expanded, onToggle, highlight, meId, canEdit }) {
+function PersonNode({ node, depth, expanded, onToggle, highlight, meId, canEdit, presence }) {
   const open = expanded.has(node.id);
   const hasTeam = node.children.length > 0;
   const name = getFullName(node);
@@ -73,7 +74,7 @@ function PersonNode({ node, depth, expanded, onToggle, highlight, meId, canEdit 
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
-        <Avatar name={name} src={node.avatar} size="sm" />
+        <PresenceAvatar name={name} src={node.avatar} presence={presence[node.id]} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-800">
             {canEdit ? (
@@ -104,7 +105,7 @@ function PersonNode({ node, depth, expanded, onToggle, highlight, meId, canEdit 
       {open && hasTeam && (
         <ul className="relative ml-6 mt-2 space-y-2 border-l border-slate-200 pl-4">
           {node.children.map((child) => (
-            <PersonNode key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} highlight={highlight} meId={meId} canEdit={canEdit} />
+            <PersonNode key={child.id} node={child} depth={depth + 1} expanded={expanded} onToggle={onToggle} highlight={highlight} meId={meId} canEdit={canEdit} presence={presence} />
           ))}
         </ul>
       )}
@@ -116,6 +117,8 @@ export default function OrgChartPage() {
   const { user, isHR } = useAuth();
   const { data, loading, error, refetch } = useFetch('/employees/org-chart');
   const departments = useFetch('/departments');
+  const presenceRes = useFetch('/work-status/presence');
+  const presence = presenceRes.data || {};
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(new Set());
@@ -226,7 +229,7 @@ export default function OrgChartPage() {
       {tree.leads.length > 0 && (
         <ul className="space-y-3">
           {tree.leads.map((node) => (
-            <PersonNode key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} highlight={highlight} meId={meId} canEdit={isHR} />
+            <PersonNode key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} highlight={highlight} meId={meId} canEdit={isHR} presence={presence} />
           ))}
         </ul>
       )}
@@ -241,7 +244,7 @@ export default function OrgChartPage() {
           {isHR && <p className="mb-3 text-xs text-slate-500">Assign a reporting manager so these people appear in the right team.</p>}
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {tree.unassigned.map((node) => (
-              <PersonNode key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} highlight={highlight} meId={meId} canEdit={isHR} />
+              <PersonNode key={node.id} node={node} depth={0} expanded={expanded} onToggle={toggle} highlight={highlight} meId={meId} canEdit={isHR} presence={presence} />
             ))}
           </ul>
         </Card>

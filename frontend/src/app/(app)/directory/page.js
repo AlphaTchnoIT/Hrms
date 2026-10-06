@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Mail, Phone, Search } from 'lucide-react';
 import { useFetch } from '@/hooks/useFetch';
 import { getFullName } from '@/lib/format';
-import { Avatar, EmptyState, PageHeader, PageLoader, Select } from '@/components/ui';
+import { EmptyState, PageHeader, PageLoader, Select } from '@/components/ui';
+import PresenceAvatar from '@/components/workStatus/PresenceAvatar';
+import { PRESENCE } from '@/lib/workStatus';
 
 export default function DirectoryPage() {
   const [search, setSearch] = useState('');
@@ -17,6 +19,7 @@ export default function DirectoryPage() {
   }, [search]);
 
   const departments = useFetch('/departments');
+  const presence = useFetch('/work-status/presence');
   const { data, loading } = useFetch('/employees/directory', {
     params: { search: query, department: department || undefined, limit: 200 },
   });
@@ -45,8 +48,9 @@ export default function DirectoryPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {(data || []).map((person) => (
           <div key={person._id} className="card flex flex-col items-center p-5 text-center">
-            <Avatar name={getFullName(person)} src={person.avatar} size="lg" />
+            <PresenceAvatar name={getFullName(person)} src={person.avatar} size="lg" presence={presence.data?.[person._id]} />
             <p className="mt-3 font-semibold text-slate-800">{getFullName(person)}</p>
+            <p className="text-xs text-slate-400">{PRESENCE[presence.data?.[person._id] || 'offline'].label}</p>
             <p className="text-sm text-slate-500">{person.designation?.title || '—'}</p>
             <p className="text-xs text-slate-400">{person.department?.name}</p>
             <div className="mt-4 w-full space-y-1 border-t border-slate-100 pt-3 text-left text-xs text-slate-600">

@@ -21,6 +21,8 @@ import {
   LayoutDashboard,
   Laptop,
   Network,
+  Radio,
+  Activity,
   LineChart,
   ListChecks,
   Megaphone,
@@ -55,6 +57,7 @@ export const NAVIGATION = [
     items: [
       { label: 'My Profile', href: '/profile', icon: UserRound },
       { label: 'Attendance', href: '/attendance', icon: CalendarCheck },
+      { label: 'My Work Status', href: '/my-status', icon: Activity },
       { label: 'My Roster', href: '/roster', icon: CalendarRange },
       { label: 'Leave', href: '/leave', icon: CalendarDays },
       { label: 'Payslips', href: '/payslips', icon: WalletCards },
@@ -71,6 +74,7 @@ export const NAVIGATION = [
     roles: APPROVER_ROLES,
     items: [
       { label: 'My Team Home', href: '/team/home', icon: House },
+      { label: 'Live Status', href: '/team/live-status', icon: Radio },
       { label: 'Team Performance', href: '/team/performance', icon: LineChart },
       { label: 'Action Plans', href: '/team/action-plans', icon: ListChecks },
       { label: 'Team Roster', href: '/team/roster', icon: CalendarClock },

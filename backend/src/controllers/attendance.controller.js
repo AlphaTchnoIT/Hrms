@@ -20,6 +20,7 @@ import {
 } from '../services/attendance.service.js';
 import { canManageEmployee, getManagedUserFilter } from '../services/access.service.js';
 import { notify } from '../services/notification.service.js';
+import { endCurrentStatus, getDayLogs, getDefaultStatus, startStatus, summarize } from '../services/workStatus.service.js';
 
 function getMonthYear(query) {
   const now = new Date();
@@ -89,6 +90,10 @@ export async function checkIn(req, res) {
     { new: true, upsert: true, runValidators: true }
   );
 
+  // Start the day as "Available" on the Live Work Status
+  const defaultStatus = getDefaultStatus(settings);
+  if (defaultStatus) await startStatus(req.user._id, defaultStatus, { settings, at: punch.time });
+
   const message = lateByMinutes > 0 ? `Checked in (late by ${lateByMinutes} min)` : 'Checked in successfully';
   sendSuccess(res, { data: record, message, status: 201 });
 }
@@ -110,6 +115,15 @@ export async function checkOut(req, res) {
   record.checkOut = punch;
   record.workMinutes = Math.max(0, Math.round((punch.time - record.checkIn.time) / 60000));
   record.status = getStatusFromMinutes(record.workMinutes, settings);
+
+  // End the work status and, unless the manager already entered them, fill AT / idle hours from it
+  await endCurrentStatus(req.user._id, { at: punch.time, reason: 'check-out' });
+  const logs = await getDayLogs(req.user._id, today);
+  if (logs.length && record.productiveMinutes === undefined) {
+    const { categories } = summarize(logs, punch.time);
+    record.productiveMinutes = categories.productive;
+    record.idleMinutes = categories.inactive;
+  }
   await record.save();
 
   sendSuccess(res, { data: record, message: 'Checked out successfully' });

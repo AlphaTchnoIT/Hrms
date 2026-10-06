@@ -9,6 +9,7 @@ import { findNavItem } from '@/lib/navigation';
 import { Avatar, Badge } from '@/components/ui';
 import NotificationBell from './NotificationBell';
 import AttendanceChip from './AttendanceChip';
+import WorkStatusMenu from './WorkStatusMenu';
 
 function UserMenu() {
   const { user, logout } = useAuth();
@@ -92,6 +93,7 @@ export default function Topbar({ onMenuClick }) {
 
       <div className="ml-auto flex items-center gap-2">
         <AttendanceChip />
+        <WorkStatusMenu />
         <NotificationBell />
         <UserMenu />
       </div>

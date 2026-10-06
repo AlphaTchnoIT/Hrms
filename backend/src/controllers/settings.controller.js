@@ -27,6 +27,7 @@ const FIELDS = [
   'shortLoginPercent',
   'idleAlertMinutes',
   'calibrationTolerance',
+  'workStatuses',
 ];
 
 export async function getSettings(_req, res) {

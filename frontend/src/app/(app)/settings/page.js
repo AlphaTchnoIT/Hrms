@@ -10,6 +10,7 @@ import { ROLES, WEEK_DAYS } from '@/lib/constants';
 import { Button, Card, Checkbox, FormSection, Input, PageHeader, PageLoader, Textarea } from '@/components/ui';
 import RoleGuard from '@/components/layout/RoleGuard';
 import PerformanceSettings from '@/components/settings/PerformanceSettings';
+import WorkStatusSettings from '@/components/settings/WorkStatusSettings';
 
 function SettingsForm({ settings }) {
   const form = useForm(
@@ -130,6 +131,7 @@ export default function SettingsPage() {
       ) : (
         <>
           <PerformanceSettings settings={data} />
+          <WorkStatusSettings settings={data} />
           <SettingsForm settings={data} />
         </>
       )}

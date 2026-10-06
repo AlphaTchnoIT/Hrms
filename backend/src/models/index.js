@@ -22,3 +22,4 @@ export { Escalation, Warning, WarningTrigger } from './relations.model.js';
 export { JobPosting, Application } from './recruitment.model.js';
 export { TrainingProgram, TrainingAssignment, KnowledgeTest, TestAttempt } from './learning.model.js';
 export { Ticket, Grievance, Suggestion } from './support.model.js';
+export { WorkStatusLog } from './workStatus.model.js';

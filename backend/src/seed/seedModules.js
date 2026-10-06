@@ -24,9 +24,10 @@ import {
   Warning,
   WarningTrigger,
   generateCode,
+  WorkStatusLog,
 } from '../models/index.js';
 import { QA_ERROR_CATEGORIES } from '../constants/index.js';
-import { addDays, dayOfWeek, toDateStr, weekStart } from '../utils/date.js';
+import { addDays, dayOfWeek, toDateStr, todayInTz, weekStart } from '../utils/date.js';
 import { getPerformanceSummaries, targetFor } from '../services/performance.service.js';
 import { KNOWLEDGE_TEST, TRAINING_PROGRAMS, WARNING_TRIGGERS } from './seedData.js';
 
@@ -297,6 +298,51 @@ export async function seedModules({ users, settings, today, random, randomInt })
     { submittedBy: users['arjun@hrms.com']._id, type: 'idea', title: 'Monthly customer-story session', description: 'Share one great customer story every month in the town hall.', status: 'planned', response: 'Starting next month!', respondedBy: hr._id },
     { submittedBy: vikram._id, type: 'feedback', title: 'Roster published earlier', description: 'Please publish the roster at least 10 days ahead.', status: 'new' },
   ]);
+
+  /* ---------- Live Work Status: last 7 working days from attendance, plus a few people working right now ---------- */
+  const statusOf = Object.fromEntries(settings.workStatuses.map((st) => [st.key, st]));
+  const PATTERN = [
+    ['available', 50, 110], ['email', 25, 60], ['break', 10, 20], ['available', 40, 90], ['meeting', 20, 45],
+    ['lunch', 30, 45], ['social', 25, 60], ['available', 40, 80], ['back-office', 20, 50], ['break', 10, 25], ['available', 30, 90],
+  ];
+  const NOTES = { email: 'Customer escalations inbox', social: 'Twitter & Instagram DMs', meeting: 'Team huddle', 'back-office': 'Ticket follow-ups' };
+  const buildDay = (user, date, start, end) => {
+    const logs = [];
+    let at = start.getTime();
+    let i = 0;
+    while (at < end.getTime()) {
+      let [key, min, max] = PATTERN[i % PATTERN.length];
+      if (random() < 0.06) [key, min, max] = random() < 0.5 ? ['it-issue', 10, 30] : ['away', 5, 25];
+      const st = statusOf[key];
+      const until = Math.min(at + randomInt(min, max) * 60000, end.getTime());
+      logs.push({ user: user._id, date, status: st.key, label: st.label, category: st.category, note: random() < 0.4 ? NOTES[key] : undefined, startedAt: new Date(at), endedAt: new Date(until), endReason: 'changed' });
+      at = until;
+      i += 1;
+    }
+    if (logs.length) logs[logs.length - 1].endReason = 'check-out';
+    return logs;
+  };
+
+  const statusLogs = [];
+  const lastWeek = await Attendance.find({ date: { $gte: addDays(today, -7), $lt: today }, 'checkOut.time': { $exists: true } });
+  lastWeek.forEach((a) => statusLogs.push(...buildDay({ _id: a.user }, a.date, a.checkIn.time, a.checkOut.time)));
+
+  // Not the demo login accounts, so those can still try check-in themselves
+  const now = new Date();
+  for (const email of ['sneha@hrms.com', 'karan@hrms.com', 'neha@hrms.com', 'arjun@hrms.com', 'isha@hrms.com']) {
+    const user = users[email];
+    const start = new Date(now.getTime() - randomInt(70, 330) * 60000);
+    if (todayInTz(settings.timezone, start) !== today) continue; // too early in the day for a believable shift
+    await Attendance.create({ user: user._id, date: today, checkIn: { time: start, ip: '127.0.0.1' }, status: 'present', source: 'web' });
+    const logs = buildDay(user, today, start, now);
+    const last = logs[logs.length - 1];
+    if (last) {
+      last.endedAt = null;
+      last.endReason = undefined;
+    }
+    statusLogs.push(...logs);
+  }
+  await WorkStatusLog.insertMany(statusLogs);
 
   console.log(`✓ Roster, ${kpis.length} KPI results, ${audits.length} QA audits, calibrations, warnings, action plans, ratings, recruitment, learning, support`);
 }

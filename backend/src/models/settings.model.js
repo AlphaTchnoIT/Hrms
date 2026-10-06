@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DEFAULT_WORK_STATUSES, WORK_STATUS_CATEGORIES } from '../constants/index.js';
 
 /*
  * Company-wide settings. Only one document exists in this collection.
@@ -58,6 +59,20 @@ const settingsSchema = new mongoose.Schema(
     idleAlertMinutes: { type: Number, default: 60 },
     // Calibration: manager vs QA score difference allowed to count as aligned
     calibrationTolerance: { type: Number, default: 5 },
+
+    // Live Work Status options employees pick from (key never changes, label / category can)
+    workStatuses: {
+      type: [
+        {
+          key: { type: String, required: true },
+          label: { type: String, required: true },
+          category: { type: String, enum: WORK_STATUS_CATEGORIES, required: true },
+          active: { type: Boolean, default: true },
+          _id: false,
+        },
+      ],
+      default: () => DEFAULT_WORK_STATUSES.map((s) => ({ ...s, active: true })),
+    },
   },
   { timestamps: true }
 );
