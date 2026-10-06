@@ -20,6 +20,7 @@ import {
   House,
   LayoutDashboard,
   Laptop,
+  Network,
   LineChart,
   ListChecks,
   Megaphone,
@@ -105,6 +106,7 @@ export const NAVIGATION = [
     items: [
       { label: 'Employees', href: '/employees', icon: Users, roles: HR_ROLES },
       { label: 'Directory', href: '/directory', icon: Contact },
+      { label: 'Org Chart', href: '/org-chart', icon: Network },
       { label: 'Organization', href: '/organization', icon: Building2, roles: HR_ROLES },
       { label: 'Holidays', href: '/holidays', icon: CalendarDays },
       { label: 'Announcements', href: '/announcements', icon: Megaphone },
@@ -131,9 +133,11 @@ export const NAVIGATION = [
   },
 ];
 
-export function getNavigationForRole(role) {
-  return NAVIGATION.filter((section) => !section.roles || section.roles.includes(role))
-    .map((section) => ({ ...section, items: section.items.filter((item) => !item.roles || item.roles.includes(role)) }))
+// `roles` = the user's access roles, e.g. ['employee', 'manager'] for a team lead
+export function getNavigationForRole(roles = []) {
+  const allowed = (list) => !list || roles.some((role) => list.includes(role));
+  return NAVIGATION.filter((section) => allowed(section.roles))
+    .map((section) => ({ ...section, items: section.items.filter((item) => allowed(item.roles)) }))
     .filter((section) => section.items.length);
 }
 

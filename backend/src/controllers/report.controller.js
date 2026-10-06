@@ -16,7 +16,7 @@ import { HR_ROLES, ROLES, WARNING_STAGES } from '../constants/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { addDays, eachDate, isValidDateStr, monthRange, todayInTz } from '../utils/date.js';
-import { getScopedUsers, isHR } from '../services/access.service.js';
+import { getAccessRoles, getScopedUsers, isHR } from '../services/access.service.js';
 import { currentRange, getKpiTrend, getManagerRatings, getPerformanceSummaries } from '../services/performance.service.js';
 import { getAdherenceTrend, getWorkforce } from '../services/workforce.service.js';
 import { getQuarterlyLeaveSummary } from '../services/leave.service.js';
@@ -45,7 +45,7 @@ const REPORTS = {
 // GET /api/reports - reports available to the user
 export async function listReports(req, res) {
   const data = Object.entries(REPORTS)
-    .filter(([, r]) => r.roles.includes(req.user.role))
+    .filter(([, r]) => getAccessRoles(req.user).some((role) => r.roles.includes(role)))
     .map(([key, r]) => ({ key, title: r.title }));
   sendSuccess(res, { data });
 }
@@ -67,11 +67,11 @@ const col = (key, header) => ({ key, header });
 export async function runReport(req, res) {
   const report = REPORTS[req.params.type];
   if (!report) throw ApiError.notFound('Unknown report');
-  if (!report.roles.includes(req.user.role)) throw ApiError.forbidden();
+  if (!getAccessRoles(req.user).some((role) => report.roles.includes(role))) throw ApiError.forbidden();
 
   const settings = await Settings.getSettings();
   const range = readRange(req.query, settings);
-  let users = await getScopedUsers(req.user, { managerId: req.query.manager });
+  let users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager });
   if (req.query.department) users = users.filter((u) => String(u.department) === req.query.department);
   const ids = users.map((u) => u._id);
   const userMap = Object.fromEntries(users.map((u) => [String(u._id), u]));

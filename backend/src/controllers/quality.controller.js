@@ -3,7 +3,7 @@ import { ROLES } from '../constants/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { addDays, isValidDateStr, todayInTz, weekStart } from '../utils/date.js';
-import { canAuditEmployee, getScopedUsers, isQA } from '../services/access.service.js';
+import { canAuditEmployee, canManageEmployee, getScopedUsers, getTeamMemberIds, isHR, isManager, isQA } from '../services/access.service.js';
 import { targetFor } from '../services/performance.service.js';
 import { notify, notifyMany } from '../services/notification.service.js';
 
@@ -53,7 +53,7 @@ async function syncWeeklyQuality(userId, auditDate) {
 
 // GET /api/quality/interactions?agent&from&to
 export async function listInteractions(req, res) {
-  const users = await getScopedUsers(req.user, { select: '_id' });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, select: '_id' });
   const filter = { agent: { $in: users.map((u) => u._id) } };
   if (req.query.agent) {
     if (!(await canAuditEmployee(req.user, req.query.agent))) throw ApiError.forbidden();
@@ -97,7 +97,7 @@ export async function listFeedback(req, res) {
     if (!(await canAuditEmployee(req.user, req.query.user))) throw ApiError.forbidden();
     filter.user = req.query.user;
   } else {
-    const users = await getScopedUsers(req.user, { managerId: req.query.manager, select: '_id' });
+    const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager, select: '_id' });
     filter.user = { $in: users.map((u) => u._id) };
   }
   if (isValidDateStr(req.query.from)) filter.auditDate = { $gte: req.query.from };
@@ -141,7 +141,7 @@ export async function getRepeatedErrors(req, res) {
   const settings = await Settings.getSettings();
   const days = Math.min(Math.max(Number(req.query.days) || 90, 7), 365);
   const since = addDays(todayInTz(settings.timezone), -(days - 1));
-  const users = await getScopedUsers(req.user, { managerId: req.query.manager });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager });
   const userMap = Object.fromEntries(users.map((u) => [String(u._id), u]));
 
   const rows = await QaFeedback.aggregate([
@@ -175,7 +175,7 @@ export async function getRepeatedErrors(req, res) {
 // Which side of a calibration the user audits for
 function calibrationSide(user, requested) {
   if (isQA(user)) return 'qa';
-  if ([ROLES.MANAGER, ROLES.HR].includes(user.role)) return 'manager';
+  if (user.role === ROLES.HR || isManager(user)) return 'manager';
   if (user.role === ROLES.ADMIN && ['qa', 'manager'].includes(requested)) return requested;
   if (user.role === ROLES.ADMIN) throw ApiError.field('side', 'Choose whether you audit as QA or as manager');
   throw ApiError.forbidden();
@@ -183,9 +183,8 @@ function calibrationSide(user, requested) {
 
 // A manager may audit / sign off only calibrations of their own team's interactions
 async function assertAgentManager(calibration, side, user) {
-  if (side !== 'manager' || user.role !== ROLES.MANAGER) return;
-  const agent = await User.findById(calibration.interaction.agent).select('reportingManager');
-  if (String(agent?.reportingManager) !== String(user._id)) throw ApiError.forbidden("Only the agent's manager can act on this calibration");
+  if (side !== 'manager' || isHR(user)) return;
+  if (!(await canManageEmployee(user, calibration.interaction.agent))) throw ApiError.forbidden("Only the agent's manager can act on this calibration");
 }
 
 // Hide the other side's score until both audits are submitted (blind calibration)
@@ -241,8 +240,8 @@ export async function listCalibrations(req, res) {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
   // Managers only see calibrations of their own team's interactions
-  if (req.user.role === ROLES.MANAGER) {
-    const team = await User.find({ reportingManager: req.user._id }).distinct('_id');
+  if (!isHR(req.user) && !isQA(req.user)) {
+    const team = await getTeamMemberIds(req.user._id, { scope: 'all' });
     filter.interaction = { $in: await Interaction.find({ agent: { $in: team } }).distinct('_id') };
   }
   const items = await Calibration.find(filter).populate(CALIBRATION_POPULATE).sort({ createdAt: -1 }).limit(200);

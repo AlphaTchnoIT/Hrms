@@ -10,8 +10,8 @@ import { Avatar } from '@/components/ui';
 
 export default function Sidebar({ open, onClose }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
-  const sections = getNavigationForRole(user?.role);
+  const { user, logout, accessRoles } = useAuth();
+  const sections = getNavigationForRole(accessRoles);
 
   return (
     <>

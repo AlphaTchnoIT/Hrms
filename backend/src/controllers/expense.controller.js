@@ -44,7 +44,7 @@ export async function listExpenses(req, res) {
   if (req.query.status) filter.status = req.query.status;
   if (req.query.category) filter.category = req.query.category;
 
-  const managed = await getManagedUserFilter(req.user);
+  const managed = await getManagedUserFilter(req.user, { scope: req.query.scope });
   if (managed) filter.user = managed;
 
   const [items, total] = await Promise.all([

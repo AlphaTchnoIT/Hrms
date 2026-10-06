@@ -10,6 +10,8 @@ import { APPROVER_ROLES, METRIC_LABELS, WARNING_STAGES } from '@/lib/constants';
 import { formatTime, getFullName } from '@/lib/format';
 import { Avatar, Badge, Card, EmptyState, ErrorMessage, PageHeader, PageLoader, Select, StatCard, Tabs } from '@/components/ui';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 import { PerformanceStatus, RatingStars } from '@/components/performance/KpiWidgets';
 
 const SEVERITY = { high: 'border-rose-200 bg-rose-50 text-rose-800', medium: 'border-amber-200 bg-amber-50 text-amber-800', low: 'border-slate-200 bg-slate-50 text-slate-700' };
@@ -113,21 +115,25 @@ export default function TeamHomePage() {
   const [tab, setTab] = useState('team');
   const [manager, setManager] = useState('');
   const managers = useFetch(isHR ? '/employees/directory' : null, { params: { role: 'manager', limit: 200 } });
-  const { data, loading, error, refetch } = useFetch('/workspace/team', { params: { manager: manager || undefined } });
+  const teamScope = useTeamScope({ manager });
+  const { data, loading, error, refetch } = useFetch('/workspace/team', { params: { manager: manager || undefined, scope: teamScope.scope } });
   const counts = data?.counts || {};
 
   return (
     <RoleGuard roles={APPROVER_ROLES}>
       <PageHeader title="My Team Home" subtitle="Only the employees currently assigned to your team" />
-      {isHR && (
-        <Select
-          className="mb-4 w-64"
-          placeholder="All employees"
-          options={(managers.data || []).map((m) => ({ value: m._id, label: `Team of ${getFullName(m)}` }))}
-          value={manager}
-          onChange={(e) => setManager(e.target.value)}
-        />
-      )}
+      <div className="mb-4 flex flex-wrap items-center gap-3 empty:hidden">
+        {isHR && (
+          <Select
+            className="w-64"
+            placeholder="All employees"
+            options={(managers.data || []).map((m) => ({ value: m._id, label: `Team of ${getFullName(m)}` }))}
+            value={manager}
+            onChange={(e) => setManager(e.target.value)}
+          />
+        )}
+        <TeamScopeToggle {...teamScope} />
+      </div>
       <ErrorMessage message={error} onRetry={refetch} />
       {loading && !data && <PageLoader />}
       {data && (

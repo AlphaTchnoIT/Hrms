@@ -1,5 +1,5 @@
 import { KpiRecord, User } from '../models/index.js';
-import { KPI_METRICS, ROLES } from '../constants/index.js';
+import { KPI_METRICS } from '../constants/index.js';
 import { addDays, todayInTz, weekStart } from '../utils/date.js';
 import { getWorkforce } from './workforce.service.js';
 
@@ -161,8 +161,9 @@ export async function getKpiTrend(userIds, settings, weeks = 13) {
  * average achievement of the direct reports (with KPI data) -> 1..5, plus status counts.
  */
 export async function getManagerRatings(settings, { managerIds } = {}) {
-  const managerFilter = { status: 'active', role: { $in: [ROLES.MANAGER, ROLES.HR, ROLES.ADMIN] } };
-  if (managerIds) managerFilter._id = { $in: managerIds };
+  // Anyone with active direct reports is rated, whatever their role (manager, team lead, HR...)
+  const leads = await User.find({ status: 'active', reportingManager: { $ne: null } }).distinct('reportingManager');
+  const managerFilter = { status: 'active', _id: { $in: managerIds ? leads.filter((id) => managerIds.some((m) => String(m) === String(id))) : leads } };
   const managers = await User.find(managerFilter).select('firstName lastName employeeCode avatar role');
   const team = await User.find({ status: 'active', reportingManager: { $in: managers.map((m) => m._id) } }).select(
     'firstName lastName reportingManager dateOfJoining'

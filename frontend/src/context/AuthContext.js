@@ -44,6 +44,10 @@ export function AuthProvider({ children }) {
     window.location.href = '/login';
   };
 
+  // A team lead with the "employee" role also acts as a manager -> ['employee', 'manager']
+  const accessRoles = useMemo(() => (user ? user.accessRoles || [user.role] : []), [user]);
+  const hasRole = useCallback((roles) => accessRoles.some((role) => roles.includes(role)), [accessRoles]);
+
   const value = useMemo(
     () => ({
       user,
@@ -52,15 +56,19 @@ export function AuthProvider({ children }) {
       login,
       logout,
       refreshUser: loadUser,
-      isHR: Boolean(user && HR_ROLES.includes(user.role)),
-      isApprover: Boolean(user && APPROVER_ROLES.includes(user.role)),
+      accessRoles,
+      hasRole,
+      isHR: hasRole(HR_ROLES),
+      isApprover: hasRole(APPROVER_ROLES),
       isAdmin: user?.role === 'admin',
       isQA: user?.role === 'qa',
-      isAuditor: Boolean(user && AUDITOR_ROLES.includes(user.role)),
-      isIT: Boolean(user && IT_ROLES.includes(user.role)),
+      isAuditor: hasRole(AUDITOR_ROLES),
+      isIT: hasRole(IT_ROLES),
+      // Direct and total (direct + indirect) reportees
+      team: user?.team || { direct: 0, all: 0 },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, loading, loadUser]
+    [user, loading, loadUser, accessRoles, hasRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

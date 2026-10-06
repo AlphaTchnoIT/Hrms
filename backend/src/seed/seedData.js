@@ -15,6 +15,7 @@ export const DESIGNATIONS = [
   { title: 'Chief Executive Officer', level: 6 },
   { title: 'Engineering Manager', level: 5 },
   { title: 'HR Manager', level: 5 },
+  { title: 'Team Lead', level: 4 },
   { title: 'Senior Software Engineer', level: 4 },
   { title: 'Software Engineer', level: 3 },
   { title: 'HR Executive', level: 3 },
@@ -78,17 +79,17 @@ export const EMPLOYEES = [
   },
   {
     firstName: 'Vikram', lastName: 'Singh', email: 'vikram@hrms.com', role: 'employee', gender: 'male',
-    dept: 'Engineering', desig: 'Software Engineer', manager: 'manager@hrms.com', dateOfJoining: '2023-07-03', dateOfBirth: '1997-12-01',
+    dept: 'Engineering', desig: 'Team Lead', manager: 'manager@hrms.com', dateOfJoining: '2023-07-03', dateOfBirth: '1997-12-01',
     salary: { basic: 40000, hra: 16000, conveyance: 2000, specialAllowance: 10000, monthlyTds: 2500 },
   },
   {
     firstName: 'Sneha', lastName: 'Kapoor', email: 'sneha@hrms.com', role: 'employee', gender: 'female',
-    dept: 'Engineering', desig: 'Software Engineer', manager: 'manager@hrms.com', dateOfJoining: '2024-01-15', dateOfBirth: '1998-10-25',
+    dept: 'Engineering', desig: 'Software Engineer', manager: 'vikram@hrms.com', dateOfJoining: '2024-01-15', dateOfBirth: '1998-10-25',
     salary: { basic: 38000, hra: 15200, conveyance: 2000, specialAllowance: 9000, monthlyTds: 2000 },
   },
   {
     firstName: 'Karan', lastName: 'Patel', email: 'karan@hrms.com', role: 'employee', gender: 'male',
-    dept: 'Engineering', desig: 'Intern', manager: 'manager@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2002-05-17',
+    dept: 'Engineering', desig: 'Intern', manager: 'vikram@hrms.com', employmentType: 'intern', dateOfJoining: '2026-09-07', dateOfBirth: '2002-05-17',
     salary: { basic: 15000, hra: 0, conveyance: 0, specialAllowance: 5000, pfApplicable: false },
   },
   {

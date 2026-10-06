@@ -5,6 +5,7 @@ import {
   getDirectory,
   getEmployee,
   getMyTeam,
+  getOrgChart,
   listEmployees,
   resetPassword,
   updateEmployee,
@@ -17,6 +18,7 @@ import { createEmployeeSchema, resetPasswordSchema, updateEmployeeSchema } from 
 const router = Router();
 
 router.get('/directory', getDirectory);
+router.get('/org-chart', getOrgChart);
 router.get('/team', authorize(APPROVER_ROLES), getMyTeam);
 
 router.get('/', authorize(HR_ROLES), listEmployees);

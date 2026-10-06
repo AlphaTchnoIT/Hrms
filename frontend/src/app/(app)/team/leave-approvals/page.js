@@ -11,6 +11,8 @@ import { Badge, Button, Card, DataTable, ErrorMessage, PageHeader, Pagination, T
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import ReviewModal from '@/components/shared/ReviewModal';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 const TABS = [
   { value: 'pending', label: 'Pending' },
@@ -24,8 +26,13 @@ export default function LeaveApprovalsPage() {
   const [page, setPage] = useState(1);
   const [review, setReview] = useState(null); // { leave, action }
 
+  const teamScope = useTeamScope();
+  const changeScope = (value) => {
+    teamScope.setScope(value);
+    setPage(1);
+  };
   const { data, meta, loading, error, refetch } = useFetch('/leaves', {
-    params: { status: status || undefined, page, limit: 15 },
+    params: { status: status || undefined, page, limit: 15, scope: teamScope.scope },
   });
 
   const submitReview = async (note) => {
@@ -84,7 +91,7 @@ export default function LeaveApprovalsPage() {
 
   return (
     <RoleGuard roles={APPROVER_ROLES}>
-      <PageHeader title="Leave Approvals" subtitle="Review leave requests from your team" />
+      <PageHeader title="Leave Approvals" subtitle="Review leave requests from your team" actions={<TeamScopeToggle {...teamScope} setScope={changeScope} />} />
       <Tabs
         tabs={TABS}
         value={status}

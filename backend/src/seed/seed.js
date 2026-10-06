@@ -271,6 +271,7 @@ async function seed() {
   console.log(`  HR       : hr@hrms.com       / ${DEFAULT_PASSWORD}`);
   console.log(`  Manager  : manager@hrms.com  / ${DEFAULT_PASSWORD}`);
   console.log(`  Employee : employee@hrms.com / ${DEFAULT_PASSWORD}`);
+  console.log(`  Team Lead: vikram@hrms.com    / ${DEFAULT_PASSWORD}  (employee role, Sneha & Karan report to him)`);
   console.log(`  QA       : qa@hrms.com       / ${DEFAULT_PASSWORD}`);
   console.log(`  IT       : it@hrms.com       / ${DEFAULT_PASSWORD}`);
 

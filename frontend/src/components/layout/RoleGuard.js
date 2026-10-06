@@ -5,10 +5,10 @@ import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button, EmptyState } from '@/components/ui';
 
-// Shows the page only if the user's role is allowed
+// Shows the page only if the user's role (or team lead access) is allowed
 export default function RoleGuard({ roles, children }) {
-  const { user } = useAuth();
-  if (!user || !roles.includes(user.role)) {
+  const { user, hasRole } = useAuth();
+  if (!user || !hasRole(roles)) {
     return (
       <div className="card mt-10">
         <EmptyState

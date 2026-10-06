@@ -71,7 +71,7 @@ export async function assignTraining(req, res) {
 
 // GET /api/learning/assignments?program&user&status
 export async function listAssignments(req, res) {
-  const users = await getScopedUsers(req.user, { select: '_id' });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, select: '_id' });
   const filter = { user: { $in: users.map((u) => u._id) } };
   if (req.query.user) {
     if (!(await canAuditEmployee(req.user, req.query.user))) throw ApiError.forbidden();

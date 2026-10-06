@@ -27,7 +27,7 @@ export async function getMyGoals(req, res) {
 // GET /api/goals?user=  (HR / manager)
 export async function listGoals(req, res) {
   const filter = {};
-  const managed = await getManagedUserFilter(req.user);
+  const managed = await getManagedUserFilter(req.user, { scope: req.query.scope });
   if (managed) filter.user = managed;
 
   if (req.query.user) {

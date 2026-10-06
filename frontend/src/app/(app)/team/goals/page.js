@@ -12,6 +12,8 @@ import { Button, EmptyState, PageHeader, PageLoader, Select, useConfirm } from '
 import GoalCard from '@/components/performance/GoalCard';
 import GoalFormModal from '@/components/performance/GoalFormModal';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 export default function TeamGoalsPage() {
   const confirm = useConfirm();
@@ -20,10 +22,11 @@ export default function TeamGoalsPage() {
   const [status, setStatus] = useState('');
   const [editing, setEditing] = useState(undefined);
 
-  // HR can assign goals to anyone, managers to their direct reports
-  const people = useFetch(isHR ? '/employees/directory' : '/employees/team', { params: isHR ? { limit: 200 } : undefined });
+  // HR can assign goals to anyone, managers to everyone below them (team leads' teams too)
+  const people = useFetch(isHR ? '/employees/directory' : '/employees/team', { params: isHR ? { limit: 200 } : { scope: 'all' } });
+  const teamScope = useTeamScope();
   const { data: goals, loading, refetch } = useFetch('/goals', {
-    params: { user: member || undefined, status: status || undefined },
+    params: { user: member || undefined, status: status || undefined, scope: teamScope.scope },
   });
 
   const deleteGoal = async (goal) => {
@@ -59,6 +62,7 @@ export default function TeamGoalsPage() {
           onChange={(e) => setMember(e.target.value)}
         />
         <Select className="w-48" placeholder="All statuses" options={GOAL_STATUS} value={status} onChange={(e) => setStatus(e.target.value)} />
+        <TeamScopeToggle {...teamScope} />
       </div>
 
       {loading && !goals && <PageLoader />}

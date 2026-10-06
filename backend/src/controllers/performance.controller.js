@@ -3,7 +3,7 @@ import { ROLES } from '../constants/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { addDays, daysInMonth, isValidDateStr, todayInTz, weekStart } from '../utils/date.js';
-import { canAuditEmployee, canManageEmployee, getScopedUsers, isHR, isQA } from '../services/access.service.js';
+import { canAuditEmployee, canManageEmployee, getScopedUsers, isHR, isManager, isQA } from '../services/access.service.js';
 import {
   RATING_LABELS,
   currentRange,
@@ -71,7 +71,7 @@ export async function getMyPerformance(req, res) {
   const data = await buildEmployeePerformance(req.user, settings, { approvedRatingsOnly: true });
 
   // Managers also see the rating they get from their team's performance
-  if ([ROLES.MANAGER, ROLES.HR, ROLES.ADMIN].includes(req.user.role)) {
+  if (isHR(req.user) || isManager(req.user)) {
     [data.managerRating] = await getManagerRatings(settings, { managerIds: [req.user._id] });
   }
   sendSuccess(res, { data });
@@ -91,7 +91,7 @@ export async function getTeamPerformance(req, res) {
   const settings = await Settings.getSettings();
   // Only HR / admin may look at another manager's team
   const managerId = isHR(req.user) ? req.query.manager || undefined : req.user._id;
-  const users = await getScopedUsers(req.user, { managerId });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId });
   const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90);
   const range = currentRange(settings, days);
 
@@ -139,7 +139,7 @@ export async function listKpis(req, res) {
     if (!(await canAuditEmployee(req.user, req.query.user))) throw ApiError.forbidden();
     filter.user = req.query.user;
   } else {
-    const users = await getScopedUsers(req.user, { select: '_id' });
+    const users = await getScopedUsers(req.user, { scope: req.query.scope, select: '_id' });
     filter.user = { $in: users.map((u) => u._id) };
   }
   if (req.query.metric) filter.metric = req.query.metric;
@@ -162,7 +162,7 @@ async function saveKpi(entry, currentUser, settings) {
     throw ApiError.forbidden('You can only record KPIs for employees you manage');
   }
   // Only QA / HR may record quality scores directly; managers record efficiency & classification
-  if (entry.metric === 'quality' && currentUser.role === ROLES.MANAGER) {
+  if (entry.metric === 'quality' && !isHR(currentUser) && !isQA(currentUser)) {
     throw ApiError.field('metric', 'Quality scores are recorded by the QA team');
   }
   const user = await User.findById(entry.user).select('dateOfJoining');
@@ -197,7 +197,7 @@ export async function deleteKpi(req, res) {
   if (!record) throw ApiError.notFound('KPI record not found');
   if (!(await canAuditEmployee(req.user, record.user))) throw ApiError.forbidden();
   // Quality scores belong to the QA team (same rule as recording them)
-  if (record.metric === 'quality' && req.user.role === ROLES.MANAGER) throw ApiError.forbidden('Quality scores are managed by the QA team');
+  if (record.metric === 'quality' && !isHR(req.user) && !isQA(req.user)) throw ApiError.forbidden('Quality scores are managed by the QA team');
   await record.deleteOne();
   sendSuccess(res, { message: 'KPI record deleted' });
 }
@@ -213,7 +213,7 @@ export async function generateRatings(req, res) {
   const to = `${period}-${String(daysInMonth(year, month)).padStart(2, '0')}`;
   if (from > todayInTz(settings.timezone)) throw ApiError.field('period', 'Cannot rate a future month');
 
-  const users = await getScopedUsers(req.user, { managerId: req.body.manager || (isHR(req.user) ? undefined : req.user._id) });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.body.manager || (isHR(req.user) ? undefined : req.user._id) });
   if (!users.length) throw ApiError.badRequest('No team members to rate');
   const summaries = await getPerformanceSummaries(users, { from, to, settings });
 
@@ -263,7 +263,7 @@ export async function generateRatings(req, res) {
 
 // GET /api/performance/ratings?period&status&manager
 export async function listRatings(req, res) {
-  const users = await getScopedUsers(req.user, { managerId: req.query.manager, select: '_id' });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager, select: '_id' });
   const filter = { user: { $in: users.map((u) => u._id) } };
   if (req.query.period) filter.period = req.query.period;
   if (req.query.status) filter.status = req.query.status;

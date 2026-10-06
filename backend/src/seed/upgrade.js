@@ -14,7 +14,7 @@ import { Department, Designation, LeaveType, User, WarningTrigger, generateCode 
 import { DEFAULT_PASSWORD, DEPARTMENTS, DESIGNATIONS, EMPLOYEES, LEAVE_TYPES, WARNING_TRIGGERS } from './seedData.js';
 
 const NEW_DEPARTMENTS = ['Quality', 'IT Support'];
-const NEW_DESIGNATIONS = ['QA Auditor', 'IT Support Engineer'];
+const NEW_DESIGNATIONS = ['QA Auditor', 'IT Support Engineer', 'Team Lead'];
 const NEW_LEAVE_TYPES = ['EML'];
 const NEW_USERS = ['qa@hrms.com', 'it@hrms.com'];
 

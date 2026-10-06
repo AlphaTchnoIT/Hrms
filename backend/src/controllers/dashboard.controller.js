@@ -12,11 +12,10 @@ import {
   User,
   Warning,
 } from '../models/index.js';
-import { ROLES } from '../constants/index.js';
 import { sendSuccess } from '../utils/response.js';
 import { addDays, todayInTz } from '../utils/date.js';
 import { getBalancesForUser } from '../services/leave.service.js';
-import { getManagedUserFilter, isHR } from '../services/access.service.js';
+import { getManagedUserFilter, isHR, isManager } from '../services/access.service.js';
 import { getWorkforce } from '../services/workforce.service.js';
 import { currentRange, getPerformanceSummaries } from '../services/performance.service.js';
 
@@ -123,8 +122,8 @@ export async function getDashboard(req, res) {
 
 
   // Team / company level stats for approvers
-  if (isHR(user) || user.role === ROLES.MANAGER) {
-    const userFilter = await getManagedUserFilter(user);
+  if (isHR(user) || isManager(user)) {
+    const userFilter = await getManagedUserFilter(user, { scope: 'all' });
     const employeeFilter = { status: 'active', ...(userFilter ? { _id: userFilter } : {}) };
     const requestFilter = { status: 'pending', ...(userFilter ? { user: userFilter } : {}) };
     const employeeIds = await User.find(employeeFilter).distinct('_id');

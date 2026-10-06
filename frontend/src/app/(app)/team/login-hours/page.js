@@ -12,6 +12,8 @@ import { formatDay, formatTime, getFullName, minutesToHours, toInputDate } from 
 import { Badge, Button, Card, DataTable, ErrorMessage, Input, Modal, PageHeader } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 const yesterday = () => toInputDate(new Date(Date.now() - 86400000));
 
@@ -62,7 +64,8 @@ export default function LoginHoursPage() {
   const [to, setTo] = useState(yesterday());
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
-  const { data, loading, error, refetch } = useFetch('/workforce/login-hours', { params: { from, to } });
+  const teamScope = useTeamScope();
+  const { data, loading, error, refetch } = useFetch('/workforce/login-hours', { params: { from, to, scope: teamScope.scope } });
   const rows = data?.rows || [];
 
   const pctTone = (v) => (v === null ? '' : v >= 90 ? 'text-emerald-600' : v >= 80 ? 'text-amber-600' : 'text-rose-600');
@@ -116,6 +119,9 @@ export default function LoginHoursPage() {
       <div className="mb-4 flex flex-wrap gap-3">
         <Input label="From" type="date" className="w-44" value={from} onChange={(e) => setFrom(e.target.value)} />
         <Input label="To" type="date" className="w-44" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+        <div className="self-end">
+          <TeamScopeToggle {...teamScope} />
+        </div>
       </div>
       <ErrorMessage message={error} onRetry={refetch} />
       <Card noPadding>

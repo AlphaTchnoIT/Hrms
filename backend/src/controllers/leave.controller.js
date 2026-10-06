@@ -121,7 +121,7 @@ export async function listLeaves(req, res) {
   if (req.query.status) filter.status = req.query.status;
   if (req.query.leaveType) filter.leaveType = req.query.leaveType;
 
-  const managed = await getManagedUserFilter(req.user);
+  const managed = await getManagedUserFilter(req.user, { scope: req.query.scope });
   if (managed) filter.user = managed;
   if (req.query.user) {
     if (!(await canManageEmployee(req.user, req.query.user))) throw ApiError.forbidden();

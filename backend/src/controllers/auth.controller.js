@@ -4,6 +4,18 @@ import { sendSuccess } from '../utils/response.js';
 import { signToken } from '../utils/token.js';
 import { pick } from '../utils/helpers.js';
 import { USER_POPULATE } from './employee.controller.js';
+import { getAccessRoles, getTeamSize } from '../services/access.service.js';
+
+/*
+ * Profile + what the user can do: accessRoles (e.g. ['employee', 'manager'] for a team lead)
+ * and team size, so the frontend can show the manager workspace and the direct / all toggle.
+ */
+async function buildSessionUser(userId) {
+  const profile = await User.findById(userId).populate(USER_POPULATE);
+  const team = await getTeamSize(profile._id);
+  profile.$locals.hasReportees = team.direct > 0;
+  return { ...profile.toJSON(), accessRoles: getAccessRoles(profile), team };
+}
 
 // POST /api/auth/login
 export async function login(req, res) {
@@ -18,14 +30,12 @@ export async function login(req, res) {
   user.lastLoginAt = new Date();
   await user.save();
 
-  const profile = await User.findById(user._id).populate(USER_POPULATE);
-  sendSuccess(res, { data: { token: signToken(user._id), user: profile }, message: 'Login successful' });
+  sendSuccess(res, { data: { token: signToken(user._id), user: await buildSessionUser(user._id) }, message: 'Login successful' });
 }
 
 // GET /api/auth/me
 export async function getMe(req, res) {
-  const user = await User.findById(req.user._id).populate(USER_POPULATE);
-  sendSuccess(res, { data: user });
+  sendSuccess(res, { data: await buildSessionUser(req.user._id) });
 }
 
 // PATCH /api/auth/me - employee updates own personal details
@@ -41,10 +51,8 @@ export async function updateMe(req, res) {
     'emergencyContact',
   ]);
 
-  const user = await User.findByIdAndUpdate(req.user._id, allowed, { new: true, runValidators: true }).populate(
-    USER_POPULATE
-  );
-  sendSuccess(res, { data: user, message: 'Profile updated' });
+  await User.findByIdAndUpdate(req.user._id, allowed, { runValidators: true });
+  sendSuccess(res, { data: await buildSessionUser(req.user._id), message: 'Profile updated' });
 }
 
 // PATCH /api/auth/change-password

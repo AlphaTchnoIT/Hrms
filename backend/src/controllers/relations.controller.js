@@ -38,7 +38,7 @@ async function scopedEmployeeFilter(req, field = 'employee') {
     if (!(await canManageEmployee(req.user, req.query.employee))) throw ApiError.forbidden();
     return { [field]: req.query.employee };
   }
-  const users = await getScopedUsers(req.user, { managerId: req.query.manager, select: '_id' });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager, select: '_id' });
   return { [field]: { $in: users.map((u) => u._id) } };
 }
 
@@ -236,7 +236,7 @@ export async function deleteTrigger(req, res) {
 // GET /api/relations/flags?manager - employees flagged by triggers, for manager review
 export async function getFlags(req, res) {
   const settings = await Settings.getSettings();
-  const users = await getScopedUsers(req.user, { managerId: req.query.manager });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager });
   const flags = await evaluateTriggers(users, settings);
   const userMap = Object.fromEntries(users.map((u) => [String(u._id), u]));
   sendSuccess(res, { data: flags.map((f) => ({ ...f, user: userMap[f.user] })) });

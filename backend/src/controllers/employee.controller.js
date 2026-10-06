@@ -4,7 +4,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { buildMeta, escapeRegex, getPagination } from '../utils/pagination.js';
 import { emptyToNull, pick } from '../utils/helpers.js';
-import { canManageEmployee, isHR } from '../services/access.service.js';
+import { canManageEmployee, getTeamMemberIds, isHR, wouldCreateReportingLoop } from '../services/access.service.js';
 
 export const USER_POPULATE = [
   { path: 'department', select: 'name code' },
@@ -48,6 +48,11 @@ function buildEmployeeFilter(query) {
   if (query.department) filter.department = query.department;
   if (query.designation) filter.designation = query.designation;
   if (query.role) filter.role = query.role;
+  // role=manager also lists people leads (anyone with active reportees), e.g. team leads
+  if (query.role === ROLES.MANAGER) {
+    delete filter.role;
+    filter.$and = [{ $or: [{ role: ROLES.MANAGER }, { _id: { $in: query.leadIds || [] } }] }];
+  }
   if (query.employmentType) filter.employmentType = query.employmentType;
   if (query.search) {
     const regex = new RegExp(escapeRegex(query.search), 'i');
@@ -76,10 +81,16 @@ export async function listEmployees(req, res) {
   sendSuccess(res, { data: employees, meta: buildMeta({ page, limit, total }) });
 }
 
+// IDs of everyone who has at least one active direct report
+function getPeopleLeadIds() {
+  return User.find({ status: 'active', reportingManager: { $ne: null } }).distinct('reportingManager');
+}
+
 // GET /api/employees/directory  (everyone) - limited public info of active employees
 export async function getDirectory(req, res) {
   const { page, limit, skip } = getPagination({ limit: 50, ...req.query });
-  const filter = { ...buildEmployeeFilter(req.query), status: 'active' };
+  const leadIds = req.query.role === ROLES.MANAGER ? await getPeopleLeadIds() : undefined;
+  const filter = { ...buildEmployeeFilter({ ...req.query, leadIds }), status: 'active' };
 
   const [employees, total] = await Promise.all([
     User.find(filter)
@@ -94,9 +105,29 @@ export async function getDirectory(req, res) {
   sendSuccess(res, { data: employees, meta: buildMeta({ page, limit, total }) });
 }
 
-// GET /api/employees/team  (manager) - direct reports
+/*
+ * GET /api/employees/org-chart  (everyone)
+ * Every active employee with only public fields + who they report to; the frontend builds the tree.
+ */
+export async function getOrgChart(_req, res) {
+  const people = await User.find({ status: 'active' })
+    .select('firstName lastName employeeCode avatar email role department designation reportingManager workLocation')
+    .populate(USER_POPULATE.slice(0, 2))
+    .sort({ firstName: 1 })
+    .lean();
+  const activeIds = new Set(people.map((p) => String(p._id)));
+  const data = people.map((p) => ({
+    ...p,
+    // A manager who left is treated as "no manager" so the person still shows up in the chart
+    reportingManager: p.reportingManager && activeIds.has(String(p.reportingManager)) ? p.reportingManager : null,
+  }));
+  sendSuccess(res, { data });
+}
+
+// GET /api/employees/team?scope=direct|all  (manager / team lead) - own reportees
 export async function getMyTeam(req, res) {
-  const team = await User.find({ reportingManager: req.user._id, status: 'active' })
+  const filter = req.query.scope === 'all' ? { _id: { $in: await getTeamMemberIds(req.user._id, { scope: 'all' }) } } : { reportingManager: req.user._id };
+  const team = await User.find({ ...filter, status: 'active' })
     .select('-salary -bankDetails -panNumber')
     .populate(USER_POPULATE)
     .sort({ firstName: 1 });
@@ -128,6 +159,10 @@ export async function createEmployee(req, res) {
   const password = req.body.password || 'Welcome@123';
   if (await User.exists({ email: body.email })) throw ApiError.field('email', 'An employee with this email already exists');
 
+  if (body.reportingManager && !(await User.exists({ _id: body.reportingManager, status: 'active' }))) {
+    throw ApiError.field('reportingManager', 'Select an active employee as reporting manager');
+  }
+
   const employeeCode = await generateCode('employee', 'EMP');
   const employee = await User.create({ ...body, password, employeeCode });
 
@@ -148,6 +183,10 @@ export async function updateEmployee(req, res) {
   }
   if (body.reportingManager && String(body.reportingManager) === String(employee._id)) {
     throw ApiError.field('reportingManager', 'An employee cannot report to themselves');
+  }
+  // e.g. a manager cannot report to their own team lead
+  if (body.reportingManager && (await wouldCreateReportingLoop(employee._id, body.reportingManager))) {
+    throw ApiError.field('reportingManager', 'This person already reports to this employee (directly or indirectly)');
   }
   if (body.email && body.email !== employee.email && (await User.exists({ email: body.email }))) {
     throw ApiError.field('email', 'An employee with this email already exists');

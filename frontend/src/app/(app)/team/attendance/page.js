@@ -9,6 +9,8 @@ import { formatTime, minutesToHours, toInputDate } from '@/lib/format';
 import { Badge, Card, DataTable, ErrorMessage, Input, PageHeader, Select, StatCard } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 function LocationLink({ punch }) {
   const loc = punch?.location;
@@ -33,8 +35,9 @@ export default function TeamAttendancePage() {
   const [status, setStatus] = useState('');
 
   const departments = useFetch(isHR ? '/departments' : null);
+  const teamScope = useTeamScope();
   const { data, loading, error, refetch } = useFetch('/attendance/daily', {
-    params: { date, department: department || undefined, status: status || undefined },
+    params: { date, department: department || undefined, status: status || undefined, scope: teamScope.scope },
   });
 
   const summary = data?.summary;
@@ -113,6 +116,7 @@ export default function TeamAttendancePage() {
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           />
+          <TeamScopeToggle {...teamScope} />
         </div>
         {error && (
           <div className="p-4">

@@ -19,7 +19,7 @@ export async function getTeamWorkspace(req, res) {
   const today = todayInTz(settings.timezone);
   // Only HR / admin may look at another manager's team
   const managerId = isHR(req.user) ? req.query.manager || undefined : req.user._id;
-  const users = await getScopedUsers(req.user, { managerId });
+  const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId });
   const ids = users.map((u) => u._id);
 
   if (!users.length) {

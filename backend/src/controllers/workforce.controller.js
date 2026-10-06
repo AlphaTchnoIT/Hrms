@@ -31,7 +31,7 @@ async function resolveUsers(req) {
     if (!user) throw ApiError.notFound('Employee not found');
     return [user];
   }
-  return getScopedUsers(req.user, { managerId: req.query.manager });
+  return getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager });
 }
 
 // GET /api/workforce/roster/my - shifts, weekly offs and hours for the next two weeks

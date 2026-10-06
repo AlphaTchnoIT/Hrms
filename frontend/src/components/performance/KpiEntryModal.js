@@ -13,8 +13,8 @@ import { Avatar, Button, Input, Modal, Select } from '@/components/ui';
  * Managers record efficiency & classification; quality comes from QA audits (QA / HR may enter it).
  */
 export default function KpiEntryModal({ open, onClose, members = [], onSaved }) {
-  const { user } = useAuth();
-  const metrics = user?.role === 'manager' ? KPI_METRICS.filter((m) => m !== 'quality') : KPI_METRICS;
+  const { isHR, isQA } = useAuth();
+  const metrics = !isHR && !isQA ? KPI_METRICS.filter((m) => m !== 'quality') : KPI_METRICS;
   const [metric, setMetric] = useState(metrics[0]);
   const [period, setPeriod] = useState('daily');
   const [date, setDate] = useState(toInputDate());

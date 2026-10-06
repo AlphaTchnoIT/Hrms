@@ -11,6 +11,8 @@ import { getFullName } from '@/lib/format';
 import { Button, Card, DataTable, ErrorMessage, PageHeader, PageLoader, Select, StatCard, Tabs } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 import KpiEntryModal from '@/components/performance/KpiEntryModal';
 import { AdherenceTrendChart, KpiTrendChart, PerformanceStatus, RatingStars, StatusBreakdown } from '@/components/performance/KpiWidgets';
 
@@ -54,7 +56,8 @@ export default function TeamPerformancePage() {
   const [entryOpen, setEntryOpen] = useState(false);
 
   const managers = useFetch(isHR ? '/employees/directory' : null, { params: { role: 'manager', limit: 200 } });
-  const { data, loading, error, refetch } = useFetch(tab === 'team' ? '/performance/team' : null, { params: { manager: manager || undefined, days } });
+  const teamScope = useTeamScope({ manager });
+  const { data, loading, error, refetch } = useFetch(tab === 'team' ? '/performance/team' : null, { params: { manager: manager || undefined, days, scope: teamScope.scope } });
   const members = data?.members || [];
 
   const columns = [
@@ -121,6 +124,7 @@ export default function TeamPerformancePage() {
                 onChange={(e) => setManager(e.target.value)}
               />
             )}
+            <TeamScopeToggle {...teamScope} />
             <Select
               className="w-44"
               placeholder={false}

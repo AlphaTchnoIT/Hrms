@@ -44,7 +44,7 @@ function buildPunch(req) {
 // Builds the mongo filter for "which employees can I see" + optional department filter
 async function getVisibleEmployeeFilter(reqUser, query) {
   const filter = { status: 'active' };
-  const managed = await getManagedUserFilter(reqUser);
+  const managed = await getManagedUserFilter(reqUser, { scope: query.scope });
   if (managed) filter._id = managed;
   if (query.department) filter.department = query.department;
   return filter;
@@ -241,7 +241,7 @@ export async function listRegularizations(req, res) {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
 
-  const managed = await getManagedUserFilter(req.user);
+  const managed = await getManagedUserFilter(req.user, { scope: req.query.scope });
   if (managed) filter.user = managed;
 
   const [items, total] = await Promise.all([

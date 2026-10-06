@@ -12,6 +12,8 @@ import { Button, Card, DataTable, ErrorMessage, PageHeader, Select } from '@/com
 import EmployeeCell from '@/components/shared/EmployeeCell';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 export default function AttendanceReportPage() {
   const router = useRouter();
@@ -21,8 +23,9 @@ export default function AttendanceReportPage() {
   const [department, setDepartment] = useState('');
 
   const departments = useFetch(isHR ? '/departments' : null);
+  const teamScope = useTeamScope();
   const { data, loading, error, refetch } = useFetch('/attendance/report', {
-    params: { ...period, department: department || undefined },
+    params: { ...period, department: department || undefined, scope: teamScope.scope },
   });
 
   const exportCsv = () => {
@@ -72,15 +75,18 @@ export default function AttendanceReportPage() {
       />
 
       <Card noPadding>
-        {isHR && (
-          <div className="border-b border-slate-100 p-4">
-            <Select
-              className="w-56"
-              placeholder="All departments"
-              options={(departments.data || []).map((d) => ({ value: d._id, label: d.name }))}
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-            />
+        {(isHR || teamScope.canToggle) && (
+          <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
+            {isHR && (
+              <Select
+                className="w-56"
+                placeholder="All departments"
+                options={(departments.data || []).map((d) => ({ value: d._id, label: d.name }))}
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+              />
+            )}
+            <TeamScopeToggle {...teamScope} />
           </div>
         )}
         {error && (

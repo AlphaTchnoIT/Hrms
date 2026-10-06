@@ -10,6 +10,8 @@ import { APPROVER_ROLES, SHIFT_PRESETS, WEEK_DAYS } from '@/lib/constants';
 import { formatDate, getFullName, toInputDate } from '@/lib/format';
 import { Avatar, Button, Card, Checkbox, ErrorMessage, Input, Modal, PageHeader, PageLoader } from '@/components/ui';
 import RoleGuard from '@/components/layout/RoleGuard';
+import { useTeamScope } from '@/hooks/useTeamScope';
+import TeamScopeToggle from '@/components/shared/TeamScopeToggle';
 
 const CELL = {
   'weekly-off': 'bg-slate-100 text-slate-500',
@@ -150,7 +152,8 @@ export default function TeamRosterPage() {
   const [from, setFrom] = useState(toInputDate());
   const [assignOpen, setAssignOpen] = useState(false);
   const to = toInputDate(new Date(new Date(from).getTime() + 13 * 86400000));
-  const { data, loading, error, refetch } = useFetch('/workforce/roster', { params: { from, to } });
+  const teamScope = useTeamScope();
+  const { data, loading, error, refetch } = useFetch('/workforce/roster', { params: { from, to, scope: teamScope.scope } });
 
   return (
     <RoleGuard roles={APPROVER_ROLES}>
@@ -166,6 +169,7 @@ export default function TeamRosterPage() {
       <div className="mb-4 flex items-end gap-3">
         <Input label="Starting" type="date" className="w-48" value={from} onChange={(e) => setFrom(e.target.value)} />
         <p className="pb-2 text-sm text-slate-500">Showing 14 days to {formatDate(to)}</p>
+        <TeamScopeToggle {...teamScope} />
       </div>
       <ErrorMessage message={error} onRetry={refetch} />
       {loading && !data && <PageLoader />}

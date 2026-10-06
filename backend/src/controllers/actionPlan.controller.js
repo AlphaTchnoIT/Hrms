@@ -71,7 +71,7 @@ export async function listPlans(req, res) {
     if (!(await canManageEmployee(req.user, req.query.user))) throw ApiError.forbidden();
     filter.user = req.query.user;
   } else {
-    const users = await getScopedUsers(req.user, { managerId: req.query.manager, select: '_id' });
+    const users = await getScopedUsers(req.user, { scope: req.query.scope, managerId: req.query.manager, select: '_id' });
     filter.user = { $in: users.map((u) => u._id) };
   }
   if (req.query.status) filter.status = req.query.status;
