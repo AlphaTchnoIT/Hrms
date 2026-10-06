@@ -3,6 +3,7 @@ import {
   createHoliday,
   deleteHoliday,
   listHolidays,
+  syncHolidaysFromGovUk,
   updateHoliday,
 } from '../controllers/holiday.controller.js';
 import {
@@ -26,6 +27,7 @@ router.get('/dashboard', getDashboard);
 
 router.get('/holidays', listHolidays);
 router.post('/holidays', authorize(HR_ROLES), validate(holidaySchema), createHoliday);
+router.post('/holidays/sync-uk', authorize(HR_ROLES), syncHolidaysFromGovUk);
 router.put('/holidays/:id', authorize(HR_ROLES), validate(holidaySchema), updateHoliday);
 router.delete('/holidays/:id', authorize(HR_ROLES), deleteHoliday);
 

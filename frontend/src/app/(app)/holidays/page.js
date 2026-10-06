@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
@@ -87,6 +87,21 @@ export default function HolidaysPage() {
   const today = toInputDate();
   const nextHoliday = (data || []).find((h) => h.date >= today);
 
+  // Official UK bank holidays for the selected year from GOV.UK (company / optional days are kept)
+  const [syncing, setSyncing] = useState(false);
+  const syncFromGovUk = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.post('/holidays/sync-uk', { year });
+      toast.success(res.message);
+      refetch();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const remove = async (holiday) => {
     const ok = await confirm({ title: `Delete ${holiday.name}?`, message: 'It will be removed from everyone’s calendar.', confirmText: 'Delete', danger: true });
     if (!ok) return;
@@ -114,6 +129,11 @@ export default function HolidaysPage() {
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
             />
+            {isHR && (
+              <Button variant="secondary" icon={RefreshCw} loading={syncing} onClick={syncFromGovUk}>
+                Sync from GOV.UK
+              </Button>
+            )}
             {isHR && (
               <Button icon={Plus} onClick={() => setEditing(null)}>
                 Add holiday

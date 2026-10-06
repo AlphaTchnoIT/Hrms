@@ -54,11 +54,14 @@ export function calculateIncomeTax(monthlyTaxablePay, taxCode, rates) {
   return roundMoney(taxOnBands(annualPay - parsed.allowance, bands) / 12);
 }
 
+// Annual threshold -> monthly, rounded to the pound as HMRC and the Pensions Regulator publish them
+const monthly = (annual) => Math.round(annual / 12);
+
 // Employee and employer Class 1 National Insurance for one month
 export function calculateNationalInsurance(monthlyPay, category, rates) {
-  const pt = rates.niPrimaryThreshold / 12;
-  const uel = rates.niUpperEarningsLimit / 12;
-  const st = rates.niSecondaryThreshold / 12;
+  const pt = monthly(rates.niPrimaryThreshold);
+  const uel = monthly(rates.niUpperEarningsLimit);
+  const st = monthly(rates.niSecondaryThreshold);
   let employee = 0;
   if (!['C', 'X'].includes(category)) {
     employee = (Math.max(0, Math.min(monthlyPay, uel) - pt) * rates.niMainRate) / 100 + (Math.max(0, monthlyPay - uel) * rates.niUpperRate) / 100;
@@ -74,7 +77,7 @@ export function calculateNationalInsurance(monthlyPay, category, rates) {
 
 // Workplace pension on qualifying earnings (between the lower and upper limits)
 export function calculatePension(monthlyPay, rates) {
-  const qualifying = Math.max(0, Math.min(monthlyPay, rates.pensionUpperLimit / 12) - rates.pensionLowerLimit / 12);
+  const qualifying = Math.max(0, Math.min(monthlyPay, monthly(rates.pensionUpperLimit)) - monthly(rates.pensionLowerLimit));
   return {
     employee: roundMoney((qualifying * rates.pensionEmployeeRate) / 100),
     employer: roundMoney((qualifying * rates.pensionEmployerRate) / 100),

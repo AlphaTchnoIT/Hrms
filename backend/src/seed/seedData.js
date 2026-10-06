@@ -37,38 +37,41 @@ export const LEAVE_TYPES = [
   { name: 'Unpaid Leave', code: 'UL', annualQuota: 0, isPaid: false, color: '#64748b', description: 'Agreed time off without pay' },
 ];
 
-// UK bank holidays 2026 and 2027. regions: [] = whole UK, otherwise only those nations
+// regions: [] = whole UK, otherwise only those nations
 const EW = 'england-wales';
 const SCO = 'scotland';
 const NI = 'northern-ireland';
+// Official GOV.UK bank holidays (gov.uk/bank-holidays.json) for 2026 and 2027 + one company day.
+// HR can refresh them any time with Holidays -> Sync from GOV.UK.
 export const HOLIDAYS = [
   { name: "New Year's Day", date: '2026-01-01', type: 'bank-holiday', regions: [] },
   { name: '2nd January', date: '2026-01-02', type: 'regional', regions: [SCO] },
   { name: "St Patrick's Day", date: '2026-03-17', type: 'regional', regions: [NI] },
   { name: 'Good Friday', date: '2026-04-03', type: 'bank-holiday', regions: [] },
-  { name: 'Easter Monday', date: '2026-04-06', type: 'bank-holiday', regions: [EW, NI] },
+  { name: 'Easter Monday', date: '2026-04-06', type: 'regional', regions: [EW, NI] },
   { name: 'Early May bank holiday', date: '2026-05-04', type: 'bank-holiday', regions: [] },
   { name: 'Spring bank holiday', date: '2026-05-25', type: 'bank-holiday', regions: [] },
-  { name: 'Battle of the Boyne (substitute day)', date: '2026-07-13', type: 'regional', regions: [NI] },
-  { name: 'Summer bank holiday (Scotland)', date: '2026-08-03', type: 'regional', regions: [SCO] },
-  { name: 'Summer bank holiday', date: '2026-08-31', type: 'bank-holiday', regions: [EW, NI] },
+  { name: 'World Cup bank holiday', date: '2026-06-15', type: 'regional', regions: [SCO] },
+  { name: "Battle of the Boyne (Orangemen's Day)", date: '2026-07-13', type: 'regional', regions: [NI] },
+  { name: 'Summer bank holiday', date: '2026-08-03', type: 'regional', regions: [SCO] },
+  { name: 'Summer bank holiday', date: '2026-08-31', type: 'regional', regions: [EW, NI] },
   { name: "St Andrew's Day", date: '2026-11-30', type: 'regional', regions: [SCO] },
   { name: 'Company Wellbeing Day', date: '2026-12-24', type: 'company', regions: [] },
   { name: 'Christmas Day', date: '2026-12-25', type: 'bank-holiday', regions: [] },
-  { name: 'Boxing Day (substitute day)', date: '2026-12-28', type: 'bank-holiday', regions: [] },
+  { name: 'Boxing Day', date: '2026-12-28', type: 'bank-holiday', regions: [] },
   { name: "New Year's Day", date: '2027-01-01', type: 'bank-holiday', regions: [] },
-  { name: '2nd January (substitute day)', date: '2027-01-04', type: 'regional', regions: [SCO] },
+  { name: '2nd January', date: '2027-01-04', type: 'regional', regions: [SCO] },
   { name: "St Patrick's Day", date: '2027-03-17', type: 'regional', regions: [NI] },
   { name: 'Good Friday', date: '2027-03-26', type: 'bank-holiday', regions: [] },
-  { name: 'Easter Monday', date: '2027-03-29', type: 'bank-holiday', regions: [EW, NI] },
+  { name: 'Easter Monday', date: '2027-03-29', type: 'regional', regions: [EW, NI] },
   { name: 'Early May bank holiday', date: '2027-05-03', type: 'bank-holiday', regions: [] },
   { name: 'Spring bank holiday', date: '2027-05-31', type: 'bank-holiday', regions: [] },
-  { name: 'Battle of the Boyne', date: '2027-07-12', type: 'regional', regions: [NI] },
-  { name: 'Summer bank holiday (Scotland)', date: '2027-08-02', type: 'regional', regions: [SCO] },
-  { name: 'Summer bank holiday', date: '2027-08-30', type: 'bank-holiday', regions: [EW, NI] },
+  { name: "Battle of the Boyne (Orangemen's Day)", date: '2027-07-12', type: 'regional', regions: [NI] },
+  { name: 'Summer bank holiday', date: '2027-08-02', type: 'regional', regions: [SCO] },
+  { name: 'Summer bank holiday', date: '2027-08-30', type: 'regional', regions: [EW, NI] },
   { name: "St Andrew's Day", date: '2027-11-30', type: 'regional', regions: [SCO] },
-  { name: 'Christmas Day (substitute day)', date: '2027-12-27', type: 'bank-holiday', regions: [] },
-  { name: 'Boxing Day (substitute day)', date: '2027-12-28', type: 'bank-holiday', regions: [] },
+  { name: 'Christmas Day', date: '2027-12-27', type: 'bank-holiday', regions: [] },
+  { name: 'Boxing Day', date: '2027-12-28', type: 'bank-holiday', regions: [] },
 ];
 
 export const DEFAULT_PASSWORD = 'Password@123';

@@ -38,7 +38,8 @@ export const ASSET_STATUS = ['available', 'assigned', 'maintenance', 'retired'];
 export const HOLIDAY_TYPES = ['bank-holiday', 'regional', 'optional', 'company'];
 
 /*
- * UK payroll (PAYE). Rates are editable in Settings -> UK payroll and should be checked every April.
+ * UK payroll (PAYE). Defaults = GOV.UK "Rates and thresholds for employers 2026 to 2027" and the
+ * Pensions Regulator auto-enrolment thresholds for 2026/27. Editable in Settings -> UK payroll; check every April.
  * NI categories: A standard, M under 21, H apprentice under 25, C over State Pension age, X not liable.
  */
 export const NI_CATEGORIES = ['A', 'M', 'H', 'C', 'X'];
@@ -56,19 +57,20 @@ export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
 export const DEFAULT_UK_PAYROLL = {
   taxYear: '2026/27',
   personalAllowance: 12570,
-  // Bands are widths of taxable income above the personal allowance (England, Wales & NI)
+  // Band widths of taxable pay (after the allowance). England, Wales & NI: basic up to £37,700, higher £37,701-£125,140, additional above
   taxBands: [
     { upTo: 37700, rate: 20 },
-    { upTo: 112570, rate: 40 },
+    { upTo: 87440, rate: 40 },
     { upTo: null, rate: 45 },
   ],
-  // Scottish taxpayers (tax codes starting with S)
+  // Scottish taxpayers (S codes): starter to £3,967, basic to £16,956, intermediate to £31,092,
+  // higher to £62,430, advanced to £125,140, top above
   scottishTaxBands: [
-    { upTo: 2827, rate: 19 },
-    { upTo: 14921, rate: 20 },
-    { upTo: 31092, rate: 21 },
-    { upTo: 62430, rate: 42 },
-    { upTo: 112570, rate: 45 },
+    { upTo: 3967, rate: 19 },
+    { upTo: 12989, rate: 20 },
+    { upTo: 14136, rate: 21 },
+    { upTo: 31338, rate: 42 },
+    { upTo: 62710, rate: 45 },
     { upTo: null, rate: 48 },
   ],
   niPrimaryThreshold: 12570,
@@ -81,7 +83,7 @@ export const DEFAULT_UK_PAYROLL = {
   pensionUpperLimit: 50270,
   pensionEmployeeRate: 5,
   pensionEmployerRate: 3,
-  studentLoanThresholds: { plan1: 26065, plan2: 28470, plan4: 32745, plan5: 25000, postgrad: 21000 },
+  studentLoanThresholds: { plan1: 26900, plan2: 29385, plan4: 33795, plan5: 25000, postgrad: 21000 },
   studentLoanRate: 9,
   postgradLoanRate: 6,
 };

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateEntitlement } from '../services/leave.service.js';
 import { buildHolidayLookup, holidayApplies } from '../services/calendar.service.js';
+import { mergeBankHolidays } from '../services/bankHolidays.service.js';
 
 // UK holiday entitlement and regional bank holidays. Run: npm test
 const annualLeave = { annualQuota: 25, proRata: true };
@@ -37,4 +38,18 @@ test('bank holidays by UK nation', () => {
   assert.equal(lookup('2026-11-30', 'scotland'), "St Andrew's Day");
   assert.equal(lookup('2026-12-25', 'northern-ireland'), 'Christmas Day');
   assert.equal(holidayApplies(holidays[0], undefined), true); // default region is England & Wales
+});
+
+test('GOV.UK feed: one holiday per date with the nations it applies to', () => {
+  const event = (date, title) => ({ date, title });
+  const feed = {
+    'england-and-wales': { events: [event('2026-12-25', 'Christmas Day'), event('2026-04-06', 'Easter Monday')] },
+    scotland: { events: [event('2026-12-25', 'Christmas Day'), event('2026-06-15', 'World Cup bank holiday')] },
+    'northern-ireland': { events: [event('2026-12-25', 'Christmas Day'), event('2026-04-06', 'Easter Monday'), event('2025-12-25', 'Christmas Day')] },
+  };
+  assert.deepEqual(mergeBankHolidays(feed, { from: '2026-01-01', to: '2026-12-31' }), [
+    { date: '2026-04-06', name: 'Easter Monday', type: 'regional', regions: ['england-wales', 'northern-ireland'] },
+    { date: '2026-06-15', name: 'World Cup bank holiday', type: 'regional', regions: ['scotland'] },
+    { date: '2026-12-25', name: 'Christmas Day', type: 'bank-holiday', regions: [] },
+  ]);
 });
