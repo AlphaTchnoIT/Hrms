@@ -8,7 +8,7 @@ import { notifyMany } from '../services/notification.service.js';
 import { runReminders } from '../services/reminder.service.js';
 
 const PROGRAM_FIELDS = ['title', 'description', 'category', 'durationHours', 'contentUrl', 'completionCriteria', 'isActive'];
-const TEST_FIELDS = ['title', 'description', 'questions', 'passPercent', 'maxAttempts', 'timeLimitMinutes', 'availableFrom', 'dueDate', 'assignedTo', 'isPublished'];
+const TEST_FIELDS = ['title', 'description', 'questions', 'passPercent', 'maxAttempts', 'timeLimitMinutes', 'showAnswers', 'availableFrom', 'dueDate', 'assignedTo', 'isPublished'];
 const ASSIGNMENT_POPULATE = [
   { path: 'program', select: 'title description category durationHours contentUrl completionCriteria' },
   { path: 'user', select: 'firstName lastName employeeCode avatar' },
@@ -23,6 +23,48 @@ function visibleTestsFilter(userId, today) {
       { $or: [{ assignedTo: { $size: 0 } }, { assignedTo: userId }] },
       { $or: [{ availableFrom: null }, { availableFrom: { $exists: false } }, { availableFrom: { $lte: today } }] },
     ],
+  };
+}
+
+/*
+ * May the test taker see the correct answers?
+ * 'after-submit': always; 'after-final': once they passed or used every attempt; 'never': no.
+ */
+function answersVisibleToTaker(test, attempts) {
+  if (test.showAnswers === 'after-submit') return true;
+  if (test.showAnswers === 'never') return false;
+  return attempts.some((a) => a.passed) || attempts.length >= test.maxAttempts;
+}
+
+// Question-by-question report card of one attempt; correct answers only when allowed
+function buildReportCard(test, attempt, { showAnswers }) {
+  const questions = test.questions.map((q, i) => {
+    const chosen = attempt.answers[i] ?? -1;
+    const correct = chosen === q.correctIndex;
+    return {
+      _id: q._id,
+      text: q.text,
+      options: q.options,
+      marks: q.marks,
+      chosenIndex: chosen,
+      correct,
+      marksScored: correct ? q.marks : 0,
+      correctIndex: showAnswers ? q.correctIndex : undefined,
+      explanation: showAnswers ? q.explanation : undefined,
+    };
+  });
+  return {
+    attemptId: attempt._id,
+    test: { _id: test._id, title: test.title, description: test.description, passPercent: test.passPercent, maxAttempts: test.maxAttempts },
+    attemptNo: attempt.attemptNo,
+    score: attempt.score,
+    totalMarks: attempt.totalMarks,
+    percent: attempt.percent,
+    passed: attempt.passed,
+    submittedAt: attempt.submittedAt,
+    correctCount: questions.filter((q) => q.correct).length,
+    answersVisible: showAnswers,
+    questions,
   };
 }
 
@@ -177,6 +219,7 @@ export async function submitAttempt(req, res) {
     return { questionId: q._id, correct };
   });
   const percent = totalMarks ? Math.round((score / totalMarks) * 100) : 0;
+  const previous = await TestAttempt.find({ test: test._id, user: req.user._id }).select('passed');
   const attempt = await TestAttempt.create({
     test: test._id,
     user: req.user._id,
@@ -188,11 +231,34 @@ export async function submitAttempt(req, res) {
     passed: percent >= test.passPercent,
   });
 
+  const showAnswers = answersVisibleToTaker(test, [...previous, attempt]);
   sendSuccess(res, {
-    data: { attempt, review, attemptsLeft: test.maxAttempts - attempt.attemptNo },
+    data: { attempt, review, attemptsLeft: test.maxAttempts - attempt.attemptNo, reportCard: buildReportCard(test, attempt, { showAnswers }) },
     message: attempt.passed ? `Passed with ${percent}%` : `Scored ${percent}% (pass mark ${test.passPercent}%)`,
     status: 201,
   });
+}
+
+/*
+ * GET /api/learning/attempts/:id - report card of one attempt
+ * The taker sees answers per the test's rule; the test creator, HR and the taker's managers always do.
+ */
+export async function getAttemptReport(req, res) {
+  const attempt = await TestAttempt.findById(req.params.id).populate('user', 'firstName lastName employeeCode avatar');
+  if (!attempt) throw ApiError.notFound('Attempt not found');
+  const test = await KnowledgeTest.findById(attempt.test);
+  if (!test) throw ApiError.notFound('This test no longer exists');
+
+  const isTaker = String(attempt.user._id) === String(req.user._id);
+  const isReviewer = isHR(req.user) || String(test.createdBy) === String(req.user._id) || (await canAuditEmployee(req.user, attempt.user._id));
+  if (!isTaker && !isReviewer) throw ApiError.forbidden();
+
+  let showAnswers = isReviewer;
+  if (!showAnswers) {
+    const mine = await TestAttempt.find({ test: test._id, user: attempt.user._id }).select('passed');
+    showAnswers = answersVisibleToTaker(test, mine);
+  }
+  sendSuccess(res, { data: { user: attempt.user, ...buildReportCard(test, attempt, { showAnswers }) } });
 }
 
 // GET /api/learning/tests/:id/results
@@ -207,19 +273,25 @@ export async function getTestResults(req, res) {
 /* ------------------------------- My learning & records ------------------------------- */
 
 async function buildRecords(userId, today) {
-  const [assignments, tests, attempts] = await Promise.all([
+  const [assignments, attempts] = await Promise.all([
     TrainingAssignment.find({ user: userId }).populate(ASSIGNMENT_POPULATE).sort({ dueDate: 1 }),
-    KnowledgeTest.find(visibleTestsFilter(userId, today)).select('-questions.correctIndex').sort({ dueDate: 1, createdAt: -1 }),
     TestAttempt.find({ user: userId }).populate('test', 'title passPercent').sort({ submittedAt: -1 }),
   ]);
+  // Tests open to them now + every test they already took (even if unpublished or reassigned later)
+  const takenIds = [...new Set(attempts.filter((a) => a.test).map((a) => String(a.test._id)))];
+  const tests = await KnowledgeTest.find({ $or: [visibleTestsFilter(userId, today), { _id: { $in: takenIds } }] })
+    .select('-questions.correctIndex -questions.explanation')
+    .sort({ dueDate: 1, createdAt: -1 });
 
   const testsWithStatus = tests.map((t) => {
     const mine = attempts.filter((a) => String(a.test?._id) === String(t._id));
     const best = mine.reduce((max, a) => Math.max(max, a.percent), -1);
     const passed = mine.some((a) => a.passed);
+    const open = t.isPublished && (!t.availableFrom || t.availableFrom <= today) && (!t.assignedTo.length || t.assignedTo.some((id) => String(id) === String(userId)));
     let status = 'pending';
     if (passed) status = 'passed';
     else if (mine.length >= t.maxAttempts) status = 'failed';
+    else if (!open) status = 'closed';
     else if (t.dueDate && t.dueDate < today) status = 'overdue';
     return {
       _id: t._id,
@@ -233,6 +305,9 @@ async function buildRecords(userId, today) {
       attemptsUsed: mine.length,
       bestPercent: best >= 0 ? best : null,
       status,
+      showAnswers: t.showAnswers,
+      answersVisible: answersVisibleToTaker(t, mine),
+      attempts: mine.map((a) => ({ _id: a._id, attemptNo: a.attemptNo, percent: a.percent, score: a.score, totalMarks: a.totalMarks, passed: a.passed, submittedAt: a.submittedAt })),
     };
   });
 

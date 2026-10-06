@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { BellRing, Plus, Trash2, UserPlus } from 'lucide-react';
+import { BellRing, CheckCircle2, Circle, Plus, Trash2, UserPlus } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
@@ -13,6 +14,7 @@ import { AUDITOR_ROLES } from '@/lib/constants';
 import { formatDate, formatDateTime, getFullName, toInputDate } from '@/lib/format';
 import { Badge, Button, Card, Checkbox, DataTable, Input, Modal, PageHeader, Select, Tabs, Textarea } from '@/components/ui';
 import EmployeeCell from '@/components/shared/EmployeeCell';
+import { ReportCardModal } from '@/components/learning/ReportCard';
 import RoleGuard from '@/components/layout/RoleGuard';
 
 function PeoplePicker({ members, value, onChange }) {
@@ -121,7 +123,13 @@ function AssignModal({ program, members, onClose, onSaved }) {
   );
 }
 
-const blankQuestion = () => ({ text: '', options: ['', ''], correctIndex: 0, marks: 1 });
+const blankQuestion = () => ({ text: '', options: ['', ''], correctIndex: 0, marks: 1, explanation: '' });
+
+const SHOW_ANSWER_OPTIONS = [
+  { value: 'after-final', label: 'After they pass or use all attempts' },
+  { value: 'after-submit', label: 'Right after every attempt' },
+  { value: 'never', label: 'Never (only managers / HR see them)' },
+];
 
 function TestModal({ open, members, onClose, onSaved }) {
   const [test, setTest] = useState(null);
@@ -131,7 +139,7 @@ function TestModal({ open, members, onClose, onSaved }) {
 
   useEffect(() => {
     if (open) {
-      setTest({ title: '', description: '', passPercent: 70, maxAttempts: 2, timeLimitMinutes: 0, availableFrom: '', dueDate: toInputDate(new Date(Date.now() + 7 * 86400000)), assignedTo: [], questions: [blankQuestion()] });
+      setTest({ title: '', description: '', passPercent: 70, maxAttempts: 2, timeLimitMinutes: 0, showAnswers: 'after-final', availableFrom: '', dueDate: toInputDate(new Date(Date.now() + 7 * 86400000)), assignedTo: [], questions: [blankQuestion()] });
       setEveryone(true);
       setErrors({});
     }
@@ -191,6 +199,13 @@ function TestModal({ open, members, onClose, onSaved }) {
           <Input label="Time limit (min, 0 = none)" type="number" min="0" value={test.timeLimitMinutes} onChange={(e) => set('timeLimitMinutes', e.target.value)} />
           <Input label="Available from" type="date" value={test.availableFrom} onChange={(e) => set('availableFrom', e.target.value)} />
           <Input label="Due date" type="date" value={test.dueDate} error={errors.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+          <Select
+            label="Show correct answers to employees"
+            placeholder={false}
+            options={SHOW_ANSWER_OPTIONS}
+            value={test.showAnswers}
+            onChange={(e) => set('showAnswers', e.target.value)}
+          />
         </div>
         <div>
           <Checkbox label="Available to everyone" checked={everyone} onChange={(e) => setEveryone(e.target.checked)} />
@@ -208,19 +223,38 @@ function TestModal({ open, members, onClose, onSaved }) {
                 <Input label="Marks" type="number" min="1" className="w-24" value={q.marks} onChange={(e) => setQ(qi, { marks: e.target.value })} />
               </div>
               <div className="mt-3 space-y-2">
-                {q.options.map((opt, oi) => (
-                  <div key={oi} className="flex items-center gap-2">
-                    <input type="radio" name={`correct-${qi}`} checked={Number(q.correctIndex) === oi} onChange={() => setQ(qi, { correctIndex: oi })} title="Correct answer" />
-                    <input className="form-control" placeholder={`Option ${oi + 1}`} value={opt} onChange={(e) => setQ(qi, { options: q.options.map((o, i) => (i === oi ? e.target.value : o)) })} />
-                    <Button
-                      variant="ghost"
-                      icon={Trash2}
-                      label="Remove option"
-                      disabled={q.options.length <= 2}
-                      onClick={() => setQ(qi, { options: q.options.filter((_, i) => i !== oi), correctIndex: Math.min(Number(q.correctIndex), q.options.length - 2) })}
-                    />
-                  </div>
-                ))}
+                {q.options.map((opt, oi) => {
+                  const isCorrect = Number(q.correctIndex) === oi;
+                  return (
+                    <div key={oi} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setQ(qi, { correctIndex: oi })}
+                        className={clsx(
+                          'inline-flex w-28 shrink-0 items-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition',
+                          isCorrect ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-700'
+                        )}
+                        aria-pressed={isCorrect}
+                      >
+                        {isCorrect ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                        {isCorrect ? 'Correct' : 'Mark correct'}
+                      </button>
+                      <input className={clsx('form-control', isCorrect && 'border-emerald-400')} placeholder={`Option ${oi + 1}`} value={opt} onChange={(e) => setQ(qi, { options: q.options.map((o, i) => (i === oi ? e.target.value : o)) })} />
+                      <Button
+                        variant="ghost"
+                        icon={Trash2}
+                        label="Remove option"
+                        disabled={q.options.length <= 2}
+                        onClick={() => {
+                          // Keep the same option marked correct after removing one above it
+                          const current = Number(q.correctIndex);
+                          const correctIndex = oi === current ? 0 : oi < current ? current - 1 : current;
+                          setQ(qi, { options: q.options.filter((_, i) => i !== oi), correctIndex });
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <div className="mt-2 flex justify-between">
                 <Button variant="link" size="sm" disabled={q.options.length >= 6} onClick={() => setQ(qi, { options: [...q.options, ''] })}>
@@ -230,7 +264,15 @@ function TestModal({ open, members, onClose, onSaved }) {
                   Remove question
                 </Button>
               </div>
-              <p className="text-xs text-slate-500">Select the radio button of the correct answer.</p>
+              <Textarea
+                label="Explanation (optional)"
+                rows={2}
+                className="mt-2"
+                placeholder="Why this answer is correct. Shown in the report card with the answers."
+                value={q.explanation}
+                onChange={(e) => setQ(qi, { explanation: e.target.value })}
+              />
+              {errors[`questions.${qi}.correctIndex`] && <p className="mt-1 text-xs font-medium text-red-600">{errors[`questions.${qi}.correctIndex`]}</p>}
             </div>
           ))}
           {errors.questions && <p className="text-xs font-medium text-red-600">{errors.questions}</p>}
@@ -245,16 +287,49 @@ function TestModal({ open, members, onClose, onSaved }) {
 
 function ResultsModal({ testId, onClose }) {
   const { data } = useFetch(testId ? `/learning/tests/${testId}/results` : null);
+  const [report, setReport] = useState(null);
   const columns = [
     { key: 'employee', header: 'Employee', render: (a) => <EmployeeCell employee={a.user} /> },
     { key: 'attempt', header: 'Attempt', render: (a) => `#${a.attemptNo}` },
     { key: 'score', header: 'Score', render: (a) => `${a.percent}%` },
     { key: 'result', header: 'Result', render: (a) => <Badge status={a.passed ? 'passed' : 'failed'} /> },
     { key: 'date', header: 'Submitted', render: (a) => formatDateTime(a.submittedAt) },
+    { key: 'report', header: '', render: (a) => <Button size="xs" variant="secondary" onClick={() => setReport(a._id)}>Report card</Button> },
   ];
   return (
-    <Modal open={Boolean(testId)} onClose={onClose} size="xl" title={data?.test?.title || 'Results'}>
-      <DataTable columns={columns} rows={data?.attempts} loading={!data} emptyMessage="Nobody has taken this test yet" />
+    <>
+      <Modal open={Boolean(testId) && !report} onClose={onClose} size="xl" title={data?.test?.title || 'Results'}>
+        <DataTable columns={columns} rows={data?.attempts} loading={!data} emptyMessage="Nobody has taken this test yet" />
+      </Modal>
+      <ReportCardModal attemptId={report} onClose={() => setReport(null)} />
+    </>
+  );
+}
+
+// The questions of a test with the correct answer marked (answer key for the creator / HR)
+function AnswerKeyModal({ test, onClose }) {
+  return (
+    <Modal open={Boolean(test)} onClose={onClose} size="lg" title={test?.title || 'Answer key'} description={test && `Answer key · ${test.questions.length} questions · pass ${test.passPercent}%`}>
+      {test && (
+        <ol className="space-y-4">
+          {test.questions.map((q, qi) => (
+            <li key={q._id || qi} className="rounded-xl border border-slate-200 p-4">
+              <p className="font-medium text-slate-800">
+                {qi + 1}. {q.text} <span className="text-xs font-normal text-slate-400">({q.marks} mark{q.marks > 1 ? 's' : ''})</span>
+              </p>
+              <div className="mt-2 grid gap-1.5">
+                {q.options.map((opt, oi) => (
+                  <div key={oi} className={clsx('flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm', oi === q.correctIndex ? 'border-emerald-400 bg-emerald-50 font-medium text-emerald-900' : 'border-slate-200 text-slate-600')}>
+                    {oi === q.correctIndex ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Circle className="h-4 w-4 text-slate-300" />}
+                    {opt}
+                  </div>
+                ))}
+              </div>
+              {q.explanation && <p className="mt-2 text-sm text-slate-500">💡 {q.explanation}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
     </Modal>
   );
 }
@@ -270,6 +345,7 @@ export default function TrainingAdminPage() {
   const [assigning, setAssigning] = useState(null);
   const [testOpen, setTestOpen] = useState(false);
   const [results, setResults] = useState(null);
+  const [answerKey, setAnswerKey] = useState(null);
 
   const runReminders = async () => {
     try {
@@ -315,7 +391,20 @@ export default function TrainingAdminPage() {
     { key: 'takers', header: 'Taken by', render: (t) => t.stats.takers },
     { key: 'avg', header: 'Avg score', render: (t) => (t.stats.averagePercent === null ? '—' : `${t.stats.averagePercent}%`) },
     { key: 'passed', header: 'Passed attempts', render: (t) => t.stats.passed },
-    { key: 'results', header: '', render: (t) => <Button size="xs" variant="secondary" onClick={() => setResults(t._id)}>Results</Button> },
+    {
+      key: 'results',
+      header: '',
+      render: (t) => (
+        <div className="flex gap-1">
+          <Button size="xs" variant="secondary" onClick={() => setAnswerKey(t)}>
+            Answer key
+          </Button>
+          <Button size="xs" variant="secondary" onClick={() => setResults(t._id)}>
+            Results
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -363,6 +452,7 @@ export default function TrainingAdminPage() {
       {assigning && <AssignModal program={assigning} members={members} onClose={() => setAssigning(null)} onSaved={programs.refetch} />}
       <TestModal open={testOpen} members={members} onClose={() => setTestOpen(false)} onSaved={tests.refetch} />
       <ResultsModal testId={results} onClose={() => setResults(null)} />
+      <AnswerKeyModal test={answerKey} onClose={() => setAnswerKey(null)} />
     </RoleGuard>
   );
 }

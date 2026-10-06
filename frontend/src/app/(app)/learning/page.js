@@ -9,6 +9,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { useTabParam } from '@/hooks/useTabParam';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { Badge, Button, Card, DataTable, EmptyState, ErrorMessage, Modal, PageHeader, PageLoader, StatCard, Tabs } from '@/components/ui';
+import ReportCard, { ReportCardModal } from '@/components/learning/ReportCard';
 
 function TakeTestModal({ testId, onClose, onDone }) {
   const { data: test, loading, error } = useFetch(testId ? `/learning/tests/${testId}/take` : null);
@@ -81,16 +82,17 @@ function TakeTestModal({ testId, onClose, onDone }) {
       {loading && <p className="text-sm text-slate-500">Loading…</p>}
       <ErrorMessage message={error} />
       {result && (
-        <div className={clsx('mb-4 rounded-xl p-4 text-center', result.attempt.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800')}>
-          <p className="text-3xl font-bold">{result.attempt.percent}%</p>
-          <p className="text-sm font-medium">{result.attempt.passed ? 'Passed 🎉' : `Not passed — ${result.attemptsLeft} attempt(s) left`}</p>
-        </div>
+        <>
+          {!result.attempt.passed && result.attemptsLeft > 0 && (
+            <p className="mb-3 text-sm font-medium text-slate-600">{result.attemptsLeft} attempt(s) left. You can retake it from the Knowledge tests tab.</p>
+          )}
+          <ReportCard card={result.reportCard} />
+        </>
       )}
-      {test && (
+      {test && !result && (
         <ol className="space-y-5">
           {test.questions.map((q, qi) => {
-            const review = result?.review?.[qi];
-            return (
+                    return (
               <li key={q._id}>
                 <p className="font-medium text-slate-800">
                   {qi + 1}. {q.text} <span className="text-xs font-normal text-slate-400">({q.marks} mark{q.marks > 1 ? 's' : ''})</span>
@@ -101,11 +103,10 @@ function TakeTestModal({ testId, onClose, onDone }) {
                       key={oi}
                       className={clsx(
                         'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm',
-                        answers[qi] === oi ? 'border-brand-500 bg-brand-50' : 'border-slate-200',
-                        review && answers[qi] === oi && (review.correct ? 'border-emerald-500 bg-emerald-50' : 'border-rose-500 bg-rose-50')
+                        answers[qi] === oi ? 'border-brand-500 bg-brand-50' : 'border-slate-200'
                       )}
                     >
-                      <input type="radio" name={`q-${qi}`} disabled={Boolean(result)} checked={answers[qi] === oi} onChange={() => setAnswers((a) => a.map((x, i) => (i === qi ? oi : x)))} />
+                      <input type="radio" name={`q-${qi}`} checked={answers[qi] === oi} onChange={() => setAnswers((a) => a.map((x, i) => (i === qi ? oi : x)))} />
                       {opt}
                     </label>
                   ))}
@@ -123,6 +124,7 @@ export default function LearningPage() {
   const [tab, setTab] = useTabParam('training', ['training', 'tests', 'records']);
   const { data, loading, error, refetch } = useFetch('/learning/my');
   const [taking, setTaking] = useState(null);
+  const [report, setReport] = useState(null);
 
   const updateProgress = async (assignment, progress) => {
     try {
@@ -141,6 +143,15 @@ export default function LearningPage() {
     { key: 'score', header: 'Score', render: (a) => `${a.score}/${a.totalMarks} (${a.percent}%)` },
     { key: 'result', header: 'Result', render: (a) => <Badge status={a.passed ? 'passed' : 'failed'} /> },
     { key: 'date', header: 'Completed', render: (a) => formatDateTime(a.submittedAt) },
+    {
+      key: 'report',
+      header: '',
+      render: (a) => (
+        <Button size="xs" variant="secondary" disabled={!a.test} onClick={() => setReport(a._id)}>
+          Report card
+        </Button>
+      ),
+    },
   ];
   const completedColumns = [
     { key: 'program', header: 'Programme', render: (a) => a.program?.title },
@@ -234,6 +245,23 @@ export default function LearningPage() {
                     <Badge status={t.status} />
                   </div>
                   {t.description && <p className="mt-2 text-sm text-slate-600">{t.description}</p>}
+                  {t.attempts.length > 0 && (
+                    <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+                      {t.attempts.map((a) => (
+                        <div key={a._id} className="flex items-center gap-3 text-sm">
+                          <span className="w-20 text-slate-500">Attempt {a.attemptNo}</span>
+                          <span className={clsx('font-semibold', a.passed ? 'text-emerald-600' : 'text-rose-600')}>{a.percent}%</span>
+                          <span className="text-xs text-slate-400">{formatDate(a.submittedAt)}</span>
+                          <Button size="xs" variant="link" className="ml-auto" onClick={() => setReport(a._id)}>
+                            Report card
+                          </Button>
+                        </div>
+                      ))}
+                      {!t.answersVisible && t.showAnswers === 'after-final' && (
+                        <p className="text-xs text-slate-400">Correct answers unlock once you pass or use all attempts.</p>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-sm text-slate-600">Best score: {t.bestPercent === null ? '—' : `${t.bestPercent}%`}</span>
                     {['pending', 'overdue'].includes(t.status) && (
@@ -260,6 +288,7 @@ export default function LearningPage() {
         </>
       )}
       {taking && <TakeTestModal testId={taking} onClose={() => setTaking(null)} onDone={refetch} />}
+      <ReportCardModal attemptId={report} onClose={() => setReport(null)} />
     </div>
   );
 }

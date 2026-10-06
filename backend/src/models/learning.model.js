@@ -41,6 +41,7 @@ const questionSchema = new mongoose.Schema({
   options: { type: [String], validate: (v) => v.length >= 2 },
   correctIndex: { type: Number, required: true, min: 0 },
   marks: { type: Number, default: 1, min: 1 },
+  explanation: String, // optional: why the answer is correct, shown in the report card
 });
 
 /*
@@ -54,6 +55,9 @@ const knowledgeTestSchema = new mongoose.Schema(
     passPercent: { type: Number, default: 70, min: 0, max: 100 },
     maxAttempts: { type: Number, default: 2, min: 1 },
     timeLimitMinutes: { type: Number, default: 0, min: 0 }, // 0 = no limit
+    // When the test taker sees the correct answers in their report card:
+    // after every attempt, only once they pass or use all attempts (stops answer-sharing on retakes), or never
+    showAnswers: { type: String, enum: ['after-submit', 'after-final', 'never'], default: 'after-final' },
     availableFrom: String,
     dueDate: String,
     assignedTo: [ref('User')],

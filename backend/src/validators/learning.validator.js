@@ -25,8 +25,11 @@ const questionSchema = z
     options: z.array(requiredText('Option', { max: 200 })).min(2, 'Add at least 2 options').max(6, 'At most 6 options'),
     correctIndex: intRange('Correct answer', 0, 5),
     marks: intRange('Marks', 1, 10).default(1),
+    explanation: optionalText('Explanation', 500),
   })
   .refine((q) => q.correctIndex < q.options.length, { path: ['correctIndex'], message: 'Select the correct answer' });
+
+const SHOW_ANSWERS = ['after-submit', 'after-final', 'never'];
 
 export const testSchema = z
   .object({
@@ -36,6 +39,7 @@ export const testSchema = z
     passPercent: intRange('Pass mark', 0, 100).default(70),
     maxAttempts: intRange('Attempts', 1, 10).default(2),
     timeLimitMinutes: intRange('Time limit', 0, 300).default(0),
+    showAnswers: z.enum(SHOW_ANSWERS).default('after-final'),
     availableFrom: optionalDate('Available from'),
     dueDate: optionalDate('Due date'),
     assignedTo: z.array(objectId('employee')).max(1000).default([]),
@@ -49,6 +53,7 @@ export const updateTestSchema = z.object({
   passPercent: intRange('Pass mark', 0, 100).optional(),
   maxAttempts: intRange('Attempts', 1, 10).optional(),
   dueDate: optionalDate('Due date'),
+  showAnswers: z.enum(SHOW_ANSWERS).optional(),
   isPublished: z.boolean().optional(),
 });
 

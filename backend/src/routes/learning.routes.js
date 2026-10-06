@@ -5,6 +5,7 @@ import {
   createTest,
   getMyLearning,
   getTestForTaking,
+  getAttemptReport,
   getTestResults,
   getTrainingRecords,
   listAssignments,
@@ -35,6 +36,7 @@ router.get('/my', getMyLearning);
 router.patch('/assignments/:id/progress', validate(progressSchema), updateMyProgress);
 router.get('/tests/:id/take', getTestForTaking);
 router.post('/tests/:id/attempts', validate(attemptSchema), submitAttempt);
+router.get('/attempts/:id', getAttemptReport); // report card: taker, test creator, HR or the taker's managers
 router.get('/records/:userId', getTrainingRecords);
 
 // Managers, HR and QA create content and assign it
