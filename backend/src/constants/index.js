@@ -51,7 +51,35 @@ export const HOLIDAY_REGIONS = ['england-wales', 'scotland', 'northern-ireland']
 export const RIGHT_TO_WORK_STATUS = ['not-checked', 'british-irish', 'settled', 'time-limited'];
 
 // Modules a company can switch off in Settings
-export const FEATURES = ['payroll', 'workStatus'];
+export const FEATURES = ['payroll', 'workStatus', 'chat'];
+
+// Chat: messages are deleted automatically after this many days (UK GDPR storage limitation)
+export const CHAT_RETENTION_DAYS = 365;
+export const CHAT_MESSAGE_MAX_LENGTH = 4000;
+export const CHAT_GROUP_MAX_MEMBERS = 100;
+export const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+// Chat files are stored in MongoDB (GridFS) for now, so they are kept small and short-lived
+export const CHAT_FILE_MAX_BYTES = 5 * 1024 * 1024; // per file
+export const CHAT_FILES_TOTAL_BYTES = 200 * 1024 * 1024; // whole company, keeps room for HR data
+export const CHAT_FILE_RETENTION_DAYS = 90; // the message stays, the file is removed
+// contentType -> allowed extensions. No SVG / HTML: they can run scripts.
+export const CHAT_FILE_TYPES = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/gif': ['gif'],
+  'image/webp': ['webp'],
+  'application/pdf': ['pdf'],
+  'application/msword': ['doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  'application/vnd.ms-excel': ['xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
+  'application/vnd.ms-powerpoint': ['ppt'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
+  'text/plain': ['txt'],
+  'text/csv': ['csv'],
+};
+
 export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
 
 // Leave that is paid through payroll as statutory pay instead of salary

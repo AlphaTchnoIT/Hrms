@@ -9,11 +9,11 @@ function isPasswordChangeRoute(req) {
   return (req.method === 'GET' && path.endsWith('/auth/me')) || (req.method === 'PATCH' && path.endsWith('/auth/change-password'));
 }
 
-// Verifies the JWT from "Authorization: Bearer <token>" and attaches the user to req.user
-export async function protect(req, _res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-
+/*
+ * Checks a JWT and returns the active user it belongs to (throws 401 otherwise).
+ * Shared by the REST API (protect) and the chat socket connection.
+ */
+export async function userFromToken(token) {
   if (!token) throw ApiError.unauthorized('Please login to continue');
 
   let payload;
@@ -31,6 +31,14 @@ export async function protect(req, _res, next) {
   if (user.passwordChangedAt && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
     throw ApiError.unauthorized('Your password was changed, please login again');
   }
+  return user;
+}
+
+// Verifies the JWT from "Authorization: Bearer <token>" and attaches the user to req.user
+export async function protect(req, _res, next) {
+  const header = req.headers.authorization || '';
+  const user = await userFromToken(header.startsWith('Bearer ') ? header.slice(7) : null);
+
   // First login with a password set by HR: only reading the profile and changing the password are allowed
   if (user.mustChangePassword && !isPasswordChangeRoute(req)) {
     throw new ApiError(403, 'Please set a new password to continue', { code: 'PASSWORD_CHANGE_REQUIRED' });

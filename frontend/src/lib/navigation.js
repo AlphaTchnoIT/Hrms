@@ -26,6 +26,7 @@ import {
   LineChart,
   ListChecks,
   Megaphone,
+  MessageSquare,
   Receipt,
   ReceiptText,
   Scale,
@@ -51,7 +52,10 @@ const REPORT_ROLES = [...APPROVER_ROLES, ROLES.QA, ROLES.IT];
 export const NAVIGATION = [
   {
     title: null,
-    items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
+    items: [
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Chat', href: '/chat', icon: MessageSquare, feature: 'chat', app: 'chat' }, // opens in its own tab
+    ],
   },
   {
     title: 'Me',

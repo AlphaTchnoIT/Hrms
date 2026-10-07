@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const TOKEN_KEY = 'hrms_token';
+export const TOKEN_KEY = 'hrms_token';
 
 // localStorage can throw in private mode, so wrap every access
 export const tokenStorage = {
@@ -27,10 +27,14 @@ export const tokenStorage = {
   },
 };
 
+// The API server without "/api", e.g. "https://api.example.com" (live chat connects here)
+export function getServerUrl() {
+  return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '').replace(/\/api$/, '');
+}
+
 // Accepts "https://api.example.com", "https://api.example.com/" or ".../api" and always ends with "/api"
 function getApiBaseUrl() {
-  const url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
-  return url.endsWith('/api') ? url : `${url}/api`;
+  return `${getServerUrl()}/api`;
 }
 
 const api = axios.create({

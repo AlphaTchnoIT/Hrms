@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import api, { tokenStorage } from '@/lib/api';
+import api, { TOKEN_KEY, tokenStorage } from '@/lib/api';
 import { setDisplayCurrency, setDisplayTimeZone } from '@/lib/format';
 import { APPROVER_ROLES, AUDITOR_ROLES, HR_ROLES, IT_ROLES } from '@/lib/constants';
 
@@ -33,6 +33,21 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  // HRMS and Chat can be open in different tabs: logging out (or in as someone else) in one applies to all
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== TOKEN_KEY || e.newValue === e.oldValue) return;
+      if (!e.newValue) {
+        setUser(null);
+        window.location.href = '/login';
+      } else {
+        window.location.reload();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
@@ -72,7 +87,11 @@ export function AuthProvider({ children }) {
       // Direct and total (direct + indirect) reportees
       team: user?.team || { direct: 0, all: 0 },
       // Modules the company switched on (Settings -> Modules)
-      features: { payroll: user?.company?.features?.payroll !== false, workStatus: user?.company?.features?.workStatus !== false },
+      features: {
+        payroll: user?.company?.features?.payroll !== false,
+        workStatus: user?.company?.features?.workStatus !== false,
+        chat: user?.company?.features?.chat !== false,
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, loading, loadUser, accessRoles, hasRole]

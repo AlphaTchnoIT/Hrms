@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
-import { Briefcase, LogOut, X } from 'lucide-react';
+import { Briefcase, ExternalLink, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { openApp } from '@/lib/apps';
 import { getNavigationForRole, isNavItemActive } from '@/lib/navigation';
 import { Avatar } from '@/components/ui';
 
@@ -46,8 +47,27 @@ export default function Sidebar({ open, onClose }) {
                 <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</p>
               )}
               <ul className="space-y-0.5">
-                {section.items.map(({ href, label, icon: Icon }) => {
+                {section.items.map(({ href, label, icon: Icon, app }) => {
                   const active = isNavItemActive(pathname, href);
+                  // Another app (Chat): open / bring back its own tab
+                  if (app) {
+                    return (
+                      <li key={href}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            openApp(app);
+                          }}
+                          className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                        >
+                          <Icon className="h-[18px] w-[18px] shrink-0 text-slate-400 group-hover:text-slate-600" />
+                          {label}
+                          <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500" />
+                        </button>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={href}>
                       <Link

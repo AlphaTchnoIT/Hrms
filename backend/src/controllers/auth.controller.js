@@ -28,7 +28,11 @@ async function buildSessionUser(userId) {
       name: settings.companyName,
       timezone: settings.timezone,
       currency: settings.currency,
-      features: { payroll: settings.features?.payroll !== false, workStatus: settings.features?.workStatus !== false },
+      features: {
+        payroll: settings.features?.payroll !== false,
+        workStatus: settings.features?.workStatus !== false,
+        chat: settings.features?.chat !== false,
+      },
       privacyNoticeUrl: settings.privacyNoticeUrl || null,
       policies: { leaveYearStartMonth: getPolicies(settings).leaveYearStartMonth, fitNoteAfterDays: getPolicies(settings).fitNoteAfterDays },
     },

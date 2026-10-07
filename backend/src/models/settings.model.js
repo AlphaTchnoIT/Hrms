@@ -27,6 +27,7 @@ const settingsSchema = new mongoose.Schema(
     features: {
       payroll: { type: Boolean, default: true },
       workStatus: { type: Boolean, default: true },
+      chat: { type: Boolean, default: true },
     },
     // Company HR policies (see DEFAULT_POLICIES)
     policies: {

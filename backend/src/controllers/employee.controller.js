@@ -8,6 +8,7 @@ import { generateTemporaryPassword } from '../utils/password.js';
 import { anonymiseAllowedFrom, anonymiseEmployee, buildPersonalDataExport } from '../services/gdpr.service.js';
 import { todayInTz } from '../utils/date.js';
 import { canManageEmployee, getTeamMemberIds, isHR, wouldCreateReportingLoop } from '../services/access.service.js';
+import { disconnectUser } from '../chat/chat.socket.js';
 
 export const USER_POPULATE = [
   { path: 'department', select: 'name code' },
@@ -214,6 +215,7 @@ export async function updateEmployee(req, res) {
 
   employee.set(body);
   await employee.save();
+  if (employee.status !== 'active') disconnectUser(employee._id); // leavers lose live chat straight away
 
   const populated = await User.findById(employee._id).populate(USER_POPULATE);
   sendSuccess(res, { data: populated, message: 'Employee updated' });
@@ -271,5 +273,6 @@ export async function deactivateEmployee(req, res) {
   employee.status = 'terminated';
   employee.exitDate = req.body?.exitDate || new Date();
   await employee.save();
+  disconnectUser(employee._id);
   sendSuccess(res, { message: 'Employee deactivated' });
 }

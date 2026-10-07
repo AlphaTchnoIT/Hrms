@@ -43,7 +43,11 @@ function SettingsForm({ settings }) {
       weeklyOffs: settings.weeklyOffs || [],
       requireLocationForCheckIn: settings.requireLocationForCheckIn,
       attendanceBasedLop: settings.attendanceBasedLop,
-      features: { payroll: settings.features?.payroll !== false, workStatus: settings.features?.workStatus !== false },
+      features: {
+        payroll: settings.features?.payroll !== false,
+        workStatus: settings.features?.workStatus !== false,
+        chat: settings.features?.chat !== false,
+      },
       privacyNoticeUrl: settings.privacyNoticeUrl || '',
       dataRetentionYears: settings.dataRetentionYears ?? 6,
     },
@@ -60,7 +64,7 @@ function SettingsForm({ settings }) {
     const res = await api.put('/settings', data);
     toast.success(res.message);
     // Timezone, currency and modules apply to every screen; reload so open pages pick them up
-    const featuresChanged = data.features.payroll !== settings.features?.payroll || data.features.workStatus !== settings.features?.workStatus;
+    const featuresChanged = ['payroll', 'workStatus', 'chat'].some((key) => data.features[key] !== (settings.features?.[key] !== false));
     if (featuresChanged || data.timezone !== getDisplayTimeZone() || data.currency !== getDisplayCurrency()) window.location.reload();
   });
 
@@ -119,6 +123,11 @@ function SettingsForm({ settings }) {
             label="Live Work Status"
             description="Employees share what they are working on; managers see it live. Do a DPIA and tell staff before switching on."
             {...register('features.workStatus', { type: 'checkbox' })}
+          />
+          <Checkbox
+            label="Chat"
+            description="1-to-1 and group chat between employees. Chats are private to their members; messages are deleted after 1 year and shared files after 90 days."
+            {...register('features.chat', { type: 'checkbox' })}
           />
         </FormSection>
 

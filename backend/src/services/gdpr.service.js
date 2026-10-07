@@ -23,6 +23,7 @@ import {
   Warning,
   WorkStatusLog,
 } from '../models/index.js';
+import { Message } from '../chat/chat.model.js';
 import { addDays, toDateStr } from '../utils/date.js';
 
 /*
@@ -42,7 +43,7 @@ export async function buildPersonalDataExport(userId) {
   if (!user) return null;
 
   const byUser = { user: userId };
-  const [attendance, leaveRequests, leaveBalances, regularizations, payslips, expenses, goals, kpis, qaFeedback, ratings, actionPlans, warnings, escalations, training, testAttempts, rosters, workStatus, tickets, grievances, suggestions, assets, notifications] =
+  const [attendance, leaveRequests, leaveBalances, regularizations, payslips, expenses, goals, kpis, qaFeedback, ratings, actionPlans, warnings, escalations, training, testAttempts, rosters, workStatus, tickets, grievances, suggestions, assets, notifications, chatMessages] =
     await Promise.all([
       Attendance.find(byUser).sort('date'),
       LeaveRequest.find(byUser).populate('leaveType', 'name code').sort('fromDate'),
@@ -66,6 +67,7 @@ export async function buildPersonalDataExport(userId) {
       Suggestion.find({ submittedBy: userId }),
       Asset.find({ assignedTo: userId }),
       Notification.find(byUser).sort('-createdAt').limit(500),
+      Message.find({ sender: userId, deletedAt: null }).select('conversation text createdAt').sort('createdAt'),
     ]);
 
   return {
@@ -84,6 +86,7 @@ export async function buildPersonalDataExport(userId) {
     support: { tickets: plain(tickets), grievances: plain(grievances), suggestions: plain(suggestions) },
     assets: plain(assets),
     notifications: plain(notifications),
+    chatMessages: plain(chatMessages), // messages they sent (kept for the chat retention period)
   };
 }
 

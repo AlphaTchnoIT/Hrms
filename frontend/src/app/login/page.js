@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ArrowRight, Briefcase, CalendarCheck, ShieldCheck, Wallet } from 'lucide-react';
+import clsx from 'clsx';
+import { ArrowRight, Briefcase, CalendarCheck, MessageSquare, ShieldCheck, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useForm } from '@/hooks/useForm';
+import { useQueryValue } from '@/hooks/useTabParam';
+import { APPS, appForPath, getLandingApp, safeNextPath, setLandingApp } from '@/lib/apps';
 import { loginSchema } from '@/lib/validation';
 import { Button, Input } from '@/components/ui';
 
@@ -29,20 +32,35 @@ const FEATURES = [
   [ShieldCheck, 'Approvals that flow', 'Leave, expenses and attendance in one inbox'],
 ];
 
+const APP_ICONS = { hrms: Briefcase, chat: MessageSquare };
+
 export default function LoginPage() {
   const { user, login, loading: authLoading } = useAuth();
   const router = useRouter();
   const form = useForm({ email: '', password: '' }, { schema: loginSchema });
+  const next = safeNextPath(useQueryValue('next')); // the page they tried to open before logging in
+  const [app, setApp] = useState('hrms');
 
-  // Already logged in? Go to dashboard
+  // Pre-select the app of that page, otherwise the one picked here last time
   useEffect(() => {
-    if (!authLoading && user) router.replace('/dashboard');
+    setApp(next ? appForPath(next) : getLandingApp());
+  }, [next]);
+
+  // Back to the page they wanted if it belongs to the chosen app, else the app's home
+  const destination = (chosen) => (next && appForPath(next) === chosen ? next : APPS[chosen].home);
+
+  // Already logged in? Go straight in (read from the URL directly so it never waits for state)
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const wanted = safeNextPath(new URLSearchParams(window.location.search).get('next'));
+    router.replace(wanted || APPS[getLandingApp()].home);
   }, [authLoading, user, router]);
 
   const onSubmit = form.handleSubmit(async ({ email, password }) => {
     const loggedIn = await login(email, password);
     toast.success(loggedIn.mustChangePassword ? `Welcome, ${loggedIn.firstName}!` : `Welcome back, ${loggedIn.firstName}!`);
-    router.replace('/dashboard');
+    setLandingApp(app);
+    router.replace(destination(app));
   });
 
   return (
@@ -91,8 +109,32 @@ export default function LoginPage() {
             <span className="text-lg font-bold text-slate-900">PeopleHub</span>
           </div>
 
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in to your account</h2>
-          <p className="mt-1.5 text-sm text-slate-500">Welcome back! Please enter your details.</p>
+          {/* Which app to open after signing in (same account for both) */}
+          <div className="mb-8 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup" aria-label="Open after sign in">
+            {Object.entries(APPS).map(([key, { label }]) => {
+              const Icon = APP_ICONS[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={app === key}
+                  onClick={() => setApp(key)}
+                  className={clsx(
+                    'flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition',
+                    app === key ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  )}
+                >
+                  <Icon className="h-4 w-4" /> {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{app === 'chat' ? 'Sign in to Chat' : 'Sign in to your account'}</h2>
+          <p className="mt-1.5 text-sm text-slate-500">
+            {app === 'chat' ? 'Use your HRMS email and password.' : 'Welcome back! Please enter your details.'}
+          </p>
 
           <form onSubmit={onSubmit} noValidate className="mt-8 space-y-5">
             <Input label="Work email" type="email" autoComplete="email" placeholder="you@company.com" {...form.register('email')} />

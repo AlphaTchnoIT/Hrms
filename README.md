@@ -44,7 +44,8 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **Compliance checklist** | 20 built-in UK items (contracts, ACAS-based policies, right to work, insurance, PAYE / RTI, pension, ICO, DPA, international transfers, privacy notice, DPIA, retention, gender pay gap, modern slavery) with status, reviewer (lawyer / accountant), review dates, documents and reminders; add your own items |
 | **UK reports** | Bradford Factor (sickness), gender pay gap (mean, median, quartiles), UK compliance (right to work, minimum wage, pension, probation, notice) |
 | **Accounts & security** | One-time passwords for new accounts with a forced change at first login, forgot / reset password by email, sessions ended when a password changes, login and reset rate limits |
-| **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll or Live Work Status per company |
+| **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll, Live Work Status or Chat per company |
+| **Chat** | Its own full-screen app at `/chat` with the same login as HRMS: pick HRMS or Chat on the login page, switch with [HRMS | Chat] at the top (each opens in its own tab, so both can run side by side; logging out in one tab logs out the other). Live 1-to-1 and group chat (Socket.IO on the API port): online / on leave status, typing indicator, unread badges, "Seen" receipts, reply with quote, edit / delete own messages, emoji reactions, clickable links, "New messages" line, mute a chat, desktop notifications and a sound (browser built-ins, no outside service), emoji picker, photos and documents (max 5 MB, stored in MongoDB GridFS, removed after 90 days, 200 MB in total; paste or drag & drop), group admins add / remove people. Chats are private to their members (HR / admin cannot read them), messages are deleted after 1 year, leavers are disconnected at once. Can be switched off in Settings -> Modules |
 | **IT helpdesk** | Tickets with categories/priority, conversation, internal notes, assignment, resolve / reopen |
 | **Grievances & ideas** | Confidential (optionally anonymous) grievances visible only to HR; feedback & suggestions with management response |
 | **Leave summary** | Leave taken per type summed per quarter |
@@ -63,6 +64,7 @@ HRMS/
 │       ├── routes/           Express routers (one file per module)
 │       ├── middlewares/      auth (protect / authorize) and error handler
 │       ├── utils/            ApiError, response helper, date helpers, pagination
+│       ├── chat/             chat module (model, REST API, Socket.IO) kept together so it can move to its own service later
 │       ├── seed/             demo data + seed script
 │       ├── app.js            Express app
 │       └── server.js         entry point
@@ -186,4 +188,5 @@ GET    /payroll/my-payslips        GET  /payroll/payslips/:id
 /workspace/team   /reports   /reports/:type   /reports/management   /leaves/quarterly-summary
 /recruitment (HR ATS)   /careers (internal jobs, my applications, interview panels)   /public/application-status (no login)
 /learning    (programs, assignments, tests, attempts, records, reminders)   /support (tickets, grievances, suggestions)
+/chat        (conversations, direct, group, members, messages, read, unread, presence) + Socket.IO events on the same server
 ```

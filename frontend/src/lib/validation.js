@@ -350,7 +350,7 @@ export const settingsSchema = z
     weeklyOffs: z.array(z.number()).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
     attendanceBasedLop: z.boolean(),
-    features: z.object({ payroll: z.boolean(), workStatus: z.boolean() }),
+    features: z.object({ payroll: z.boolean(), workStatus: z.boolean(), chat: z.boolean() }),
     privacyNoticeUrl: optional(z.string().trim().url('Enter a valid link (https://...)')),
     dataRetentionYears: number('Retention years', { min: 1, max: 20, int: true, required: true }),
   })

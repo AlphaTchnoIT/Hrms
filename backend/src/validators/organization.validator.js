@@ -156,7 +156,7 @@ export const settingsSchema = z
     weeklyOffs: z.array(intRange('Weekly off', 0, 6)).max(6, 'At least one working day is required'),
     requireLocationForCheckIn: z.boolean(),
     payroll: ukPayrollSchema,
-    features: z.object({ payroll: z.boolean(), workStatus: z.boolean() }),
+    features: z.object({ payroll: z.boolean(), workStatus: z.boolean(), chat: z.boolean().default(true) }),
     policies: policiesSchema,
     registrations: registrationsSchema,
     privacyNoticeUrl: optional(url('Privacy notice link')),

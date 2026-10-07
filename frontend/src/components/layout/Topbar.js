@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { findNavItem } from '@/lib/navigation';
 import { Avatar, Badge } from '@/components/ui';
 import NotificationBell from './NotificationBell';
+import AppSwitcher from './AppSwitcher';
 import AttendanceChip from './AttendanceChip';
 import WorkStatusMenu from './WorkStatusMenu';
 
@@ -129,6 +130,7 @@ export default function Topbar({ onMenuClick }) {
       <div className="ml-auto flex items-center gap-2">
         <AttendanceChip />
         {features.workStatus && <WorkStatusMenu />}
+        <AppSwitcher current="hrms" />
         <NotificationBell />
         <UserMenu />
       </div>
