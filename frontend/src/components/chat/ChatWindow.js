@@ -51,7 +51,7 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
   const chat = useChat();
   const { on, sendTyping, setActiveConversation } = chat;
   const confirm = useConfirm();
-  const { call, startCall } = useCall();
+  const { call, startCall, activeCalls, maxParticipants } = useCall();
   const id = conversation._id;
 
   const [messages, setMessages] = useState([]);
@@ -596,6 +596,9 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
     .map((m) => m.firstName);
 
   const status = other ? presenceOf(other._id, chat) : null;
+  const liveCall = isGroup ? activeCalls[id] : null;
+  const liveCallFull = Boolean(liveCall && liveCall.participants.length >= maxParticipants);
+  const callNow = () => startCall({ conversationId: id, isGroup, title: conversationTitle(conversation, meId), peer: other });
 
   return (
     <div
@@ -624,14 +627,14 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
             {!isGroup && (otherLeft ? 'No longer with the company' : [PRESENCE_LABEL[status], other.designation?.title].filter(Boolean).join(' · '))}
           </p>
         </div>
-        {!isGroup && !otherLeft && (
+        {!otherLeft && (
           <Button
             variant="ghost"
             size="sm"
             icon={Phone}
-            label={status === 'offline' ? `Audio call (${other.firstName} is offline)` : 'Audio call'}
-            onClick={() => startCall(id, other)}
-            disabled={Boolean(call)}
+            label={isGroup ? (liveCall ? 'Join the group call' : 'Group audio call') : status === 'offline' ? `Audio call (${other.firstName} is offline)` : 'Audio call'}
+            onClick={callNow}
+            disabled={Boolean(call) || liveCallFull}
             className="text-emerald-600 hover:text-emerald-700"
           />
         )}
@@ -653,6 +656,23 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
         />
         {isGroup && <Button variant="ghost" size="sm" icon={Info} label="Group info" onClick={onOpenInfo} />}
       </div>
+
+      {/* A group call is going on and I'm not in it */}
+      {liveCall && call?.id !== liveCall.callId && (
+        <div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-3 py-2 text-sm sm:px-4">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-emerald-800">
+            Group call going on · {liveCall.participants.length} {liveCall.participants.length === 1 ? 'person' : 'people'}
+            {liveCallFull && ' · full'}
+          </span>
+          <Button variant="success" size="xs" icon={Phone} onClick={callNow} disabled={Boolean(call) || liveCallFull}>
+            Join
+          </Button>
+        </div>
+      )}
 
       {/* Messages (extra top padding leaves room for the first message's action bar) */}
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto bg-slate-50/60 px-3 pb-4 pt-10 sm:px-5">

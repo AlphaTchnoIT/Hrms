@@ -4,24 +4,35 @@ import { User } from '../models/index.js';
 import { Conversation, Message } from './chat.model.js';
 
 /*
- * 1-to-1 audio calls (WebRTC). The voice goes straight between the two browsers;
+ * Audio calls (WebRTC), 1-to-1 and in group chats. The voice goes straight between the browsers
+ * (in a group, every person connects to every other: a "mesh", fine for audio up to MAX_PARTICIPANTS);
  * this server only passes the set-up messages along ("signaling") over the chat socket:
- *   caller -> call:start { conversationId }      callee (all tabs) <- call:incoming
- *   callee -> call:accept { callId }             caller <- call:accepted, callee's other tabs <- call:ended (answered-elsewhere)
- *   callee -> call:reject / either -> call:end   both <- call:ended { reason }
- *   either -> call:signal { callId, data }       the other side's tab <- call:signal (offer / answer / ICE candidates)
- * Every call leaves a line in the chat ("Missed audio call from …", "Audio call · 3:12").
  *
+ *   call:start { conversationId }   -> the other members (all their tabs) <- call:incoming
+ *                                      a group that already has a call: { callId, existing: true }, join it instead
+ *   call:accept { callId }          -> join. Reply: who is already in; the joiner sends each of them an offer.
+ *                                      Those people <- call:joined { user }; the joiner's other tabs stop ringing
+ *   call:signal { callId, to, data } -> that person's tab <- call:signal { from, data } (offer / answer / ICE)
+ *   call:mute { callId, muted }     -> the others <- call:muted { userId, muted }
+ *   call:mute-request { callId, userId } (group admins and whoever started the call)
+ *                                   -> that person's tab <- call:muted-by { by }: their mic goes off, they can turn it back on
+ *   call:reject / call:leave        -> 1-to-1: the call ends. Group: the others <- call:left { userId };
+ *                                      the call ends when nobody is left
+ *   everyone <- call:ended { reason }, group members <- call:status (for the "Join call" bar in the chat)
+ *
+ * Every call leaves a line in the chat ("Missed audio call from …", "Group audio call · 12:30 · 4 people").
  * Calls are kept in memory, like presence: fine while the API runs as one server.
  */
 
+export const MAX_PARTICIPANTS = 8;
 const RING_TIMEOUT_MS = 45 * 1000;
 const MAX_SIGNAL_CHARS = 32 * 1024; // an SDP offer is a few KB
 const TURN_CREDENTIAL_TTL_S = 12 * 60 * 60;
 const USER_SELECT = 'firstName lastName avatar';
 
 const calls = new Map(); // callId -> call
-const busy = new Map(); // userId -> callId (one call at a time per person)
+const callOfConversation = new Map(); // conversationId -> callId (one call per chat)
+const busy = new Map(); // userId -> callId: in a call, or being rung for a 1-to-1 call
 
 let helpers = null; // { io, roomOf, isOnline, emitToUsers } from chat.socket.js
 
@@ -63,34 +74,77 @@ async function logCall(conversationId, memberIds, text) {
   }
 }
 
-// reason: declined | missed (no answer / cancelled / caller left) | ended | disconnected | failed
+const toRooms = (userIds) => userIds.map((id) => helpers.roomOf(id));
+const joinedIds = (call) => [...call.joined.keys()];
+
+// Group members see "Call in progress · 3 people · Join"
+function statusOf(call, active = true) {
+  return { callId: call.id, conversationId: call.conversationId, active, participants: active ? joinedIds(call) : [] };
+}
+function pushStatus(call, active = true) {
+  if (call.isGroup) helpers.io.to(toRooms(call.members)).emit('call:status', statusOf(call, active));
+}
+
+// Sends to the tab each person joined from
+function emitToJoined(call, event, payload, exceptUserId) {
+  const sockets = [...call.joined].filter(([userId]) => userId !== exceptUserId).map(([, socketId]) => socketId);
+  if (sockets.length) helpers.io.to(sockets).emit(event, payload);
+}
+
+function stopRinging(call) {
+  clearTimeout(call.ringTimer);
+  call.ringTimer = null;
+  if (!call.isGroup && busy.get(call.calleeId) === call.id && !call.joined.has(call.calleeId)) busy.delete(call.calleeId);
+}
+
+// reason: declined | missed | ended | failed
 function endCall(call, reason) {
   if (!calls.has(call.id)) return;
   calls.delete(call.id);
+  if (callOfConversation.get(call.conversationId) === call.id) callOfConversation.delete(call.conversationId);
   clearTimeout(call.ringTimer);
-  if (busy.get(call.callerId) === call.id) busy.delete(call.callerId);
-  if (busy.get(call.calleeId) === call.id) busy.delete(call.calleeId);
+  call.members.forEach((id) => busy.get(id) === call.id && busy.delete(id));
 
   const answered = Boolean(call.answeredAt);
   const finalReason = !answered && reason !== 'declined' ? 'missed' : reason;
-  helpers.io.to([helpers.roomOf(call.callerId), helpers.roomOf(call.calleeId)]).emit('call:ended', { callId: call.id, reason: finalReason });
+  helpers.io.to(toRooms(call.members)).emit('call:ended', { callId: call.id, reason: finalReason });
+  pushStatus(call, false);
 
   let text;
-  if (answered) text = `Audio call from ${call.callerName} · ${duration(Date.now() - call.answeredAt)}`;
+  if (call.isGroup) {
+    text = answered
+      ? `Group audio call · ${duration(Date.now() - call.answeredAt)} · ${call.everJoined.size} people`
+      : `Missed group audio call from ${call.callerName}`;
+  } else if (answered) text = `Audio call from ${call.callerName} · ${duration(Date.now() - call.answeredAt)}`;
   else if (finalReason === 'declined') text = `${call.calleeName} declined an audio call from ${call.callerName}`;
   else text = `Missed audio call from ${call.callerName}`;
-  logCall(call.conversationId, [call.callerId, call.calleeId], text);
+  logCall(call.conversationId, call.members, text);
 }
 
-// The call this socket is part of: the caller's tab, or the callee's tab that answered
-// (while ringing, any of the callee's tabs may answer or decline)
-function callOf(socket, callId) {
-  const call = calls.get(callId);
-  const me = socket.data.userId;
-  if (!call) return null;
-  if (call.callerId === me && call.callerSocket === socket.id) return call;
-  if (call.calleeId === me && (!call.answeredAt || call.calleeSocket === socket.id)) return call;
-  return null;
+function leave(call, userId) {
+  if (!call.joined.has(userId)) return;
+  call.joined.delete(userId);
+  call.muted.delete(userId);
+  if (busy.get(userId) === call.id) busy.delete(userId);
+  // 1-to-1: one side leaving ends it. Group: it goes on while anyone is in.
+  if (!call.isGroup || call.joined.size === 0) return endCall(call, 'ended');
+  emitToJoined(call, 'call:left', { callId: call.id, userId });
+  return pushStatus(call);
+}
+
+// Nobody answered in time: a 1-to-1 call or a group call nobody joined ends,
+// otherwise only the ringing stops (people can still join from the chat)
+function ringTimeout(call) {
+  call.ringTimer = null;
+  if (!call.answeredAt) return endCall(call, 'missed');
+  const notJoined = call.members.filter((id) => !call.joined.has(id));
+  if (notJoined.length) helpers.io.to(toRooms(notJoined)).emit('call:ended', { callId: call.id, reason: 'missed' });
+  return undefined;
+}
+
+async function peopleIn(call) {
+  const users = await User.find({ _id: { $in: joinedIds(call) } }).select(USER_SELECT).lean();
+  return users.map((user) => ({ user, muted: call.muted.has(String(user._id)) }));
 }
 
 export function initCalls(chatHelpers) {
@@ -100,87 +154,159 @@ export function initCalls(chatHelpers) {
 export function handleCallEvents(socket) {
   const me = socket.data.userId;
 
+  // Calls already going on in my group chats (just connected, or reconnected)
+  calls.forEach((call) => call.isGroup && call.members.includes(me) && socket.emit('call:status', statusOf(call)));
+
   socket.on('call:start', async (payload = {}, ack) => {
     try {
       if (busy.has(me)) return reply(ack, { error: 'You are already on a call' });
-      const conversation = await Conversation.findOne({ _id: payload.conversationId, type: 'direct', 'members.user': me }).select('members.user');
-      if (!conversation) return reply(ack, { error: 'Calls work in 1-to-1 chats only' });
-      const peerId = conversation.members.map((m) => String(m.user)).find((id) => id !== me);
-      const [caller, peer] = await Promise.all([
-        User.findById(me).select(USER_SELECT),
-        User.findOne({ _id: peerId, status: 'active' }).select(USER_SELECT),
-      ]);
-      if (!caller || !peer) return reply(ack, { error: 'This person is no longer with the company' });
+      const conversation = await Conversation.findOne({ _id: payload.conversationId, 'members.user': me }).select('type name members.user admins');
+      if (!conversation) return reply(ack, { error: 'Conversation not found' });
+      const conversationId = String(conversation._id);
+      const isGroup = conversation.type === 'group';
 
-      const memberIds = [me, peerId];
+      // Someone in this group started one already: join that
+      const existing = calls.get(callOfConversation.get(conversationId));
+      if (existing) return reply(ack, isGroup ? { callId: existing.id, existing: true } : { error: 'A call is already going on in this chat' });
+
+      const memberIds = conversation.members.map((m) => String(m.user));
+      const activeIds = (await User.find({ _id: { $in: memberIds }, status: 'active' }).distinct('_id')).map(String);
+      const caller = await User.findById(me).select(USER_SELECT);
+      if (!caller) return reply(ack, { error: 'Could not start the call, please try again' });
+      const others = activeIds.filter((id) => id !== me);
+      if (!others.length) return reply(ack, { error: isGroup ? 'Nobody else is in this group' : 'This person is no longer with the company' });
       if (busy.has(me)) return reply(ack, { error: 'You are already on a call' });
-      if (!helpers.isOnline(peerId) || busy.has(peerId)) {
-        await logCall(conversation._id, memberIds, `Missed audio call from ${fullName(caller)}`);
-        const why = busy.has(peerId) ? 'is on another call' : 'is offline';
-        return reply(ack, { error: `${peer.firstName} ${why}. They will see a missed call.` });
+
+      const reachable = others.filter((id) => helpers.isOnline(id) && !busy.has(id));
+      if (!reachable.length) {
+        if (!isGroup) {
+          const peer = await User.findById(others[0]).select('firstName');
+          const why = busy.has(others[0]) ? 'is on another call' : 'is offline';
+          await logCall(conversationId, memberIds, `Missed audio call from ${fullName(caller)}`);
+          return reply(ack, { error: `${peer.firstName} ${why}. They will see a missed call.` });
+        }
+        return reply(ack, { error: 'Nobody else in this group is online or free right now' });
       }
 
       const call = {
         id: crypto.randomUUID(),
-        conversationId: String(conversation._id),
+        conversationId,
+        isGroup,
+        members: [me, ...others],
         callerId: me,
-        calleeId: peerId,
         callerName: fullName(caller),
-        calleeName: fullName(peer),
-        callerSocket: socket.id,
-        calleeSocket: null,
-        answeredAt: null,
+        calleeId: isGroup ? null : others[0],
+        calleeName: null,
+        joined: new Map([[me, socket.id]]), // userId -> the tab they are in the call from
+        everJoined: new Set([me]),
+        muted: new Set(),
+        moderators: new Set([me, ...(isGroup ? conversation.admins.map(String) : [])]), // can mute others
+        answeredAt: null, // when a second person joined
       };
-      calls.set(call.id, call);
-      busy.set(me, call.id);
-      busy.set(peerId, call.id);
-      call.ringTimer = setTimeout(() => endCall(call, 'missed'), RING_TIMEOUT_MS);
+      if (!isGroup) call.calleeName = fullName(await User.findById(call.calleeId).select('firstName lastName'));
+      if (busy.has(me) || callOfConversation.has(conversationId)) return reply(ack, { error: 'Could not start the call, please try again' });
 
-      helpers.io.to(helpers.roomOf(peerId)).emit('call:incoming', {
-        callId: call.id,
-        conversationId: call.conversationId,
-        from: caller.toObject(),
-        iceServers: iceServersFor(peerId),
-      });
-      return reply(ack, { callId: call.id, peer: peer.toObject(), iceServers: iceServersFor(me) });
+      calls.set(call.id, call);
+      callOfConversation.set(conversationId, call.id);
+      busy.set(me, call.id);
+      if (!isGroup) busy.set(call.calleeId, call.id);
+      call.ringTimer = setTimeout(() => ringTimeout(call), RING_TIMEOUT_MS);
+
+      reachable.forEach((id) =>
+        helpers.io.to(helpers.roomOf(id)).emit('call:incoming', {
+          callId: call.id,
+          conversationId,
+          isGroup,
+          groupName: isGroup ? conversation.name : null,
+          from: caller.toObject(),
+          iceServers: iceServersFor(id),
+        })
+      );
+      pushStatus(call);
+      return reply(ack, { callId: call.id, iceServers: iceServersFor(me), canModerate: isGroup });
     } catch {
       return reply(ack, { error: 'Could not start the call, please try again' });
     }
   });
 
-  socket.on('call:accept', ({ callId } = {}, ack) => {
-    const call = callOf(socket, callId);
-    if (!call || call.calleeId !== me || call.answeredAt) return reply(ack, { error: 'This call has ended' });
-    clearTimeout(call.ringTimer);
-    call.answeredAt = Date.now();
-    call.calleeSocket = socket.id;
-    socket.to(helpers.roomOf(me)).emit('call:ended', { callId, reason: 'answered-elsewhere' });
-    helpers.io.to(call.callerSocket).emit('call:accepted', { callId });
-    return reply(ack, { ok: true });
+  // Answer a ringing call, or join a group call that is going on
+  socket.on('call:accept', async ({ callId } = {}, ack) => {
+    try {
+      const call = calls.get(callId);
+      if (!call || !call.members.includes(me) || call.joined.has(me)) return reply(ack, { error: 'This call has ended' });
+      if (!call.isGroup && call.calleeId !== me) return reply(ack, { error: 'This call has ended' });
+      if (call.joined.size >= MAX_PARTICIPANTS) return reply(ack, { error: `This call is full (${MAX_PARTICIPANTS} people)` });
+      if (busy.has(me) && busy.get(me) !== call.id) return reply(ack, { error: 'You are already on a call' });
+
+      const user = await User.findById(me).select(USER_SELECT).lean();
+      if (!calls.has(call.id) || call.joined.has(me)) return reply(ack, { error: 'This call has ended' });
+      const already = await peopleIn(call);
+
+      call.joined.set(me, socket.id);
+      call.everJoined.add(me);
+      busy.set(me, call.id);
+      if (!call.answeredAt) call.answeredAt = Date.now();
+      if (!call.isGroup) stopRinging(call);
+
+      socket.to(helpers.roomOf(me)).emit('call:ended', { callId, reason: 'answered-elsewhere' });
+      emitToJoined(call, 'call:joined', { callId, user }, me);
+      pushStatus(call);
+      return reply(ack, { ok: true, participants: already, iceServers: iceServersFor(me), canModerate: call.isGroup && call.moderators.has(me) });
+    } catch {
+      return reply(ack, { error: 'Could not join the call, please try again' });
+    }
   });
 
   socket.on('call:reject', ({ callId } = {}) => {
-    const call = callOf(socket, callId);
-    if (call && call.calleeId === me && !call.answeredAt) endCall(call, 'declined');
+    const call = calls.get(callId);
+    if (!call || !call.members.includes(me) || call.joined.has(me)) return;
+    if (!call.isGroup) {
+      if (call.calleeId === me) endCall(call, 'declined');
+      return;
+    }
+    // Group: stop ringing in my other tabs; the call goes on for the others
+    helpers.io.to(helpers.roomOf(me)).emit('call:ended', { callId, reason: 'answered-elsewhere' });
   });
 
-  socket.on('call:end', ({ callId, reason } = {}) => {
-    const call = callOf(socket, callId);
-    if (call) endCall(call, reason === 'failed' ? 'failed' : 'ended');
+  socket.on('call:leave', ({ callId, reason } = {}) => {
+    const call = calls.get(callId);
+    if (!call || call.joined.get(me) !== socket.id) return;
+    if (!call.isGroup && reason === 'failed') endCall(call, 'failed');
+    else leave(call, me);
   });
 
-  // Offer / answer / ICE candidates, passed to the other side's tab as they are
-  socket.on('call:signal', ({ callId, data } = {}) => {
-    const call = callOf(socket, callId);
-    if (!call || !call.answeredAt || !data || typeof data !== 'object') return;
-    if (JSON.stringify(data).length > MAX_SIGNAL_CHARS) return;
-    const target = call.callerId === me ? call.calleeSocket : call.callerSocket;
-    helpers.io.to(target).emit('call:signal', { callId, data });
+  // Offer / answer / ICE candidate for one person in the call, passed along as it is
+  socket.on('call:signal', ({ callId, to, data } = {}) => {
+    const call = calls.get(callId);
+    if (!call || call.joined.get(me) !== socket.id || !call.joined.has(String(to))) return;
+    if (!data || typeof data !== 'object' || JSON.stringify(data).length > MAX_SIGNAL_CHARS) return;
+    helpers.io.to(call.joined.get(String(to))).emit('call:signal', { callId, from: me, data });
   });
 
-  // Closed tab, lost connection, account deactivated: the call ends
+  socket.on('call:mute', ({ callId, muted } = {}) => {
+    const call = calls.get(callId);
+    if (!call || call.joined.get(me) !== socket.id) return;
+    if (muted) call.muted.add(me);
+    else call.muted.delete(me);
+    emitToJoined(call, 'call:muted', { callId, userId: me, muted: Boolean(muted) }, me);
+  });
+
+  // Group admins / the person who started the call can turn someone's mic off (they can turn it back on)
+  socket.on('call:mute-request', async ({ callId, userId } = {}, ack) => {
+    const call = calls.get(callId);
+    const target = String(userId);
+    if (!call || !call.isGroup || call.joined.get(me) !== socket.id || !call.joined.has(target) || target === me) {
+      return reply(ack, { error: 'This person is not in the call' });
+    }
+    if (!call.moderators.has(me)) return reply(ack, { error: 'Only group admins and whoever started the call can mute others' });
+    const by = await User.findById(me).select(USER_SELECT).lean();
+    helpers.io.to(call.joined.get(target)).emit('call:muted-by', { callId, by });
+    return reply(ack, { ok: true });
+  });
+
+  // Closed tab, lost connection, account deactivated: that person leaves the call
   socket.on('disconnect', () => {
     const call = calls.get(busy.get(me));
-    if (call && (call.callerSocket === socket.id || call.calleeSocket === socket.id)) endCall(call, 'disconnected');
+    if (call && call.joined.get(me) === socket.id) leave(call, me);
   });
 }

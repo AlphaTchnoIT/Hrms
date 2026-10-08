@@ -1,16 +1,19 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Users, Volume2, VolumeX } from 'lucide-react';
 import { Avatar } from '@/components/ui';
 import { getFullName } from '@/lib/format';
 import { useChat } from './ChatContext';
 
 /*
- * 1-to-1 audio calls over WebRTC: the voice goes straight between the two browsers, the server only
- * passes the set-up messages along on the chat socket (see backend/src/chat/chat.calls.js).
+ * Audio calls over WebRTC, 1-to-1 and in group chats (up to 8 people, everyone connected to everyone).
+ * The voice goes straight between the browsers; the server only passes the set-up messages along
+ * on the chat socket (see backend/src/chat/chat.calls.js).
  * Incoming calls ring in every open tab (HRMS and Chat); answering in one stops the others.
+ * Whoever joins sends an offer to each person already in the call.
  *
  * call.status: starting (asking for the mic / the server) -> calling (ringing at the other end)
  *              ringing (incoming) -> connecting -> active
@@ -18,8 +21,11 @@ import { useChat } from './ChatContext';
 const CallContext = createContext(null);
 
 const CONNECT_TIMEOUT_MS = 25 * 1000;
+const MAX_PARTICIPANTS = 8; // same as the server
+const SPEAKING_LEVEL = 0.04;
 
 const notificationsAllowed = () => typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
+const idOf = (user) => String(user?._id || user);
 
 // Ring tones made in the browser (no sound files). Returns a function that stops it.
 function startTone(kind) {
@@ -74,99 +80,207 @@ const clock = (ms) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 };
 
+// Plays one person's voice (a hidden <audio> per person in the call); muted = "mute for me"
+function RemoteAudio({ stream, muted }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const audio = ref.current;
+    if (!audio) return;
+    audio.srcObject = stream;
+    audio.play().catch(() => {});
+  }, [stream]);
+  return <audio ref={ref} autoPlay playsInline muted={muted} className="hidden" />;
+}
+
 export function CallProvider({ children }) {
   const { enabled, connected, on, emit } = useChat();
   const [call, setCall] = useState(null); // what the call panel shows
-  const callRef = useRef(null); // the live call: { id, peer, direction, iceServers, stream, pc, pendingCandidates, ... }
-  const audioRef = useRef(null);
+  const [streams, setStreams] = useState({}); // userId -> their voice
+  const [speaking, setSpeaking] = useState(() => new Set());
+  const [silenced, setSilenced] = useState(() => new Set()); // people I muted for myself only
+  const [activeCalls, setActiveCalls] = useState({}); // group chats with a call going on: conversationId -> { callId, participants }
+  // The live call: { id, conversationId, isGroup, title, caller, direction, iceServers, stream, joined, peers: Map(userId -> peer) }
+  const callRef = useRef(null);
 
   const update = useCallback((changes) => setCall((previous) => (previous ? { ...previous, ...changes } : previous)), []);
 
-  // Stops everything of the current call (tone, mic, connection, notification)
+  const setParticipant = useCallback((userId, changes) => {
+    setCall((previous) => {
+      if (!previous) return previous;
+      const exists = previous.participants.some((p) => idOf(p.user) === userId);
+      const participants = exists
+        ? previous.participants.map((p) => (idOf(p.user) === userId ? { ...p, ...changes } : p))
+        : [...previous.participants, { state: 'connecting', muted: false, ...changes }];
+      return { ...previous, participants };
+    });
+  }, []);
+
+  const dropPeer = useCallback((current, userId) => {
+    const peer = current.peers.get(userId);
+    if (peer) {
+      clearTimeout(peer.timer);
+      peer.pc.close();
+      current.peers.delete(userId);
+    }
+    setStreams(({ [userId]: _gone, ...rest }) => rest);
+    setCall((previous) => (previous ? { ...previous, participants: previous.participants.filter((p) => idOf(p.user) !== userId) } : previous));
+  }, []);
+
+  // Stops everything of the current call (tone, mic, connections, notification)
   const cleanup = useCallback(() => {
     const current = callRef.current;
     if (!current) return;
     callRef.current = null;
     current.stopTone?.();
     current.notification?.close();
-    clearTimeout(current.connectTimer);
-    current.pc?.close();
+    current.peers.forEach((peer) => {
+      clearTimeout(peer.timer);
+      peer.pc.close();
+    });
     current.stream?.getTracks().forEach((track) => track.stop());
-    if (audioRef.current) audioRef.current.srcObject = null;
+    setStreams({});
+    setSilenced(new Set());
     setCall(null);
   }, []);
 
   const fail = useCallback(
     (message) => {
       const current = callRef.current;
-      if (current?.id) emit('call:end', { callId: current.id, reason: 'failed' });
+      if (current?.id && current.joined) emit('call:leave', { callId: current.id, reason: 'failed' });
       cleanup();
       toast.error(message);
     },
     [emit, cleanup]
   );
 
-  const createPeer = useCallback(
-    (current) => {
-      const pc = new RTCPeerConnection({ iceServers: current.iceServers || [] });
-      current.stream.getTracks().forEach((track) => pc.addTrack(track, current.stream));
-      pc.onicecandidate = (event) => {
-        if (event.candidate) emit('call:signal', { callId: current.id, data: { candidate: event.candidate.toJSON() } });
-      };
-      pc.ontrack = (event) => {
-        if (!audioRef.current) return;
-        audioRef.current.srcObject = event.streams[0];
-        audioRef.current.play().catch(() => {});
-      };
-      pc.onconnectionstatechange = () => {
-        if (callRef.current !== current) return;
-        const state = pc.connectionState;
-        if (state === 'connected') {
-          clearTimeout(current.connectTimer);
-          current.startedAt = current.startedAt || Date.now();
-          update({ status: 'active', startedAt: current.startedAt, reconnecting: false });
-        } else if (state === 'disconnected') {
-          update({ reconnecting: true });
-        } else if (state === 'failed') {
-          fail('The call was cut off: the connection between you two was lost');
-        }
-      };
-      // Never connected: usually two networks that need a TURN server (see backend .env.example)
-      current.connectTimer = setTimeout(() => {
-        if (callRef.current === current && !current.startedAt) fail('Could not connect the call. Your networks may be blocking it, please try again.');
-      }, CONNECT_TIMEOUT_MS);
-      current.pc = pc;
-      current.pendingCandidates = [];
-      return pc;
+  // Could not reach one person: a 1-to-1 call is over, in a group the others carry on
+  const peerFailed = useCallback(
+    (current, peer) => {
+      if (!current.isGroup) {
+        fail(current.startedAt ? 'The call was cut off: the connection was lost' : 'Could not connect the call. Your networks may be blocking it, please try again.');
+        return;
+      }
+      clearTimeout(peer.timer);
+      peer.pc.close();
+      setParticipant(peer.userId, { state: 'failed' });
     },
-    [emit, update, fail]
+    [fail, setParticipant]
   );
 
-  // Outgoing: conversationId of a 1-to-1 chat, peer = the other member (for the panel)
+  const addPeer = useCallback(
+    (current, user) => {
+      const userId = idOf(user);
+      if (current.peers.has(userId)) return current.peers.get(userId);
+      const pc = new RTCPeerConnection({ iceServers: current.iceServers || [] });
+      current.stream.getTracks().forEach((track) => pc.addTrack(track, current.stream));
+      const peer = { userId, user, pc, pendingCandidates: [], connected: false };
+      pc.onicecandidate = (event) => {
+        if (event.candidate) emit('call:signal', { callId: current.id, to: userId, data: { candidate: event.candidate.toJSON() } });
+      };
+      pc.ontrack = (event) => setStreams((previous) => ({ ...previous, [userId]: event.streams[0] }));
+      pc.onconnectionstatechange = () => {
+        if (callRef.current !== current || current.peers.get(userId) !== peer) return;
+        const state = pc.connectionState;
+        if (state === 'connected') {
+          clearTimeout(peer.timer);
+          peer.connected = true;
+          current.startedAt = current.startedAt || Date.now();
+          update({ status: 'active', startedAt: current.startedAt });
+          setParticipant(userId, { state: 'connected' });
+        } else if (state === 'disconnected') {
+          setParticipant(userId, { state: 'reconnecting' });
+        } else if (state === 'failed') {
+          peerFailed(current, peer);
+        }
+      };
+      // Never connected: usually two networks that need the TURN server
+      peer.timer = setTimeout(() => {
+        if (callRef.current === current && current.peers.get(userId) === peer && !peer.connected) peerFailed(current, peer);
+      }, CONNECT_TIMEOUT_MS);
+      current.peers.set(userId, peer);
+      setParticipant(userId, { user, state: 'connecting' });
+      return peer;
+    },
+    [emit, update, setParticipant, peerFailed]
+  );
+
+  // Answer a ringing call / join a group call: send an offer to everyone already in
+  const join = useCallback(
+    async (current) => {
+      if (current.accepting) return;
+      current.accepting = true;
+      current.stopTone?.();
+      current.notification?.close();
+      update({ status: 'connecting' });
+      try {
+        current.stream = current.stream || (await getMicrophone());
+        if (callRef.current !== current) {
+          current.stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        const res = await emit('call:accept', { callId: current.id }, { ack: true });
+        if (res?.error) throw new Error(res.error);
+        if (callRef.current !== current) {
+          emit('call:leave', { callId: current.id });
+          return;
+        }
+        current.joined = true;
+        current.iceServers = res.iceServers || current.iceServers;
+        update({ canModerate: Boolean(res.canModerate) });
+        if (!res.participants.length) update({ status: 'calling' });
+        await Promise.all(
+          res.participants.map(async ({ user, muted }) => {
+            const { pc } = addPeer(current, user);
+            setParticipant(idOf(user), { muted });
+            await pc.setLocalDescription(await pc.createOffer());
+            emit('call:signal', { callId: current.id, to: idOf(user), data: { description: pc.localDescription.toJSON() } });
+          })
+        );
+      } catch (error) {
+        if (callRef.current === current) {
+          if (current.joined) emit('call:leave', { callId: current.id });
+          else emit('call:reject', { callId: current.id });
+          cleanup();
+        }
+        toast.error(error.message || 'Could not join the call');
+      }
+    },
+    [emit, update, addPeer, setParticipant, cleanup]
+  );
+
+  // Call from a chat: { conversationId, isGroup, title, peer (1-to-1) }.
+  // In a group that already has a call going on, this joins it.
   const startCall = useCallback(
-    async (conversationId, peer) => {
+    async ({ conversationId, isGroup, title, peer }) => {
       if (!enabled) return;
       if (callRef.current) {
         toast.error('You are already on a call');
         return;
       }
-      const current = { id: null, conversationId, peer, direction: 'out' };
+      const current = { id: null, conversationId, isGroup, title, caller: null, direction: 'out', joined: false, peers: new Map() };
       callRef.current = current;
-      setCall({ id: null, peer, direction: 'out', status: 'starting', muted: false });
+      setCall({ id: null, isGroup, title, peer, direction: 'out', status: 'starting', muted: false, participants: [] });
       try {
         current.stream = await getMicrophone();
         if (callRef.current !== current) throw new Error(''); // hung up meanwhile
         const res = await emit('call:start', { conversationId }, { ack: true });
         if (res?.error) throw new Error(res.error);
         current.id = res.callId;
+        if (res.existing) {
+          current.direction = 'in';
+          update({ id: res.callId, direction: 'in' });
+          await join(current);
+          return;
+        }
         current.iceServers = res.iceServers;
+        current.joined = true;
         // Hung up while the server was setting it up
         if (callRef.current !== current) {
-          emit('call:end', { callId: res.callId });
+          emit('call:leave', { callId: res.callId });
           return;
         }
         current.stopTone = startTone('outgoing');
-        update({ id: res.callId, status: 'calling' });
+        update({ id: res.callId, status: 'calling', canModerate: Boolean(res.canModerate) });
       } catch (error) {
         current.stream?.getTracks().forEach((track) => track.stop());
         if (callRef.current === current) {
@@ -176,93 +290,131 @@ export function CallProvider({ children }) {
         if (error.message) toast.error(error.message);
       }
     },
-    [enabled, emit, update]
+    [enabled, emit, update, join]
   );
 
-  const accept = useCallback(async () => {
+  const accept = useCallback(() => {
     const current = callRef.current;
-    if (!current || current.direction !== 'in' || current.accepting) return;
-    current.accepting = true;
-    current.stopTone?.();
-    current.notification?.close();
-    update({ status: 'connecting' });
-    try {
-      current.stream = await getMicrophone();
-      if (callRef.current !== current) return;
-      createPeer(current);
-      const res = await emit('call:accept', { callId: current.id }, { ack: true });
-      if (res?.error) throw new Error(res.error);
-    } catch (error) {
-      if (callRef.current === current) {
-        emit('call:reject', { callId: current.id });
-        cleanup();
-      }
-      toast.error(error.message);
-    }
-  }, [emit, update, createPeer, cleanup]);
+    if (current && current.direction === 'in' && !current.joined) join(current);
+  }, [join]);
 
   const hangUp = useCallback(() => {
     const current = callRef.current;
     if (!current) return;
-    if (current.id) emit(current.direction === 'in' && !current.accepting ? 'call:reject' : 'call:end', { callId: current.id });
+    if (current.id) {
+      if (current.joined) emit('call:leave', { callId: current.id });
+      else if (current.direction === 'in' && !current.accepting) emit('call:reject', { callId: current.id });
+      else if (current.direction === 'in') emit('call:leave', { callId: current.id });
+    }
     cleanup();
   }, [emit, cleanup]);
 
-  const toggleMute = useCallback(() => {
-    const track = callRef.current?.stream?.getAudioTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    update({ muted: !track.enabled });
-  }, [update]);
+  const setMicOn = useCallback(
+    (on) => {
+      const current = callRef.current;
+      const track = current?.stream?.getAudioTracks()[0];
+      if (!track || track.enabled === on) return;
+      track.enabled = on;
+      update({ muted: !on });
+      if (current.joined) emit('call:mute', { callId: current.id, muted: !on });
+    },
+    [emit, update]
+  );
+  const toggleMute = useCallback(() => setMicOn(!callRef.current?.stream?.getAudioTracks()[0]?.enabled), [setMicOn]);
+
+  // Stop hearing someone; only for me, the others still hear them
+  const toggleSilenced = useCallback((userId) => {
+    setSilenced((previous) => {
+      const next = new Set(previous);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }, []);
+
+  // Group admins / whoever started the call: turn someone's mic off (they can turn it back on)
+  const muteForEveryone = useCallback(
+    async (userId) => {
+      const current = callRef.current;
+      if (!current?.joined) return;
+      try {
+        const res = await emit('call:mute-request', { callId: current.id, userId }, { ack: true });
+        if (res?.error) throw new Error(res.error);
+      } catch (error) {
+        toast.error(error.message || 'Could not mute them');
+      }
+    },
+    [emit]
+  );
 
   useEffect(() => {
     if (!enabled) return undefined;
+    const isMine = (callId) => callRef.current && callRef.current.id === callId;
     const offs = [
-      on('call:incoming', ({ callId, conversationId, from, iceServers }) => {
-        if (callRef.current) return; // the server already says "busy", this is just in case
-        const current = { id: callId, conversationId, peer: from, direction: 'in', iceServers };
+      on('call:incoming', ({ callId, conversationId, isGroup, groupName, from, iceServers }) => {
+        if (callRef.current) return; // already on a call (or being rung): let it ring out
+        const title = isGroup ? groupName : getFullName(from);
+        const current = { id: callId, conversationId, isGroup, title, caller: from, direction: 'in', iceServers, joined: false, peers: new Map() };
         callRef.current = current;
         current.stopTone = startTone('incoming');
         if (document.visibilityState !== 'visible' && notificationsAllowed()) {
-          current.notification = new Notification(`Incoming call from ${getFullName(from)}`, { body: 'Audio call', tag: `call-${callId}`, requireInteraction: true });
+          const heading = isGroup ? `${getFullName(from)} is calling ${groupName}` : `Incoming call from ${getFullName(from)}`;
+          current.notification = new Notification(heading, { body: isGroup ? 'Group audio call' : 'Audio call', tag: `call-${callId}`, requireInteraction: true });
           current.notification.onclick = () => {
             window.focus();
             current.notification.close();
           };
         }
-        setCall({ id: callId, peer: from, direction: 'in', status: 'ringing', muted: false });
+        setCall({ id: callId, isGroup, title, peer: isGroup ? null : from, caller: from, direction: 'in', status: 'ringing', muted: false, participants: [] });
       }),
 
-      // The other person answered: send them our offer
-      on('call:accepted', async ({ callId }) => {
+      // Someone joined my call: they will send me an offer
+      on('call:joined', ({ callId, user }) => {
         const current = callRef.current;
-        if (!current || current.id !== callId || current.direction !== 'out') return;
+        if (!isMine(callId) || !current.joined) return;
         current.stopTone?.();
-        update({ status: 'connecting' });
-        try {
-          const pc = createPeer(current);
-          await pc.setLocalDescription(await pc.createOffer());
-          emit('call:signal', { callId, data: { description: pc.localDescription.toJSON() } });
-        } catch {
-          fail('Could not start the call, please try again');
-        }
+        current.stopTone = null;
+        if (!current.startedAt) update({ status: 'connecting' });
+        addPeer(current, user);
+        if (current.isGroup && current.startedAt) toast(`${user.firstName} joined the call`, { icon: '📞' });
       }),
 
-      on('call:signal', async ({ callId, data }) => {
+      on('call:left', ({ callId, userId }) => {
         const current = callRef.current;
-        const pc = current?.pc;
-        if (!pc || current.id !== callId) return;
+        if (!isMine(callId)) return;
+        const name = current.peers.get(userId)?.user?.firstName;
+        dropPeer(current, userId);
+        if (name) toast(`${name} left the call`, { icon: '👋' });
+        if (!current.peers.size) update({ status: 'calling', startedAt: current.startedAt });
+      }),
+
+      on('call:muted', ({ callId, userId, muted }) => {
+        if (isMine(callId)) setParticipant(userId, { muted });
+      }),
+
+      on('call:muted-by', ({ callId, by }) => {
+        if (!isMine(callId)) return;
+        setMicOn(false);
+        toast(`${by.firstName} muted you. Unmute when you want to speak.`, { icon: '🔇', duration: 6000 });
+      }),
+
+      on('call:signal', async ({ callId, from, data }) => {
+        const current = callRef.current;
+        if (!isMine(callId) || !current.joined) return;
+        const peer = current.peers.get(from);
+        if (!peer) return;
+        const { pc } = peer;
         try {
           if (data.description) {
             await pc.setRemoteDescription(data.description);
-            for (const candidate of current.pendingCandidates.splice(0)) await pc.addIceCandidate(candidate);
+            for (const candidate of peer.pendingCandidates.splice(0)) await pc.addIceCandidate(candidate);
             if (data.description.type === 'offer') {
               await pc.setLocalDescription(await pc.createAnswer());
-              emit('call:signal', { callId, data: { description: pc.localDescription.toJSON() } });
+              emit('call:signal', { callId, to: from, data: { description: pc.localDescription.toJSON() } });
             }
           } else if (data.candidate) {
             if (pc.remoteDescription) await pc.addIceCandidate(data.candidate);
-            else current.pendingCandidates.push(data.candidate);
+            else peer.pendingCandidates.push(data.candidate);
           }
         } catch {
           /* a candidate that does not fit, the others still can */
@@ -271,44 +423,106 @@ export function CallProvider({ children }) {
 
       on('call:ended', ({ callId, reason }) => {
         const current = callRef.current;
-        if (!current || current.id !== callId) return;
-        const name = current.peer?.firstName || 'They';
+        if (!isMine(callId)) return;
         const wasActive = Boolean(current.startedAt);
         cleanup();
         if (reason === 'answered-elsewhere') return;
+        const name = current.isGroup ? current.title : current.title?.split(' ')[0] || 'They';
         if (current.direction === 'out' && reason === 'declined') toast(`${name} declined the call`, { icon: '📵' });
-        else if (current.direction === 'out' && reason === 'missed') toast(`${name} didn't answer`, { icon: '📵' });
-        else if (current.direction === 'in' && reason === 'missed') toast(`Missed call from ${getFullName(current.peer)}`, { icon: '📵' });
-        else if (reason === 'failed') toast.error('The call was cut off: the connection was lost');
+        else if (current.direction === 'out' && reason === 'missed') toast(current.isGroup ? 'Nobody joined the call' : `${name} didn't answer`, { icon: '📵' });
+        else if (current.direction === 'in' && reason === 'missed' && !current.joined) {
+          toast(current.isGroup ? `Missed group call in ${current.title}` : `Missed call from ${current.title}`, { icon: '📵' });
+        } else if (reason === 'failed') toast.error('The call was cut off: the connection was lost');
         else if (wasActive) toast('Call ended', { icon: '📞' });
       }),
+
+      on('call:status', ({ conversationId, callId, active, participants }) =>
+        setActiveCalls((previous) => {
+          const next = { ...previous };
+          if (active) next[conversationId] = { callId, participants };
+          else delete next[conversationId];
+          return next;
+        })
+      ),
     ];
     return () => offs.forEach((off) => off());
-  }, [enabled, on, emit, update, createPeer, cleanup, fail]);
+  }, [enabled, on, emit, update, addPeer, dropPeer, setParticipant, setMicOn, cleanup]);
 
-  // Lost the chat connection: the server has already ended the call
+  // Lost the chat connection: the server has already taken us out of the call
   useEffect(() => {
-    if (!connected && callRef.current) {
+    if (connected) return;
+    setActiveCalls({}); // the server sends them again on reconnect
+    if (callRef.current) {
       cleanup();
       toast.error('Call dropped: you lost your connection');
     }
   }, [connected, cleanup]);
 
+  // Who is talking right now (a ring around their picture)
+  useEffect(() => {
+    const entries = Object.entries(streams);
+    if (!entries.length) {
+      setSpeaking((previous) => (previous.size ? new Set() : previous));
+      return undefined;
+    }
+    let context;
+    try {
+      context = new (window.AudioContext || window.webkitAudioContext)();
+    } catch {
+      return undefined;
+    }
+    const meters = entries.map(([userId, stream]) => {
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      return { userId, analyser, data: new Uint8Array(analyser.fftSize) };
+    });
+    const timer = setInterval(() => {
+      const now = new Set();
+      meters.forEach(({ userId, analyser, data }) => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (const value of data) sum += ((value - 128) / 128) ** 2;
+        if (Math.sqrt(sum / data.length) > SPEAKING_LEVEL) now.add(userId);
+      });
+      setSpeaking((previous) => (previous.size === now.size && [...now].every((id) => previous.has(id)) ? previous : now));
+    }, 300);
+    return () => {
+      clearInterval(timer);
+      context.close().catch(() => {});
+    };
+  }, [streams]);
+
   // Leaving the page ends the call cleanly
   useEffect(() => cleanup, [cleanup]);
 
-  const value = useMemo(() => ({ call, startCall }), [call, startCall]);
+  const value = useMemo(() => ({ call, startCall, activeCalls, maxParticipants: MAX_PARTICIPANTS }), [call, startCall, activeCalls]);
 
   return (
     <CallContext.Provider value={value}>
       {children}
-      <audio ref={audioRef} autoPlay playsInline className="hidden" />
-      {call && <CallPanel call={call} onAccept={accept} onHangUp={hangUp} onToggleMute={toggleMute} />}
+      {Object.entries(streams).map(([userId, stream]) => (
+        <RemoteAudio key={userId} stream={stream} muted={silenced.has(userId)} />
+      ))}
+      {call && (
+        <CallPanel
+          call={call}
+          speaking={speaking}
+          silenced={silenced}
+          onAccept={accept}
+          onHangUp={hangUp}
+          onToggleMute={toggleMute}
+          onToggleSilenced={toggleSilenced}
+          onMuteForEveryone={muteForEveryone}
+        />
+      )}
     </CallContext.Provider>
   );
 }
 
-function CallPanel({ call, onAccept, onHangUp, onToggleMute }) {
+const PARTICIPANT_STATE = { connecting: 'Connecting…', reconnecting: 'Reconnecting…', failed: "Couldn't connect" };
+
+function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone }) {
   const [, tick] = useState(0);
   useEffect(() => {
     if (call.status !== 'active') return undefined;
@@ -317,33 +531,88 @@ function CallPanel({ call, onAccept, onHangUp, onToggleMute }) {
   }, [call.status]);
 
   const ringing = call.direction === 'in' && call.status === 'ringing';
+  const reconnecting = call.participants.some((p) => p.state === 'reconnecting');
   let status = {
     starting: 'Starting…',
-    calling: 'Ringing…',
-    ringing: 'Incoming audio call',
+    calling: call.isGroup ? (call.startedAt ? 'Waiting for others…' : 'Calling the group…') : 'Ringing…',
+    ringing: call.isGroup ? `${call.caller?.firstName} is calling` : 'Incoming audio call',
     connecting: 'Connecting…',
   }[call.status];
-  if (call.status === 'active') status = call.reconnecting ? 'Reconnecting…' : clock(Date.now() - call.startedAt);
+  if (call.status === 'active') {
+    status = clock(Date.now() - call.startedAt);
+    if (call.isGroup) status += ` · ${call.participants.length + 1} people`;
+    else if (reconnecting) status = 'Reconnecting…';
+  }
 
   const roundButton = 'flex h-12 w-12 items-center justify-center rounded-full text-white shadow-md transition focus:outline-none focus-visible:ring-4';
+  const onePeer = !call.isGroup && (call.participants[0]?.user || call.peer);
 
   return (
     <div
       role="dialog"
-      aria-label={`Audio call with ${getFullName(call.peer)}`}
+      aria-label={`Audio call: ${call.title}`}
       className="fixed inset-x-3 bottom-3 z-[60] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-80"
     >
       <div className="flex items-center gap-3">
         <div className={ringing || call.status === 'calling' ? 'animate-pulse' : undefined}>
-          <Avatar name={getFullName(call.peer)} src={call.peer?.avatar} size="md" />
+          {call.isGroup ? (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+              <Users className="h-5 w-5" />
+            </div>
+          ) : (
+            <div className={clsx('rounded-full', onePeer && speaking.has(idOf(onePeer)) && 'ring-2 ring-emerald-500 ring-offset-2')}>
+              <Avatar name={getFullName(onePeer)} src={onePeer?.avatar} size="md" />
+            </div>
+          )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-slate-900">{getFullName(call.peer)}</p>
-          <p className={call.reconnecting ? 'text-sm text-amber-600' : 'text-sm text-slate-500'} aria-live="polite">
+          <p className="truncate font-semibold text-slate-900">{call.title}</p>
+          <p className={!call.isGroup && reconnecting ? 'text-sm text-amber-600' : 'text-sm text-slate-500'} aria-live="polite">
             {status}
           </p>
         </div>
       </div>
+
+      {call.isGroup && call.participants.length > 0 && (
+        <ul className="mt-3 max-h-52 space-y-1 overflow-y-auto border-t border-slate-100 pt-3">
+          {call.participants.map(({ user, state, muted }) => {
+            const userId = idOf(user);
+            const name = getFullName(user);
+            const quiet = silenced.has(userId);
+            return (
+              <li key={userId} className="flex items-center gap-2 text-sm">
+                <div className={clsx('rounded-full', speaking.has(userId) && !quiet && 'ring-2 ring-emerald-500 ring-offset-1')}>
+                  <Avatar name={name} src={user.avatar} size="sm" />
+                </div>
+                <span className="min-w-0 flex-1 truncate text-slate-700">{name}</span>
+                {PARTICIPANT_STATE[state] && <span className={clsx('text-xs', state === 'failed' ? 'text-red-500' : 'text-amber-600')}>{PARTICIPANT_STATE[state]}</span>}
+                {call.canModerate && !muted ? (
+                  <button
+                    onClick={() => onMuteForEveryone(userId)}
+                    aria-label={`Mute ${name} for everyone`}
+                    title="Mute for everyone"
+                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <Mic className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <span className={clsx('p-1', !muted && 'invisible')} title={muted ? 'Muted' : undefined}>
+                    <MicOff className="h-3.5 w-3.5 text-slate-400" />
+                  </span>
+                )}
+                <button
+                  onClick={() => onToggleSilenced(userId)}
+                  aria-label={quiet ? `Hear ${name} again` : `Stop hearing ${name} (only for you)`}
+                  title={quiet ? 'Hear them again' : 'Mute for me'}
+                  className={clsx('rounded-md p-1 hover:bg-slate-100', quiet ? 'text-amber-600' : 'text-slate-400 hover:text-slate-700')}
+                >
+                  {quiet ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <div className="mt-4 flex items-center justify-center gap-6">
         {ringing ? (
@@ -351,7 +620,7 @@ function CallPanel({ call, onAccept, onHangUp, onToggleMute }) {
             <button onClick={onHangUp} aria-label="Decline" title="Decline" className={`${roundButton} bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30`}>
               <PhoneOff className="h-5 w-5" />
             </button>
-            <button onClick={onAccept} aria-label="Answer" title="Answer" className={`${roundButton} bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/30`}>
+            <button onClick={onAccept} aria-label={call.isGroup ? 'Join' : 'Answer'} title={call.isGroup ? 'Join' : 'Answer'} className={`${roundButton} bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/30`}>
               <Phone className="h-5 w-5" />
             </button>
           </>
@@ -366,7 +635,12 @@ function CallPanel({ call, onAccept, onHangUp, onToggleMute }) {
             >
               {call.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
             </button>
-            <button onClick={onHangUp} aria-label="End call" title="End call" className={`${roundButton} bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30`}>
+            <button
+              onClick={onHangUp}
+              aria-label={call.isGroup ? 'Leave call' : 'End call'}
+              title={call.isGroup ? 'Leave call' : 'End call'}
+              className={`${roundButton} bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30`}
+            >
               <PhoneOff className="h-5 w-5" />
             </button>
           </>
