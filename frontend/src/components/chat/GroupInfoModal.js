@@ -11,7 +11,7 @@ import { PresenceAvatar } from './PresenceAvatar';
 import { PRESENCE_LABEL, presenceOf, sameId } from './chatUtils';
 import { useChat } from '@/context/ChatContext';
 
-// Members of a group; admins can rename it and add / remove people, everyone can leave
+// Members of a group; everyone can add people and leave, admins can also rename it and remove people
 export default function GroupInfoModal({ open, onClose, conversation, meId, onLeft }) {
   const chat = useChat();
   const confirm = useConfirm();
@@ -96,16 +96,16 @@ export default function GroupInfoModal({ open, onClose, conversation, meId, onLe
 
       {mode === 'members' && (
         <>
-          {isAdmin && (
-            <div className="mb-3 flex gap-2">
-              <Button size="sm" variant="secondary" icon={UserPlus} onClick={() => setMode('add')}>
-                Add people
-              </Button>
+          <div className="mb-3 flex gap-2">
+            <Button size="sm" variant="secondary" icon={UserPlus} onClick={() => setMode('add')}>
+              Add people
+            </Button>
+            {isAdmin && (
               <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setMode('rename')}>
                 Rename
               </Button>
-            </div>
-          )}
+            )}
+          </div>
           <ul className="divide-y divide-slate-100">
             {conversation.members.map((member) => (
               <li key={member._id} className="flex items-center gap-3 py-2.5">

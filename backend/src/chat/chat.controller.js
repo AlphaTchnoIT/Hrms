@@ -167,10 +167,10 @@ export async function renameGroup(req, res) {
   sendSuccess(res, { message: 'Group renamed' });
 }
 
-// POST /api/chat/conversations/:id/members { userIds } (group admins)
+// POST /api/chat/conversations/:id/members { userIds } (any member of the group)
 export async function addMembers(req, res) {
   const conversation = await loadConversation(req);
-  assertGroupAdmin(conversation, req.user._id);
+  if (conversation.type !== 'group') throw ApiError.badRequest('This is not a group chat');
 
   const existing = new Set(memberIds(conversation));
   const newIds = (await activeUserIds(req.body.userIds)).filter((id) => !existing.has(String(id)));

@@ -3,10 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { GripHorizontal, Maximize2, Mic, MicOff, Minus, Phone, PhoneOff, Users, Volume2, VolumeX } from 'lucide-react';
+import { GripHorizontal, Maximize2, Mic, MicOff, Minus, Phone, PhoneOff, UserPlus, Users, Volume2, VolumeX } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import AddToCallModal from '@/components/chat/AddToCallModal';
 import api from '@/lib/api';
 import { getFullName } from '@/lib/format';
+import { useAuth } from './AuthContext';
 import { useChat } from './ChatContext';
 
 /*
@@ -100,6 +102,8 @@ function RemoteAudio({ stream, muted }) {
 
 export function CallProvider({ children }) {
   const { enabled, connected, on, emit, openConversation } = useChat();
+  const { user: me } = useAuth();
+  const [adding, setAdding] = useState(null); // "Add people" open for { conversationId, isGroup }
   const [call, setCall] = useState(null); // what the call panel shows
   const [streams, setStreams] = useState({}); // userId -> their voice
   const [speaking, setSpeaking] = useState(() => new Set());
@@ -146,6 +150,7 @@ export function CallProvider({ children }) {
     current.stream?.getTracks().forEach((track) => track.stop());
     setStreams({});
     setSilenced(new Set());
+    setAdding(null);
     setCall(null);
   }, []);
 
@@ -436,6 +441,18 @@ export function CallProvider({ children }) {
         if (!current.peers.size) update({ status: 'calling', startedAt: current.startedAt });
       }),
 
+      // Someone added people to our 1-to-1 call: it is now a group call (same connections)
+      on('call:upgraded', ({ callId, conversationId, title, canModerate }) => {
+        const current = callRef.current;
+        if (!isMine(callId)) return;
+        current.isGroup = true;
+        current.conversationId = conversationId;
+        current.title = title;
+        update({ isGroup: true, title, canModerate });
+        setAdding(null);
+        toast('This is now a group call', { icon: '👥' });
+      }),
+
       on('call:muted', ({ callId, userId, muted }) => {
         if (isMine(callId)) setParticipant(userId, { muted });
       }),
@@ -544,6 +561,24 @@ export function CallProvider({ children }) {
   // Leaving the page ends the call cleanly
   useEffect(() => cleanup, [cleanup]);
 
+  const openAddPeople = useCallback(() => {
+    const current = callRef.current;
+    if (current?.joined) setAdding({ conversationId: current.conversationId, isGroup: current.isGroup });
+  }, []);
+
+  // Ring more people into the call (errors are shown by the "Add people" box)
+  const invite = useCallback(
+    async (userIds) => {
+      const current = callRef.current;
+      if (!current?.joined) throw new Error('This call has ended');
+      const res = await emit('call:invite', { callId: current.id, userIds }, { ack: true });
+      if (res?.error) throw new Error(res.error);
+      if (res.ringing) toast(`Ringing ${res.ringing} ${res.ringing === 1 ? 'person' : 'people'}…`, { icon: '📞' });
+      if (res.unreachable?.length) toast(`${res.unreachable.join(', ')} ${res.unreachable.length === 1 ? 'is' : 'are'} offline or on another call`, { icon: '📵' });
+    },
+    [emit]
+  );
+
   // Open my 1-to-1 chat with someone in the call (the call keeps going)
   const messagePerson = useCallback(
     async (user) => {
@@ -581,6 +616,18 @@ export function CallProvider({ children }) {
           onToggleSilenced={toggleSilenced}
           onMuteForEveryone={muteForEveryone}
           onMessage={messagePerson}
+          onAddPeople={openAddPeople}
+        />
+      )}
+      {call && adding && (
+        <AddToCallModal
+          open
+          onClose={() => setAdding(null)}
+          conversationId={adding.conversationId}
+          isGroup={adding.isGroup}
+          inCallIds={call.participants.map((p) => idOf(p.user))}
+          meId={me?._id}
+          onInvite={invite}
         />
       )}
     </CallContext.Provider>
@@ -704,7 +751,7 @@ function CallControls({ call, small, onToggleMute, onHangUp }) {
   );
 }
 
-function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone, onMessage }) {
+function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone, onMessage, onAddPeople }) {
   const [, tick] = useState(0);
   const [small, setSmall] = useState(false);
   const ringing = call.direction === 'in' && call.status === 'ringing';
@@ -732,7 +779,7 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
   const roundButton = 'flex h-12 w-12 items-center justify-center rounded-full text-white shadow-md transition focus:outline-none focus-visible:ring-4';
   const iconButton = 'rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700';
   const onePeer = !call.isGroup && (call.participants[0]?.user || call.peer);
-  const position = placed ? 'fixed z-[60]' : 'fixed bottom-3 right-3 z-[60] sm:bottom-5 sm:right-5';
+  const position = placed ? 'fixed z-[45]' : 'fixed bottom-3 right-3 z-[45] sm:bottom-5 sm:right-5';
 
   if (minimized) {
     // The small bar has no list of people, so say when someone has connection trouble
@@ -882,7 +929,19 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
             </button>
           </>
         ) : (
-          <CallControls call={call} onToggleMute={onToggleMute} onHangUp={onHangUp} />
+          <>
+            <CallControls call={call} onToggleMute={onToggleMute} onHangUp={onHangUp} />
+            {call.status === 'active' && (
+              <button
+                onClick={onAddPeople}
+                aria-label="Add people"
+                title="Add people"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-md transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/30"
+              >
+                <UserPlus className="h-5 w-5" />
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -14,6 +14,10 @@ import { Conversation, Message } from './chat.model.js';
  *                                      Those people <- call:joined { user }; the joiner's other tabs stop ringing
  *   call:signal { callId, to, data } -> that person's tab <- call:signal { from, data } (offer / answer / ICE)
  *   call:mute { callId, muted }     -> the others <- call:muted { userId, muted }
+ *   call:invite { callId, userIds } -> ring more people. A group call rings group members (new people are
+ *                                      added to the group first, by any member, over the REST API).
+ *                                      A 1-to-1 call becomes a new group with everyone; the call carries on
+ *                                      in it without reconnecting: the two people in it <- call:upgraded
  *   call:mute-request { callId, userId } (group admins and whoever started the call)
  *                                   -> that person's tab <- call:muted-by { by }: their mic goes off, they can turn it back on
  *   call:reject / call:leave        -> 1-to-1: the call ends. Group: the others <- call:left { userId };
@@ -103,6 +107,7 @@ function endCall(call, reason) {
   calls.delete(call.id);
   if (callOfConversation.get(call.conversationId) === call.id) callOfConversation.delete(call.conversationId);
   clearTimeout(call.ringTimer);
+  call.inviteTimers.forEach(clearTimeout);
   call.members.forEach((id) => busy.get(id) === call.id && busy.delete(id));
 
   const answered = Boolean(call.answeredAt);
@@ -140,6 +145,32 @@ function ringTimeout(call) {
   const notJoined = call.members.filter((id) => !call.joined.has(id));
   if (notJoined.length) helpers.io.to(toRooms(notJoined)).emit('call:ended', { callId: call.id, reason: 'missed' });
   return undefined;
+}
+
+// Ring people into a call that is going on; after the ring time, stop ringing the ones who did not join
+function ringInto(call, userIds, inviterId) {
+  if (!userIds.length) return;
+  userIds.forEach((id) =>
+    helpers.io.to(helpers.roomOf(id)).emit('call:incoming', {
+      callId: call.id,
+      conversationId: call.conversationId,
+      isGroup: true,
+      groupName: call.groupName,
+      from: call.people.get(inviterId),
+      iceServers: iceServersFor(id),
+    })
+  );
+  const timer = setTimeout(() => {
+    call.inviteTimers.delete(timer);
+    const notJoined = userIds.filter((id) => !call.joined.has(id));
+    if (calls.has(call.id) && notJoined.length) helpers.io.to(toRooms(notJoined)).emit('call:ended', { callId: call.id, reason: 'missed' });
+  }, RING_TIMEOUT_MS);
+  call.inviteTimers.add(timer);
+}
+
+const firstNames = (users) => users.map((u) => u.firstName);
+function listNames(names) {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || '';
 }
 
 // Who is in the call right now. No database read here: joining must not wait between
@@ -197,6 +228,8 @@ export function handleCallEvents(socket) {
         callerName: fullName(caller),
         calleeId: isGroup ? null : others[0],
         calleeName: null,
+        groupName: isGroup ? conversation.name : null,
+        inviteTimers: new Set(), // "ring more people" timers
         joined: new Map([[me, socket.id]]), // userId -> the tab they are in the call from
         everJoined: new Set([me]),
         muted: new Set(),
@@ -294,6 +327,67 @@ export function handleCallEvents(socket) {
     if (muted) call.muted.add(me);
     else call.muted.delete(me);
     emitToJoined(call, 'call:muted', { callId, userId: me, muted: Boolean(muted) }, me);
+  });
+
+  // Ring more people into the call (see the top of this file)
+  socket.on('call:invite', async ({ callId, userIds } = {}, ack) => {
+    try {
+      const call = calls.get(callId);
+      if (!call || call.joined.get(me) !== socket.id) return reply(ack, { error: 'You are not in this call' });
+      if (!call.answeredAt) return reply(ack, { error: 'Wait until someone has joined the call' });
+      const wanted = [...new Set((Array.isArray(userIds) ? userIds : []).map(String))].filter((id) => id !== me && !call.joined.has(id));
+      if (!wanted.length) return reply(ack, { error: 'Pick someone who is not in the call yet' });
+      if (call.joined.size + wanted.length > MAX_PARTICIPANTS) return reply(ack, { error: `A call can have up to ${MAX_PARTICIPANTS} people` });
+      const users = await User.find({ _id: { $in: wanted }, status: 'active' }).select(USER_SELECT).lean();
+      if (!users.length) return reply(ack, { error: 'They are no longer with the company' });
+      const ids = users.map((u) => String(u._id));
+
+      if (!call.isGroup) {
+        // 1-to-1 becomes a new group with everyone; the two people in it keep their connection
+        const everyone = [...new Set([call.callerId, call.calleeId, ...ids])];
+        const twoOf = await User.find({ _id: { $in: [call.callerId, call.calleeId] } }).select(USER_SELECT).lean();
+        const all = [...twoOf, ...users];
+        const name = listNames(firstNames(all)).slice(0, 80);
+        const conversation = await Conversation.create({
+          type: 'group',
+          name,
+          members: everyone.map((user) => ({ user, lastReadAt: new Date() })),
+          admins: [call.callerId, call.calleeId],
+          createdBy: me,
+        });
+        if (!calls.has(call.id) || call.isGroup) return reply(ack, { error: 'This call has ended' });
+        if (callOfConversation.get(call.conversationId) === call.id) callOfConversation.delete(call.conversationId);
+        call.conversationId = String(conversation._id);
+        call.isGroup = true;
+        call.groupName = name;
+        call.members = everyone;
+        call.moderators = new Set([call.callerId, call.calleeId]);
+        all.forEach((u) => call.people.set(String(u._id), u));
+        callOfConversation.set(call.conversationId, call.id);
+        emitToJoined(call, 'call:upgraded', { callId, conversationId: call.conversationId, title: name, canModerate: true });
+        // A first line in the new chat (also makes it show up in everyone's chat list)
+        await logCall(call.conversationId, everyone, `${call.people.get(me).firstName} added ${listNames(firstNames(users))} to the call`);
+      } else {
+        // Group call: only people in the group (new people are added to the group first)
+        const conversation = await Conversation.findById(call.conversationId).select('members.user');
+        const inGroup = new Set((conversation?.members || []).map((m) => String(m.user)));
+        if (ids.some((id) => !inGroup.has(id))) return reply(ack, { error: 'Add them to the group first' });
+        if (!calls.has(call.id)) return reply(ack, { error: 'This call has ended' });
+        users.forEach((u) => {
+          const id = String(u._id);
+          if (!call.members.includes(id)) call.members.push(id);
+          call.people.set(id, u);
+        });
+      }
+
+      const reachable = ids.filter((id) => helpers.isOnline(id) && !busy.has(id) && !call.joined.has(id));
+      ringInto(call, reachable, me);
+      pushStatus(call);
+      const unreachable = users.filter((u) => !reachable.includes(String(u._id))).map((u) => u.firstName);
+      return reply(ack, { ok: true, ringing: reachable.length, unreachable, conversationId: call.conversationId });
+    } catch {
+      return reply(ack, { error: 'Could not add them, please try again' });
+    }
   });
 
   // Group admins / the person who started the call can turn someone's mic off (they can turn it back on)
