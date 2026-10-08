@@ -18,7 +18,7 @@ import { useAuth } from './AuthContext';
 const ChatContext = createContext(null);
 
 // Events the server pushes (see backend/src/chat/chat.socket.js)
-const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'chat:saved', 'typing', 'call:incoming', 'call:accepted', 'call:signal', 'call:ended'];
+const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'chat:saved', 'typing'];
 
 const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -91,6 +91,10 @@ export function ChatProvider({ children }) {
     socketRef.current = socket;
     const handlers = listeners.current;
     EVENTS.forEach((event) => socket.on(event, (payload) => handlers.get(event)?.forEach((fn) => fn(payload))));
+    // Call events (see CallContext) are all passed on, so a new one can never be left out here
+    socket.onAny((event, payload) => {
+      if (event.startsWith('call:')) handlers.get(event)?.forEach((fn) => fn(payload));
+    });
 
     // (Re)connected: catch up on anything missed while offline
     socket.on('connect', () => {
