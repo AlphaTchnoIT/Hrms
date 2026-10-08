@@ -73,6 +73,12 @@ export function ChatProvider({ children }) {
     }
   }, []);
 
+  // In the chat tab: switch to that chat. In HRMS: open (or bring back) the chat tab on it.
+  const openConversation = useCallback((conversationId) => {
+    if (appForPath(window.location.pathname) === 'chat') listeners.current.get('ui:open')?.forEach((fn) => fn(String(conversationId)));
+    else openApp('chat', `/chat?c=${conversationId}`);
+  }, []);
+
   const refreshPresence = useCallback(async () => {
     try {
       const res = await api.get('/chat/presence');
@@ -113,11 +119,7 @@ export function ChatProvider({ children }) {
       })
     );
 
-    // In the chat tab: switch to that chat. In HRMS: open (or bring back) the chat tab on it.
-    const openChat = (conversationId) => {
-      if (appForPath(window.location.pathname) === 'chat') handlers.get('ui:open')?.forEach((fn) => fn(conversationId));
-      else openApp('chat', `/chat?c=${conversationId}`);
-    };
+    const openChat = openConversation;
 
     socket.on('message:new', ({ conversationId, message }) => {
       if (message.type === 'system' || message.sender?._id === userId) return;
@@ -203,7 +205,7 @@ export function ChatProvider({ children }) {
       socketRef.current = null;
       setConnected(false);
     };
-  }, [enabled, userId, refreshPresence, refreshUnread]);
+  }, [enabled, userId, refreshPresence, refreshUnread, openConversation]);
 
   // Subscribe to a socket event; returns the unsubscribe function (use inside useEffect)
   const on = useCallback((event, handler) => {
@@ -251,11 +253,12 @@ export function ChatProvider({ children }) {
       on,
       sendTyping,
       emit,
+      openConversation,
       setActiveConversation,
       setMuted,
       enableNotifications,
     }),
-    [enabled, connected, online, onLeave, unreadTotal, notificationPermission, refreshUnread, on, sendTyping, emit, setActiveConversation, setMuted, enableNotifications]
+    [enabled, connected, online, onLeave, unreadTotal, notificationPermission, refreshUnread, on, sendTyping, emit, openConversation, setActiveConversation, setMuted, enableNotifications]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

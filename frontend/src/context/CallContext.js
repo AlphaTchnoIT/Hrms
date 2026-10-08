@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { Mic, MicOff, Phone, PhoneOff, Users, Volume2, VolumeX } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import api from '@/lib/api';
 import { getFullName } from '@/lib/format';
 import { useChat } from './ChatContext';
 
@@ -98,7 +99,7 @@ function RemoteAudio({ stream, muted }) {
 }
 
 export function CallProvider({ children }) {
-  const { enabled, connected, on, emit } = useChat();
+  const { enabled, connected, on, emit, openConversation } = useChat();
   const [call, setCall] = useState(null); // what the call panel shows
   const [streams, setStreams] = useState({}); // userId -> their voice
   const [speaking, setSpeaking] = useState(() => new Set());
@@ -543,6 +544,24 @@ export function CallProvider({ children }) {
   // Leaving the page ends the call cleanly
   useEffect(() => cleanup, [cleanup]);
 
+  // Open my 1-to-1 chat with someone in the call (the call keeps going)
+  const messagePerson = useCallback(
+    async (user) => {
+      const current = callRef.current;
+      if (current && !current.isGroup) {
+        openConversation(current.conversationId);
+        return;
+      }
+      try {
+        const res = await api.post('/chat/conversations/direct', { userId: idOf(user) });
+        openConversation(res.data._id);
+      } catch (error) {
+        toast.error(error.response?.data?.message || error.message || 'Could not open the chat');
+      }
+    },
+    [openConversation]
+  );
+
   const value = useMemo(() => ({ call, startCall, activeCalls, maxParticipants: MAX_PARTICIPANTS }), [call, startCall, activeCalls]);
 
   return (
@@ -561,6 +580,7 @@ export function CallProvider({ children }) {
           onToggleMute={toggleMute}
           onToggleSilenced={toggleSilenced}
           onMuteForEveryone={muteForEveryone}
+          onMessage={messagePerson}
         />
       )}
     </CallContext.Provider>
@@ -569,7 +589,7 @@ export function CallProvider({ children }) {
 
 const PARTICIPANT_STATE = { connecting: 'Connecting…', reconnecting: 'Reconnecting…', failed: "Couldn't connect" };
 
-function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone }) {
+function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone, onMessage }) {
   const [, tick] = useState(0);
   useEffect(() => {
     if (call.status !== 'active') return undefined;
@@ -607,13 +627,24 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
               <Users className="h-5 w-5" />
             </div>
           ) : (
-            <div className={clsx('rounded-full', onePeer && speaking.has(idOf(onePeer)) && 'ring-2 ring-emerald-500 ring-offset-2')}>
+            <button
+              onClick={() => onMessage(onePeer)}
+              aria-label={`Message ${getFullName(onePeer)}`}
+              title={`Message ${getFullName(onePeer)}`}
+              className={clsx('block rounded-full', onePeer && speaking.has(idOf(onePeer)) && 'ring-2 ring-emerald-500 ring-offset-2')}
+            >
               <Avatar name={getFullName(onePeer)} src={onePeer?.avatar} size="md" />
-            </div>
+            </button>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-slate-900">{call.title}</p>
+          {call.isGroup || !onePeer ? (
+            <p className="truncate font-semibold text-slate-900">{call.title}</p>
+          ) : (
+            <button onClick={() => onMessage(onePeer)} title={`Message ${call.title}`} className="block max-w-full truncate text-left font-semibold text-slate-900 hover:text-brand-700 hover:underline">
+              {call.title}
+            </button>
+          )}
           <p className={!call.isGroup && reconnecting ? 'text-sm text-amber-600' : 'text-sm text-slate-500'} aria-live="polite">
             {status}
           </p>
@@ -628,10 +659,17 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
             const quiet = silenced.has(userId);
             return (
               <li key={userId} className="flex items-center gap-2 text-sm">
-                <div className={clsx('rounded-full', speaking.has(userId) && !quiet && 'ring-2 ring-emerald-500 ring-offset-1')}>
-                  <Avatar name={name} src={user.avatar} size="sm" />
-                </div>
-                <span className="min-w-0 flex-1 truncate text-slate-700">{name}</span>
+                <button
+                  onClick={() => onMessage(user)}
+                  aria-label={`Message ${name}`}
+                  title={`Message ${name}`}
+                  className="group flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left"
+                >
+                  <span className={clsx('shrink-0 rounded-full', speaking.has(userId) && !quiet && 'ring-2 ring-emerald-500 ring-offset-1')}>
+                    <Avatar name={name} src={user.avatar} size="sm" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-slate-700 group-hover:text-brand-700 group-hover:underline">{name}</span>
+                </button>
                 {PARTICIPANT_STATE[state] && <span className={clsx('text-xs', state === 'failed' ? 'text-red-500' : 'text-amber-600')}>{PARTICIPANT_STATE[state]}</span>}
                 {call.canModerate && !muted ? (
                   <button

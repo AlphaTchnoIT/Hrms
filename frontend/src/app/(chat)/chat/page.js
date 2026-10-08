@@ -162,7 +162,10 @@ export default function ChatPage() {
       // Folders created / renamed / reordered / deleted in another tab or device
       on('chat:folders', ({ folders: list }) => setFolders(list)),
       // A notification for another chat was clicked
-      on('ui:open', setActiveId),
+      on('ui:open', (conversationId) => {
+        if (!listRef.current.some((c) => c._id === conversationId)) refreshOne(conversationId);
+        setActiveId(conversationId);
+      }),
       on('conversation:removed', ({ conversationId }) => {
         setConversations((previous) => previous.filter((c) => c._id !== conversationId));
         if (activeRef.current === conversationId) setActiveId(null);
