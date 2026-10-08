@@ -600,57 +600,70 @@ function savedPosition() {
   }
 }
 
-function useDraggable() {
+const DRAG_THRESHOLD = 4; // px: a click or tap with a little jitter is not a move
+
+function useDraggable(sizeKey) {
   const ref = useRef(null);
   const drag = useRef(null);
-  const [position, setPosition] = useState(null); // null = bottom-right corner
-  useEffect(() => setPosition(savedPosition()), []);
+  // The panel only exists in the browser (it mounts when a call starts), so read the saved spot up front: no jump
+  const [position, setPosition] = useState(savedPosition); // null = bottom-right corner
 
+  // Never past the top / left edge, even when the panel is bigger than the window: the grip stays reachable
   const keepOnScreen = useCallback((x, y) => {
     const width = ref.current?.offsetWidth || 320;
     const height = ref.current?.offsetHeight || 120;
     return {
-      x: Math.round(Math.min(Math.max(8, x), window.innerWidth - width - 8)),
-      y: Math.round(Math.min(Math.max(8, y), window.innerHeight - height - 8)),
+      x: Math.round(Math.max(8, Math.min(x, window.innerWidth - width - 8))),
+      y: Math.round(Math.max(8, Math.min(y, window.innerHeight - height - 8))),
     };
   }, []);
 
-  // Window resized or the panel grew (more people, made big again): pull it back on screen
+  // Window resized, or the panel changed size (minimised, people joined): pull it back on screen
   useEffect(() => {
-    if (!position) return;
-    const next = keepOnScreen(position.x, position.y);
-    if (next.x !== position.x || next.y !== position.y) setPosition(next);
-  });
-  useEffect(() => {
-    const fit = () => setPosition((previous) => (previous ? keepOnScreen(previous.x, previous.y) : previous));
+    const fit = () =>
+      setPosition((previous) => {
+        if (!previous) return previous;
+        const next = keepOnScreen(previous.x, previous.y);
+        return next.x === previous.x && next.y === previous.y ? previous : next;
+      });
+    fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
-  }, [keepOnScreen]);
+  }, [keepOnScreen, sizeKey]);
+
+  // Drag over (or interrupted by alt-tab / a system gesture): remember where it was dropped
+  const finish = () => {
+    const done = drag.current;
+    drag.current = null;
+    if (!done?.last) return;
+    try {
+      localStorage.setItem(POSITION_KEY, JSON.stringify(done.last));
+    } catch {
+      /* not remembered, never mind */
+    }
+  };
 
   const handle = {
     onPointerDown: (e) => {
       if (e.button !== 0 || e.target.closest('button')) return;
       const rect = ref.current.getBoundingClientRect();
-      drag.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, moved: false };
+      drag.current = { startX: e.clientX, startY: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top, last: null };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     onPointerMove: (e) => {
-      if (!drag.current) return;
-      drag.current.moved = true;
-      setPosition(keepOnScreen(e.clientX - drag.current.dx, e.clientY - drag.current.dy));
-    },
-    onPointerUp: () => {
-      if (!drag.current) return;
-      const { moved } = drag.current;
-      drag.current = null;
-      if (!moved) return;
-      const rect = ref.current.getBoundingClientRect();
-      try {
-        localStorage.setItem(POSITION_KEY, JSON.stringify({ x: Math.round(rect.left), y: Math.round(rect.top) }));
-      } catch {
-        /* not remembered, never mind */
+      const current = drag.current;
+      if (!current) return;
+      if (!e.buttons) {
+        finish(); // the button was let go somewhere we did not hear about
+        return;
       }
+      if (!current.last && Math.hypot(e.clientX - current.startX, e.clientY - current.startY) < DRAG_THRESHOLD) return;
+      current.last = keepOnScreen(e.clientX - current.dx, e.clientY - current.dy);
+      setPosition(current.last);
     },
+    onPointerUp: finish,
+    onPointerCancel: finish,
+    onLostPointerCapture: finish,
     // Double-click: back to the corner
     onDoubleClick: (e) => {
       if (e.target.closest('button')) return;
@@ -666,18 +679,43 @@ function useDraggable() {
   return { ref, handle, style, placed: Boolean(position) };
 }
 
+// Mute + end / leave, the same in the full window and the small bar
+function CallControls({ call, small, onToggleMute, onHangUp }) {
+  const button = small
+    ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition focus:outline-none focus-visible:ring-4'
+    : 'flex h-12 w-12 items-center justify-center rounded-full text-white shadow-md transition focus:outline-none focus-visible:ring-4';
+  const icon = small ? 'h-4 w-4' : 'h-5 w-5';
+  const leaveLabel = call.isGroup ? 'Leave call' : 'End call';
+  return (
+    <>
+      <button
+        onClick={onToggleMute}
+        disabled={call.status === 'starting'}
+        aria-label={call.muted ? 'Unmute' : 'Mute'}
+        title={call.muted ? 'Unmute' : 'Mute'}
+        className={clsx(button, call.muted ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-500 hover:bg-slate-600', 'focus-visible:ring-slate-400/30 disabled:opacity-50')}
+      >
+        {call.muted ? <MicOff className={icon} /> : <Mic className={icon} />}
+      </button>
+      <button onClick={onHangUp} aria-label={leaveLabel} title={leaveLabel} className={clsx(button, 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30')}>
+        <PhoneOff className={icon} />
+      </button>
+    </>
+  );
+}
+
 function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute, onToggleSilenced, onMuteForEveryone, onMessage }) {
   const [, tick] = useState(0);
   const [small, setSmall] = useState(false);
-  const { ref, handle, style, placed } = useDraggable();
+  const ringing = call.direction === 'in' && call.status === 'ringing';
+  const minimized = small && !ringing; // a ringing call always shows Answer / Decline
+  const { ref, handle, style, placed } = useDraggable(`${minimized}:${call.participants.length}:${call.status}`);
   useEffect(() => {
     if (call.status !== 'active') return undefined;
     const timer = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(timer);
   }, [call.status]);
 
-  const ringing = call.direction === 'in' && call.status === 'ringing';
-  const minimized = small && !ringing; // a ringing call always shows Answer / Decline
   const reconnecting = call.participants.some((p) => p.state === 'reconnecting');
   let status = {
     starting: 'Starting…',
@@ -692,12 +730,14 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
   }
 
   const roundButton = 'flex h-12 w-12 items-center justify-center rounded-full text-white shadow-md transition focus:outline-none focus-visible:ring-4';
-  const smallButton = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition focus:outline-none focus-visible:ring-4';
   const iconButton = 'rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700';
   const onePeer = !call.isGroup && (call.participants[0]?.user || call.peer);
   const position = placed ? 'fixed z-[60]' : 'fixed bottom-3 right-3 z-[60] sm:bottom-5 sm:right-5';
 
   if (minimized) {
+    // The small bar has no list of people, so say when someone has connection trouble
+    const trouble = call.isGroup ? call.participants.filter((p) => p.state === 'reconnecting' || p.state === 'failed').length : 0;
+    const smallStatus = trouble ? `${trouble} ${trouble === 1 ? 'person has' : 'people have'} connection trouble` : status;
     return (
       <div
         ref={ref}
@@ -719,25 +759,11 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
         )}
         <span className="min-w-0 max-w-[9rem] leading-tight">
           <span className="block truncate text-sm font-semibold text-slate-900">{call.title}</span>
-          <span className={clsx('block truncate text-xs', !call.isGroup && reconnecting ? 'text-amber-600' : 'text-slate-500')}>{status}</span>
+          <span className={clsx('block truncate text-xs', trouble || (!call.isGroup && reconnecting) ? 'text-amber-600' : 'text-slate-500')} aria-live="polite">
+            {smallStatus}
+          </span>
         </span>
-        <button
-          onClick={onToggleMute}
-          disabled={call.status === 'starting'}
-          aria-label={call.muted ? 'Unmute' : 'Mute'}
-          title={call.muted ? 'Unmute' : 'Mute'}
-          className={clsx(smallButton, call.muted ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-500 hover:bg-slate-600', 'focus-visible:ring-slate-400/30 disabled:opacity-50')}
-        >
-          {call.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
-        <button
-          onClick={onHangUp}
-          aria-label={call.isGroup ? 'Leave call' : 'End call'}
-          title={call.isGroup ? 'Leave call' : 'End call'}
-          className={clsx(smallButton, 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30')}
-        >
-          <PhoneOff className="h-4 w-4" />
-        </button>
+        <CallControls call={call} small onToggleMute={onToggleMute} onHangUp={onHangUp} />
         <button onClick={() => setSmall(false)} aria-label="Show the full call window" title="Make big" className={iconButton}>
           <Maximize2 className="h-4 w-4" />
         </button>
@@ -751,7 +777,7 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
       role="dialog"
       aria-label={`Audio call: ${call.title}`}
       style={style}
-      className={clsx(position, 'w-[calc(100vw-24px)] rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1 shadow-2xl sm:w-80')}
+      className={clsx(position, 'max-h-[calc(100dvh-16px)] w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1 shadow-2xl sm:w-80')}
     >
       {/* Drag here to move the panel; double-click puts it back in the corner */}
       <div {...handle} className="-mx-2 mb-1 flex cursor-grab touch-none select-none items-center rounded-lg px-1 active:cursor-grabbing" title="Drag to move · double-click to reset">
@@ -856,25 +882,7 @@ function CallPanel({ call, speaking, silenced, onAccept, onHangUp, onToggleMute,
             </button>
           </>
         ) : (
-          <>
-            <button
-              onClick={onToggleMute}
-              disabled={call.status === 'starting'}
-              aria-label={call.muted ? 'Unmute' : 'Mute'}
-              title={call.muted ? 'Unmute' : 'Mute'}
-              className={`${roundButton} ${call.muted ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-500 hover:bg-slate-600'} focus-visible:ring-slate-400/30 disabled:opacity-50`}
-            >
-              {call.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            </button>
-            <button
-              onClick={onHangUp}
-              aria-label={call.isGroup ? 'Leave call' : 'End call'}
-              title={call.isGroup ? 'Leave call' : 'End call'}
-              className={`${roundButton} bg-red-600 hover:bg-red-700 focus-visible:ring-red-500/30`}
-            >
-              <PhoneOff className="h-5 w-5" />
-            </button>
-          </>
+          <CallControls call={call} onToggleMute={onToggleMute} onHangUp={onHangUp} />
         )}
       </div>
     </div>
