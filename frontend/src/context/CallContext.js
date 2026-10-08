@@ -13,19 +13,24 @@ import { useChat } from './ChatContext';
  * The voice goes straight between the browsers; the server only passes the set-up messages along
  * on the chat socket (see backend/src/chat/chat.calls.js).
  * Incoming calls ring in every open tab (HRMS and Chat); answering in one stops the others.
- * Whoever joins sends an offer to each person already in the call.
+ * Whoever joins sends an offer to each person already in the call. A connection that fails (or never
+ * connects) is retried with an ICE restart before that person shows as "Couldn't connect".
  *
  * call.status: starting (asking for the mic / the server) -> calling (ringing at the other end)
  *              ringing (incoming) -> connecting -> active
  */
 const CallContext = createContext(null);
 
-const CONNECT_TIMEOUT_MS = 25 * 1000;
+const CONNECT_TIMEOUT_MS = 30 * 1000;
+const MAX_RETRIES = 2;
 const MAX_PARTICIPANTS = 8; // same as the server
 const SPEAKING_LEVEL = 0.04;
 
 const notificationsAllowed = () => typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
 const idOf = (user) => String(user?._id || user);
+// Without a TURN server only people who can reach each other directly (often: the same network) connect
+const hasTurn = (iceServers = []) => iceServers.some((server) => [].concat(server.urls).some((url) => /^turns?:/.test(url)));
+const NO_TURN_HINT = 'Calls between different networks need the TURN server, which is not set up on the server yet.';
 
 // Ring tones made in the browser (no sound files). Returns a function that stops it.
 function startTone(kind) {
@@ -156,16 +161,50 @@ export function CallProvider({ children }) {
   // Could not reach one person: a 1-to-1 call is over, in a group the others carry on
   const peerFailed = useCallback(
     (current, peer) => {
+      const noTurn = !hasTurn(current.iceServers);
       if (!current.isGroup) {
-        fail(current.startedAt ? 'The call was cut off: the connection was lost' : 'Could not connect the call. Your networks may be blocking it, please try again.');
+        if (current.startedAt) fail('The call was cut off: the connection was lost');
+        else fail(noTurn ? `Could not connect the call. ${NO_TURN_HINT}` : 'Could not connect the call. Your networks may be blocking it, please try again.');
         return;
       }
       clearTimeout(peer.timer);
       peer.pc.close();
       setParticipant(peer.userId, { state: 'failed' });
+      if (noTurn && !current.warnedNoTurn) {
+        current.warnedNoTurn = true;
+        toast.error(`Couldn't connect to ${peer.user?.firstName || 'someone'}. ${NO_TURN_HINT}`, { duration: 8000 });
+      }
     },
     [fail, setParticipant]
   );
+
+  // A connection failed or did not come up in time: try again (ICE restart) before giving up.
+  // Only the side that sent the offer restarts; the other side waits for the new offer.
+  const troubleRef = useRef(null);
+  const armTimer = (current, peer) => {
+    clearTimeout(peer.timer);
+    peer.timer = setTimeout(() => {
+      if (callRef.current === current && current.peers.get(peer.userId) === peer && !peer.connected) troubleRef.current(current, peer);
+    }, CONNECT_TIMEOUT_MS);
+  };
+  troubleRef.current = async (current, peer) => {
+    if (peer.attempts >= MAX_RETRIES) {
+      peerFailed(current, peer);
+      return;
+    }
+    peer.attempts += 1;
+    peer.connected = false;
+    setParticipant(peer.userId, { state: 'reconnecting' });
+    armTimer(current, peer);
+    if (!peer.offerer) return;
+    try {
+      peer.pc.restartIce?.();
+      await peer.pc.setLocalDescription(await peer.pc.createOffer({ iceRestart: true }));
+      emit('call:signal', { callId: current.id, to: peer.userId, data: { description: peer.pc.localDescription.toJSON() } });
+    } catch {
+      /* the timer will try again or give up */
+    }
+  };
 
   const addPeer = useCallback(
     (current, user) => {
@@ -173,7 +212,7 @@ export function CallProvider({ children }) {
       if (current.peers.has(userId)) return current.peers.get(userId);
       const pc = new RTCPeerConnection({ iceServers: current.iceServers || [] });
       current.stream.getTracks().forEach((track) => pc.addTrack(track, current.stream));
-      const peer = { userId, user, pc, pendingCandidates: [], connected: false };
+      const peer = { userId, user, pc, pendingCandidates: [], connected: false, offerer: false, attempts: 0 };
       pc.onicecandidate = (event) => {
         if (event.candidate) emit('call:signal', { callId: current.id, to: userId, data: { candidate: event.candidate.toJSON() } });
       };
@@ -190,18 +229,16 @@ export function CallProvider({ children }) {
         } else if (state === 'disconnected') {
           setParticipant(userId, { state: 'reconnecting' });
         } else if (state === 'failed') {
-          peerFailed(current, peer);
+          troubleRef.current(current, peer);
         }
       };
-      // Never connected: usually two networks that need the TURN server
-      peer.timer = setTimeout(() => {
-        if (callRef.current === current && current.peers.get(userId) === peer && !peer.connected) peerFailed(current, peer);
-      }, CONNECT_TIMEOUT_MS);
+      // Never connected in time: try again, then give up (usually two networks that need the TURN server)
+      armTimer(current, peer);
       current.peers.set(userId, peer);
       setParticipant(userId, { user, state: 'connecting' });
       return peer;
     },
-    [emit, update, setParticipant, peerFailed]
+    [emit, update, setParticipant]
   );
 
   // Answer a ringing call / join a group call: send an offer to everyone already in
@@ -226,11 +263,16 @@ export function CallProvider({ children }) {
         }
         current.joined = true;
         current.iceServers = res.iceServers || current.iceServers;
+        if (!hasTurn(current.iceServers)) console.warn(`[calls] ${NO_TURN_HINT}`);
+        // People who joined after me while my answer was on its way: they send me their offer
+        (current.pendingJoined || []).forEach((user) => addPeer(current, user));
         update({ canModerate: Boolean(res.canModerate) });
         if (!res.participants.length) update({ status: 'calling' });
         await Promise.all(
           res.participants.map(async ({ user, muted }) => {
-            const { pc } = addPeer(current, user);
+            const peer = addPeer(current, user);
+            const { pc } = peer;
+            peer.offerer = true;
             setParticipant(idOf(user), { muted });
             await pc.setLocalDescription(await pc.createOffer());
             emit('call:signal', { callId: current.id, to: idOf(user), data: { description: pc.localDescription.toJSON() } });
@@ -274,6 +316,7 @@ export function CallProvider({ children }) {
         }
         current.iceServers = res.iceServers;
         current.joined = true;
+        if (!hasTurn(current.iceServers)) console.warn(`[calls] ${NO_TURN_HINT}`);
         // Hung up while the server was setting it up
         if (callRef.current !== current) {
           emit('call:leave', { callId: res.callId });
@@ -371,7 +414,11 @@ export function CallProvider({ children }) {
       // Someone joined my call: they will send me an offer
       on('call:joined', ({ callId, user }) => {
         const current = callRef.current;
-        if (!isMine(callId) || !current.joined) return;
+        if (!isMine(callId)) return;
+        if (!current.joined) {
+          if (current.accepting) (current.pendingJoined ||= []).push(user);
+          return;
+        }
         current.stopTone?.();
         current.stopTone = null;
         if (!current.startedAt) update({ status: 'connecting' });

@@ -142,10 +142,9 @@ function ringTimeout(call) {
   return undefined;
 }
 
-async function peopleIn(call) {
-  const users = await User.find({ _id: { $in: joinedIds(call) } }).select(USER_SELECT).lean();
-  return users.map((user) => ({ user, muted: call.muted.has(String(user._id)) }));
-}
+// Who is in the call right now. No database read here: joining must not wait between
+// "who is in" and "add me", or two people joining at once would miss each other.
+const peopleIn = (call) => joinedIds(call).map((id) => ({ user: call.people.get(id), muted: call.muted.has(id) }));
 
 export function initCalls(chatHelpers) {
   helpers = chatHelpers;
@@ -170,7 +169,8 @@ export function handleCallEvents(socket) {
       if (existing) return reply(ack, isGroup ? { callId: existing.id, existing: true } : { error: 'A call is already going on in this chat' });
 
       const memberIds = conversation.members.map((m) => String(m.user));
-      const activeIds = (await User.find({ _id: { $in: memberIds }, status: 'active' }).distinct('_id')).map(String);
+      const activeUsers = await User.find({ _id: { $in: memberIds }, status: 'active' }).select(USER_SELECT).lean();
+      const activeIds = activeUsers.map((u) => String(u._id));
       const caller = await User.findById(me).select(USER_SELECT);
       if (!caller) return reply(ack, { error: 'Could not start the call, please try again' });
       const others = activeIds.filter((id) => id !== me);
@@ -200,6 +200,7 @@ export function handleCallEvents(socket) {
         joined: new Map([[me, socket.id]]), // userId -> the tab they are in the call from
         everJoined: new Set([me]),
         muted: new Set(),
+        people: new Map(activeUsers.map((u) => [String(u._id), u])), // userId -> { _id, firstName, lastName, avatar }
         moderators: new Set([me, ...(isGroup ? conversation.admins.map(String) : [])]), // can mute others
         answeredAt: null, // when a second person joined
       };
@@ -238,10 +239,14 @@ export function handleCallEvents(socket) {
       if (call.joined.size >= MAX_PARTICIPANTS) return reply(ack, { error: `This call is full (${MAX_PARTICIPANTS} people)` });
       if (busy.has(me) && busy.get(me) !== call.id) return reply(ack, { error: 'You are already on a call' });
 
-      const user = await User.findById(me).select(USER_SELECT).lean();
-      if (!calls.has(call.id) || call.joined.has(me)) return reply(ack, { error: 'This call has ended' });
-      const already = await peopleIn(call);
+      const user = call.people.get(me) || (await User.findById(me).select(USER_SELECT).lean());
 
+      // From here on nothing waits: read who is in and add me in one go
+      if (!calls.has(call.id) || call.joined.has(me)) return reply(ack, { error: 'This call has ended' });
+      if (busy.has(me) && busy.get(me) !== call.id) return reply(ack, { error: 'You are already on a call' });
+      if (call.joined.size >= MAX_PARTICIPANTS) return reply(ack, { error: `This call is full (${MAX_PARTICIPANTS} people)` });
+      const already = peopleIn(call);
+      call.people.set(me, user);
       call.joined.set(me, socket.id);
       call.everJoined.add(me);
       busy.set(me, call.id);
@@ -292,15 +297,14 @@ export function handleCallEvents(socket) {
   });
 
   // Group admins / the person who started the call can turn someone's mic off (they can turn it back on)
-  socket.on('call:mute-request', async ({ callId, userId } = {}, ack) => {
+  socket.on('call:mute-request', ({ callId, userId } = {}, ack) => {
     const call = calls.get(callId);
     const target = String(userId);
     if (!call || !call.isGroup || call.joined.get(me) !== socket.id || !call.joined.has(target) || target === me) {
       return reply(ack, { error: 'This person is not in the call' });
     }
     if (!call.moderators.has(me)) return reply(ack, { error: 'Only group admins and whoever started the call can mute others' });
-    const by = await User.findById(me).select(USER_SELECT).lean();
-    helpers.io.to(call.joined.get(target)).emit('call:muted-by', { callId, by });
+    helpers.io.to(call.joined.get(target)).emit('call:muted-by', { callId, by: call.people.get(me) });
     return reply(ack, { ok: true });
   });
 
