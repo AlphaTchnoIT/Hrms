@@ -161,7 +161,7 @@ function ResetPasswordModal({ employee, onClose }) {
         </>
       }
     >
-      <form id="reset-password-form" onSubmit={onSubmit} noValidate>
+      <form id="reset-password-form" method="post" onSubmit={onSubmit} noValidate>
         <Input label="New password" type="password" required hint="At least 8 characters with a letter and a number" {...form.register('newPassword')} />
       </form>
     </Modal>

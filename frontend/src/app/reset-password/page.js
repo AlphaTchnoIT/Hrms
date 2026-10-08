@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
   return (
     <PublicCard title="Set a new password" subtitle="Use at least 8 characters with a letter and a number.">
       {token ? (
-        <form onSubmit={onSubmit} noValidate className="space-y-4">
+        <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
           <Input label="New password" type="password" autoComplete="new-password" {...form.register('newPassword')} />
           <Input label="Confirm new password" type="password" autoComplete="new-password" {...form.register('confirmPassword')} />
           <Button type="submit" loading={form.submitting} className="w-full">

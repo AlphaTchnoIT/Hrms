@@ -25,7 +25,7 @@ export default function ChangePasswordForm({ submitLabel = 'Update password', cu
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
       <Input label={currentLabel} type="password" autoComplete="current-password" required {...form.register('currentPassword')} />
       <Input label="New password" type="password" autoComplete="new-password" required hint="At least 8 characters with a letter and a number" {...form.register('newPassword')} />
       <Input label="Confirm new password" type="password" autoComplete="new-password" required {...form.register('confirmPassword')} />

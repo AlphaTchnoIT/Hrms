@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={onSubmit} noValidate className="space-y-4">
+        <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
           <Input label="Work email" type="email" autoComplete="email" placeholder="you@company.co.uk" {...form.register('email')} />
           <Button type="submit" loading={form.submitting} className="w-full">
             Send reset link

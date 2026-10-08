@@ -136,7 +136,8 @@ export default function LoginPage() {
             {app === 'chat' ? 'Use your HRMS email and password.' : 'Welcome back! Please enter your details.'}
           </p>
 
-          <form onSubmit={onSubmit} noValidate className="mt-8 space-y-5">
+          {/* method="post": if the page's JavaScript ever fails to load, the browser must not put the password in the URL */}
+          <form method="post" onSubmit={onSubmit} noValidate className="mt-8 space-y-5">
             <Input label="Work email" type="email" autoComplete="email" placeholder="you@company.com" {...form.register('email')} />
             <Input label="Password" type="password" autoComplete="current-password" placeholder="Enter your password" {...form.register('password')} />
             <div className="-mt-2 text-right">
