@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button, Input, Modal } from '@/components/ui';
 
 // New folder / rename folder. onSave(name) returns a promise; a thrown error is shown under the field.
-export default function FolderNameModal({ open, initialName = '', onClose, onSave }) {
+export default function FolderNameModal({
+  open,
+  initialName = '',
+  description = 'Only you see your folders. Move chats into it from a chat’s ⋯ menu.',
+  onClose,
+  onSave,
+}) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,7 +44,7 @@ export default function FolderNameModal({ open, initialName = '', onClose, onSav
       open={open}
       onClose={onClose}
       title={renaming ? 'Rename folder' : 'New folder'}
-      description={renaming ? undefined : 'Only you see your folders. Move chats into it from a chat’s ⋯ menu.'}
+      description={renaming ? undefined : description}
       size="sm"
       footer={
         <>

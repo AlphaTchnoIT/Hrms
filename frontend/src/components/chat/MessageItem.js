@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { CheckCheck, CircleAlert, CornerUpLeft, Pencil, Siren, Trash2 } from 'lucide-react';
+import { Bookmark, BookmarkCheck, CheckCheck, CircleAlert, CornerUpLeft, Pencil, Siren, Trash2 } from 'lucide-react';
 import { formatTime, getFullName } from '@/lib/format';
 import { Avatar } from '@/components/ui';
 import Attachment from './Attachment';
@@ -56,7 +56,7 @@ const PRIORITY_STYLE = {
  * Reactions + reply / edit / delete. Shown on hover, when the message or a button in the bar has
  * keyboard focus (Tab), or after tapping the message (mobile). It floats on the message's top corner.
  */
-function ActionBar({ mine, onReact, onReply, onEdit, onDelete, onSeenBy }) {
+function ActionBar({ mine, saved, onReact, onReply, onEdit, onDelete, onSeenBy, onToggleSave }) {
   const iconButton = 'rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400';
   return (
     <div
@@ -78,6 +78,11 @@ function ActionBar({ mine, onReact, onReply, onEdit, onDelete, onSeenBy }) {
       <button onClick={onReply} aria-label="Reply" title="Reply" className={iconButton}>
         <CornerUpLeft className="h-4 w-4" />
       </button>
+      {onToggleSave && (
+        <button onClick={onToggleSave} aria-label={saved ? 'Remove from saved' : 'Save message'} title={saved ? 'Remove from saved' : 'Save message'} className={iconButton}>
+          {saved ? <BookmarkCheck className="h-4 w-4 text-amber-600" /> : <Bookmark className="h-4 w-4" />}
+        </button>
+      )}
       {onSeenBy && (
         <button onClick={onSeenBy} aria-label="Seen by" title="Seen by" className={iconButton}>
           <CheckCheck className="h-4 w-4" />
@@ -118,6 +123,7 @@ export default function MessageItem({
   onDelete,
   onJumpTo,
   onSeenBy,
+  onToggleSave,
 }) {
   const mine = sameId(message.sender, meId);
   const deleted = Boolean(message.deletedAt);
@@ -186,7 +192,16 @@ export default function MessageItem({
           {/* After the message in the page order, so Tab goes message -> its actions */}
           {!deleted && (
             <div className={clsx(showActions ? 'block' : 'hidden', 'group-focus-within/msg:block group-hover/msg:block')}>
-              <ActionBar mine={mine} onReact={onReact} onReply={onReply} onEdit={onEdit} onDelete={onDelete} onSeenBy={mine && isGroup ? onSeenBy : null} />
+              <ActionBar
+                mine={mine}
+                saved={message.saved}
+                onReact={onReact}
+                onReply={onReply}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onSeenBy={mine && isGroup ? onSeenBy : null}
+                onToggleSave={onToggleSave}
+              />
             </div>
           )}
         </div>
@@ -213,6 +228,12 @@ export default function MessageItem({
         <span className="mt-0.5 px-1 text-[10px] text-slate-400">
           {formatTime(message.createdAt)}
           {message.editedAt && !deleted && ' · edited'}
+          {message.saved && !deleted && (
+            <>
+              {' · '}
+              <BookmarkCheck className="inline h-3 w-3 align-[-2px] text-amber-600" aria-label="Saved" />
+            </>
+          )}
           {seenLabel &&
             (isGroup ? (
               <>

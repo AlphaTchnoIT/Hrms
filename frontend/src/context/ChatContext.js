@@ -18,7 +18,7 @@ import { useAuth } from './AuthContext';
 const ChatContext = createContext(null);
 
 // Events the server pushes (see backend/src/chat/chat.socket.js)
-const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'typing'];
+const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'chat:saved', 'typing'];
 
 const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -157,6 +157,38 @@ export function ChatProvider({ children }) {
     socket.on('conversation:read', ({ userId: readerId }) => readerId === userId && refreshUnread());
     socket.on('conversation:removed', refreshUnread);
     // Muted / unmuted (here, in another tab or on another device)
+    // Urgent message still unread: notified again every 2 minutes (even in a muted chat, that's what Urgent is for)
+    socket.on('message:urgent', ({ conversationId, message }) => {
+      const looking = activeConversationId.current === conversationId && document.visibilityState === 'visible';
+      if (looking) return;
+      playPing();
+      const name = `URGENT: ${getFullName(message.sender)}`;
+      if (document.visibilityState !== 'visible' && notificationsSupported() && Notification.permission === 'granted') {
+        const notification = new Notification(name, { body: messagePreview(message), tag: `urgent-${message._id}`, requireInteraction: true, renotify: true });
+        notification.onclick = () => {
+          window.focus();
+          openChat(conversationId);
+          notification.close();
+        };
+      } else {
+        toast(
+          (t) => (
+            <button
+              className="block max-w-xs text-left"
+              onClick={() => {
+                toast.dismiss(t.id);
+                openChat(conversationId);
+              }}
+            >
+              <span className="block text-sm font-semibold text-red-700">{name}</span>
+              <span className="line-clamp-2 text-sm text-slate-600">{messagePreview(message)}</span>
+            </button>
+          ),
+          { id: `urgent-${message._id}`, icon: '🚨', duration: 15000 }
+        );
+      }
+    });
+
     socket.on('conversation:prefs', ({ conversationId, muted }) => {
       if (muted === true) mutedRef.current.add(conversationId);
       if (muted === false) mutedRef.current.delete(conversationId);

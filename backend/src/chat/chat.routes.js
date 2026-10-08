@@ -5,8 +5,10 @@ import {
   addMembers,
   createFolder,
   createGroup,
+  createSavedFolder,
   deleteFolder,
   deleteMessage,
+  deleteSavedFolder,
   downloadFile,
   editMessage,
   getConversation,
@@ -15,18 +17,23 @@ import {
   listConversations,
   listFolders,
   listMessages,
+  listSaved,
   markRead,
   moveToFolder,
   openDirectChat,
   removeMember,
   renameFolder,
   renameGroup,
+  renameSavedFolder,
   reorderFolders,
+  saveMessage,
+  searchMessages,
   sendAttachment,
   sendMessage,
   setMuted,
   setPinned,
   toggleReaction,
+  unsaveMessage,
 } from './chat.controller.js';
 import {
   addMembersSchema,
@@ -42,6 +49,7 @@ import {
   pinSchema,
   reactionSchema,
   renameGroupSchema,
+  saveMessageSchema,
 } from './chat.validator.js';
 import { receiveFile } from './chat.upload.js';
 
@@ -72,6 +80,13 @@ router.delete('/folders/:folderId', deleteFolder);
 router.patch('/messages/:id', validate(editMessageSchema), editMessage);
 router.post('/messages/:id/reactions', validate(reactionSchema), toggleReaction);
 router.delete('/messages/:id', deleteMessage);
+router.get('/search', searchMessages);
+router.get('/saved', listSaved);
+router.post('/saved', validate(saveMessageSchema), saveMessage);
+router.delete('/saved/:messageId', unsaveMessage);
+router.post('/saved-folders', validate(folderSchema), createSavedFolder);
+router.patch('/saved-folders/:folderId', validate(folderSchema), renameSavedFolder);
+router.delete('/saved-folders/:folderId', deleteSavedFolder);
 router.get('/unread', getUnreadTotal);
 router.get('/presence', getPresence);
 

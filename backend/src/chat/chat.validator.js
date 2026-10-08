@@ -50,3 +50,6 @@ export const folderOrderSchema = z.object({ folderIds: z.array(objectId('folder'
 
 // null / "" takes the chat out of its folder
 export const moveToFolderSchema = z.object({ folderId: optionalObjectId('folder') });
+
+// Save a message (optionally into one of my saved-message folders)
+export const saveMessageSchema = z.object({ messageId: objectId('message'), folderId: optionalObjectId('folder') });

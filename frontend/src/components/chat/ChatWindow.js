@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Bell, BellOff, CircleAlert, CornerUpLeft, Info, Paperclip, Pencil, Pin, PinOff, SendHorizontal, Siren, Smile, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, Bell, BellOff, CircleAlert, CornerUpLeft, Info, Paperclip, Pencil, Pin, PinOff, SendHorizontal, Siren, Smile, X } from 'lucide-react';
 import api from '@/lib/api';
 import { getFullName } from '@/lib/format';
 import { useChat } from '@/context/ChatContext';
@@ -46,7 +46,7 @@ function Divider({ children, tone = 'slate' }) {
   );
 }
 
-export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onRead, onPrefsChange, onTogglePin }) {
+export default function ChatWindow({ conversation, meId, focus, onBack, onOpenInfo, onRead, onPrefsChange, onTogglePin }) {
   const chat = useChat();
   const { on, sendTyping, setActiveConversation } = chat;
   const confirm = useConfirm();
@@ -54,6 +54,14 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
 
   const [messages, setMessages] = useState([]);
   const [hasMore, setHasMore] = useState(false);
+  // Opened at an older message (search / saved): newer messages exist below what is loaded
+  const [hasNewer, setHasNewer] = useState(false);
+  const hasNewerRef = useRef(false);
+  hasNewerRef.current = hasNewer;
+  const focusKey = focus ? `${focus.messageId}:${focus.at}` : '';
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const shownFocus = useRef(focusKey);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [text, setText] = useState('');
@@ -119,14 +127,18 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     setReplyTo(null);
     setEditing(null);
     setNewFromId(null);
-    stickToBottom.current = true;
+    // Opened from a search result / saved message: start around that message instead of the latest
+    const around = focusRef.current?.messageId;
+    stickToBottom.current = !around;
     api
-      .get(`/chat/conversations/${id}/messages`)
+      .get(`/chat/conversations/${id}/messages`, { params: around ? { around } : {} })
       .then((res) => {
         if (cancelled) return;
         setMessages(res.data);
         setHasMore(Boolean(res.meta?.hasMore));
-        if (hadUnread) {
+        setHasNewer(Boolean(res.meta?.hasNewer));
+        if (around) setTimeout(() => jumpTo(around), 60);
+        if (hadUnread && !around) {
           const first = res.data.find((m) => m.type !== 'system' && !sameId(m.sender, meId) && (!readUpTo || new Date(m.createdAt) > readUpTo));
           setNewFromId(first?._id || null);
         }
@@ -146,7 +158,46 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     };
   }, [id, meId, setActiveConversation, markRead]);
 
-  const replaceMessage = useCallback((message) => setMessages((previous) => previous.map((m) => (m._id === message._id ? message : m))), []);
+  // Keeps my own "saved" flag (the server doesn't send it with live updates)
+  const replaceMessage = useCallback(
+    (message) => setMessages((previous) => previous.map((m) => (m._id === message._id ? { ...message, saved: message.saved ?? m.saved } : m))),
+    []
+  );
+
+  // Back to the newest messages (after jumping to an older one)
+  const loadLatest = useCallback(async () => {
+    try {
+      const res = await api.get(`/chat/conversations/${id}/messages`);
+      stickToBottom.current = true;
+      setMessages(res.data);
+      setHasMore(Boolean(res.meta?.hasMore));
+      setHasNewer(false);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }, [id]);
+
+  // Another search result / saved message in this same chat was opened
+  useEffect(() => {
+    if (!focusKey || focusKey === shownFocus.current) return;
+    shownFocus.current = focusKey;
+    const target = focusRef.current.messageId;
+    if (document.getElementById(`msg-${target}`)) {
+      jumpTo(target);
+      return;
+    }
+    api
+      .get(`/chat/conversations/${id}/messages`, { params: { around: target } })
+      .then((res) => {
+        stickToBottom.current = false;
+        setMessages(res.data);
+        setHasMore(Boolean(res.meta?.hasMore));
+        setHasNewer(Boolean(res.meta?.hasNewer));
+        setTimeout(() => jumpTo(target), 60);
+      })
+      .catch((err) => toast.error(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, id]);
 
   // Live events for this chat
   useEffect(() => {
@@ -163,11 +214,16 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     const offs = [
       on('message:new', ({ conversationId, message }) => {
         if (conversationId !== id) return;
-        setMessages((previous) => (previous.some((m) => m._id === message._id) ? previous : [...previous, message]));
+        // Looking at older messages: don't append after a gap, "Jump to latest" shows it
+        if (!hasNewerRef.current) setMessages((previous) => (previous.some((m) => m._id === message._id) ? previous : [...previous, message]));
         if (message.sender?._id) clearTyping(message.sender._id);
         if (!sameId(message.sender, meId)) markRead();
       }),
       on('message:updated', ({ conversationId, message }) => conversationId === id && replaceMessage(message)),
+      // Saved / unsaved (maybe in another tab)
+      on('chat:saved', ({ messageId, saved }) => {
+        if (messageId) setMessages((previous) => previous.map((m) => (m._id === messageId ? { ...m, saved } : m)));
+      }),
       // A file reached the 90-day limit and was removed
       on('message:file-removed', ({ conversationId, messageId }) => {
         if (conversationId !== id) return;
@@ -325,7 +381,8 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
       setPriority('standard');
       setTimeout(resizeInput, 0);
       stickToBottom.current = true;
-      addMessage(res.data);
+      if (hasNewerRef.current) await loadLatest(); // was looking at older messages
+      else addMessage(res.data);
     } catch (err) {
       toast.error(err.errors?.file || err.message);
     } finally {
@@ -363,7 +420,8 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
       }
       stickToBottom.current = true;
       const res = await api.post(`/chat/conversations/${id}/messages`, { text: body, replyTo: quoting?._id, priority: sendPriority, mentions });
-      addMessage(res.data);
+      if (hasNewerRef.current) await loadLatest(); // was looking at older messages
+      else addMessage(res.data);
       setPriority('standard');
       mentionIds.current.clear();
     } catch (err) {
@@ -467,6 +525,18 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     try {
       const res = await api.post(`/chat/messages/${message._id}/reactions`, { emoji });
       replaceMessage(res.data);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // Bookmark / un-bookmark a message (my "Saved messages")
+  const toggleSave = async (message) => {
+    setActionsFor(null);
+    try {
+      const res = message.saved ? await api.delete(`/chat/saved/${message._id}`) : await api.post('/chat/saved', { messageId: message._id });
+      setMessages((previous) => previous.map((m) => (m._id === message._id ? { ...m, saved: !message.saved } : m)));
+      toast.success(res.message);
     } catch (err) {
       toast.error(err.message);
     }
@@ -632,6 +702,7 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
                 onEdit={() => startEdit(message)}
                 onDelete={() => remove(message)}
                 onJumpTo={jumpTo}
+                onToggleSave={() => toggleSave(message)}
                 onSeenBy={() => {
                   setActionsFor(null);
                   setSeenByMessage(message);
@@ -640,6 +711,14 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
             </Fragment>
           );
         })}
+
+        {hasNewer && (
+          <div className="sticky bottom-2 z-10 mt-4 flex justify-center">
+            <Button size="sm" icon={ArrowDown} onClick={loadLatest} className="shadow-pop">
+              Jump to latest
+            </Button>
+          </div>
+        )}
 
         {typingNames.length > 0 && (
           <p className="mt-3 animate-pulse px-1 text-xs italic text-slate-500">

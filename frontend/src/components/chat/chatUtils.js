@@ -91,7 +91,7 @@ export function messagePreview(message) {
 export const CHAT_PRIORITIES = {
   standard: { label: 'Standard', hint: 'Message will be sent as usual' },
   important: { label: 'Important', hint: 'Message will be marked as important' },
-  urgent: { label: 'Urgent', hint: 'Marked urgent so it stands out' },
+  urgent: { label: 'Urgent', hint: 'Recipients notified every 2 min for 20 min' },
 };
 
 /*

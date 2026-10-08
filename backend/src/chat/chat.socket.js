@@ -8,7 +8,8 @@ import { Conversation } from './chat.model.js';
  * Real-time part of chat (Socket.IO on the same port as the API).
  * Messages are saved through the REST API (validated there); the socket only pushes events:
  *   message:new, message:updated, message:deleted, message:file-removed, conversation:updated, conversation:removed, conversation:read,
- *   conversation:prefs ({ muted } / { pinned } / { folder }, only to that user), chat:folders (only to that user),
+ *   conversation:prefs ({ muted } / { pinned } / { folder }, only to that user), chat:folders, chat:saved (only to that user),
+ *   message:urgent (repeat notification of an unread Urgent message),
  *   typing, presence
  * Every user joins the room "user:<id>", so pushing to someone reaches all their open tabs.
  *

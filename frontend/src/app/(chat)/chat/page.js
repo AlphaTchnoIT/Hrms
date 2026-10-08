@@ -10,6 +10,7 @@ import { useChat } from '@/context/ChatContext';
 import { useQueryValue } from '@/hooks/useTabParam';
 import { Button, EmptyState, useConfirm } from '@/components/ui';
 import FolderNameModal from '@/components/chat/FolderNameModal';
+import SavedView from '@/components/chat/SavedView';
 import ConversationList from '@/components/chat/ConversationList';
 import ChatWindow from '@/components/chat/ChatWindow';
 import NewChatModal from '@/components/chat/NewChatModal';
@@ -29,6 +30,8 @@ export default function ChatPage() {
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [folders, setFolders] = useState([]); // my own chat folders, in my order
+  const [savedOpen, setSavedOpen] = useState(false); // "Saved messages" shown on the right
+  const [focus, setFocus] = useState(null); // { messageId, at }: jump to this message in the open chat
   // { folder } to rename, { conversation } to move into the new folder, {} for a plain new folder
   const [folderModal, setFolderModal] = useState(null);
   const confirm = useConfirm();
@@ -244,17 +247,38 @@ export default function ChatPage() {
   }
 
   const active = conversations.find((c) => c._id === activeId);
+  const showSaved = savedOpen && !active;
+  const panelOpen = Boolean(active) || showSaved;
+
+  const selectChat = (id) => {
+    setSavedOpen(false);
+    setFocus(null);
+    setActiveId(id);
+  };
+
+  // From a search result or a saved message: open that chat scrolled to the message
+  const openMessage = (conversationId, messageId) => {
+    setSavedOpen(false);
+    setActiveId(String(conversationId));
+    setFocus({ conversationId: String(conversationId), messageId: String(messageId), at: Date.now() });
+  };
 
   return (
     <>
       <div className="flex h-full overflow-hidden bg-white sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-card">
-        <aside className={clsx('w-full shrink-0 border-r border-slate-100 md:block md:w-80', active ? 'hidden' : 'block')}>
+        <aside className={clsx('w-full shrink-0 border-r border-slate-100 md:block md:w-80', panelOpen ? 'hidden' : 'block')}>
           <ConversationList
             conversations={conversations}
             loading={loading}
             activeId={activeId}
             meId={meId}
-            onSelect={setActiveId}
+            onSelect={selectChat}
+            onOpenMessage={openMessage}
+            onOpenSaved={() => {
+              setActiveId(null);
+              setSavedOpen(true);
+            }}
+            savedActive={showSaved}
             onNewChat={() => setNewChatOpen(true)}
             onTogglePin={togglePin}
             folders={folders}
@@ -265,12 +289,14 @@ export default function ChatPage() {
             onMoveFolder={moveFolder}
           />
         </aside>
-        <section className={clsx('min-w-0 flex-1', active ? 'flex' : 'hidden md:flex')}>
+        <section className={clsx('min-w-0 flex-1', panelOpen ? 'flex' : 'hidden md:flex')}>
+          {showSaved && <SavedView conversations={conversations} meId={meId} onOpenMessage={openMessage} onBack={() => setSavedOpen(false)} />}
           {active ? (
             <ChatWindow
               key={active._id}
               conversation={active}
               meId={meId}
+              focus={focus?.conversationId === active._id ? focus : null}
               onBack={() => setActiveId(null)}
               onOpenInfo={() => setInfoOpen(true)}
               onRead={onRead}
@@ -278,6 +304,7 @@ export default function ChatPage() {
               onTogglePin={() => togglePin(active)}
             />
           ) : (
+            !showSaved && (
             <div className="flex flex-1 items-center justify-center">
               <EmptyState
                 icon={MessageSquare}
@@ -286,6 +313,7 @@ export default function ChatPage() {
                 action={<Button onClick={() => setNewChatOpen(true)}>New chat</Button>}
               />
             </div>
+            )
           )}
         </section>
       </div>

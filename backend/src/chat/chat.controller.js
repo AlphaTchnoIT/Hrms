@@ -2,8 +2,8 @@ import { LeaveRequest, Settings, User } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { todayInTz } from '../utils/date.js';
-import { CHAT_FILE_RETENTION_DAYS, CHAT_FILES_TOTAL_BYTES, CHAT_MAX_FOLDERS, CHAT_MAX_PINNED } from '../constants/index.js';
-import { ChatFolder, Conversation, Message, directKeyFor } from './chat.model.js';
+import { CHAT_FILE_RETENTION_DAYS, CHAT_FILES_TOTAL_BYTES, CHAT_MAX_FOLDERS, CHAT_MAX_PINNED, CHAT_MAX_SAVED_FOLDERS } from '../constants/index.js';
+import { ChatFolder, Conversation, Message, SavedFolder, SavedMessage, directKeyFor } from './chat.model.js';
 import { emitToUsers, onlineUserIds } from './chat.socket.js';
 import { deleteFile, openFile, saveFile, totalStoredBytes } from './chat.storage.js';
 import { checkFile } from './chat.upload.js';
@@ -201,7 +201,12 @@ export async function removeMember(req, res) {
   // Last person out: nothing left to keep
   if (!conversation.members.length) {
     const fileIds = await Message.find({ conversation: conversation._id, 'attachment.fileId': { $exists: true } }).distinct('attachment.fileId');
-    await Promise.all([...fileIds.map(deleteFile), Message.deleteMany({ conversation: conversation._id }), conversation.deleteOne()]);
+    await Promise.all([
+      ...fileIds.map(deleteFile),
+      Message.deleteMany({ conversation: conversation._id }),
+      SavedMessage.deleteMany({ conversation: conversation._id }),
+      conversation.deleteOne(),
+    ]);
     return sendSuccess(res, { message: 'You left the group' });
   }
   // A group always keeps an admin: the longest-standing member takes over
@@ -241,9 +246,34 @@ async function pushMessageUpdate(conversation, message) {
   return data;
 }
 
-// GET /api/chat/conversations/:id/messages?before=<ISO date>  -> oldest first, PAGE_SIZE at a time
+// Adds saved: true to the messages I have saved
+async function withSavedFlags(views, userId) {
+  if (!views.length) return views;
+  const saved = new Set((await SavedMessage.find({ user: userId, message: { $in: views.map((m) => m._id) } }).distinct('message')).map(String));
+  return views.map((m) => (saved.has(String(m._id)) ? { ...m, saved: true } : m));
+}
+
+/*
+ * GET /api/chat/conversations/:id/messages
+ *   ?before=<ISO date>   -> older page; oldest first, PAGE_SIZE at a time (meta.hasMore)
+ *   ?around=<messageId>  -> that message with some before and after it, for jumping to a search result
+ *                           (meta.hasMore = older exist, meta.hasNewer = newer exist)
+ */
 export async function listMessages(req, res) {
   const conversation = await loadConversation(req);
+
+  if (req.query.around) {
+    const target = await Message.findOne({ _id: req.query.around, conversation: conversation._id }).select('createdAt');
+    if (!target) throw ApiError.notFound('Message not found');
+    const half = PAGE_SIZE / 2;
+    const [older, newer] = await Promise.all([
+      Message.find({ conversation: conversation._id, createdAt: { $lt: target.createdAt } }).populate(MESSAGE_POPULATE).sort({ createdAt: -1 }).limit(half + 1),
+      Message.find({ conversation: conversation._id, createdAt: { $gte: target.createdAt } }).populate(MESSAGE_POPULATE).sort({ createdAt: 1 }).limit(half + 1),
+    ]);
+    const data = [...older.slice(0, half).reverse(), ...newer.slice(0, half)].map(messageView);
+    return sendSuccess(res, { data: await withSavedFlags(data, req.user._id), meta: { hasMore: older.length > half, hasNewer: newer.length > half } });
+  }
+
   const filter = { conversation: conversation._id };
   const before = req.query.before ? new Date(req.query.before) : null;
   if (before && !Number.isNaN(before.getTime())) filter.createdAt = { $lt: before };
@@ -253,7 +283,158 @@ export async function listMessages(req, res) {
     .sort({ createdAt: -1 })
     .limit(PAGE_SIZE + 1);
   const hasMore = messages.length > PAGE_SIZE;
-  sendSuccess(res, { data: messages.slice(0, PAGE_SIZE).reverse().map(messageView), meta: { hasMore } });
+  const data = messages.slice(0, PAGE_SIZE).reverse().map(messageView);
+  return sendSuccess(res, { data: await withSavedFlags(data, req.user._id), meta: { hasMore } });
+}
+
+/* --------------------------------- search ---------------------------------- */
+
+// GET /api/chat/search?q=…  -> my messages matching the text, newest first (only chats I'm in)
+export async function searchMessages(req, res) {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) throw ApiError.field('q', 'Type at least 2 letters to search');
+  if (q.length > 100) throw ApiError.field('q', 'Search is too long');
+
+  const mine = await Conversation.find({ 'members.user': req.user._id }).distinct('_id');
+  const pattern = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const messages = await Message.find({
+    conversation: { $in: mine },
+    type: 'text',
+    deletedAt: null,
+    $or: [{ text: pattern }, { 'attachment.name': pattern }],
+  })
+    .populate('sender', SENDER_SELECT)
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .lean();
+  sendSuccess(res, {
+    data: messages.map((m) => ({
+      _id: m._id,
+      conversation: m.conversation,
+      sender: m.sender,
+      text: m.text,
+      attachment: m.attachment ? { kind: m.attachment.kind, name: m.attachment.name } : undefined,
+      priority: m.priority,
+      createdAt: m.createdAt,
+    })),
+  });
+}
+
+/* ------------------------------ saved messages ----------------------------- */
+// Each user's bookmarks, optionally in their own saved-message folders (separate from chat folders)
+
+const mySavedFolders = (userId) => SavedFolder.find({ user: userId }).sort({ order: 1, createdAt: 1 }).select('name order');
+
+async function pushSaved(userId, extra = {}) {
+  emitToUsers([userId], 'chat:saved', { folders: await mySavedFolders(userId), ...extra });
+}
+
+async function savedFolderOrNull(userId, folderId) {
+  if (!folderId) return null;
+  const folder = await SavedFolder.findOne({ _id: folderId, user: userId }).select('name');
+  if (!folder) throw ApiError.field('folderId', 'Folder not found');
+  return folder;
+}
+
+// GET /api/chat/saved?folder=<id>|none  -> saved messages (newest saved first) + my saved-message folders
+export async function listSaved(req, res) {
+  const me = req.user._id;
+  const filter = { user: me };
+  if (req.query.folder === 'none') filter.folder = null;
+  else if (req.query.folder) filter.folder = req.query.folder;
+
+  const [items, folders, myChats] = await Promise.all([
+    SavedMessage.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(300)
+      .populate({ path: 'message', select: 'sender text type attachment priority deletedAt createdAt', populate: { path: 'sender', select: SENDER_SELECT } })
+      .lean(),
+    mySavedFolders(me),
+    Conversation.find({ 'members.user': me }).distinct('_id'),
+  ]);
+  const inChat = new Set(myChats.map(String));
+  const data = items.map((item) => {
+    const m = item.message;
+    // Gone (expired after a year), deleted, or I'm no longer in that chat
+    const available = m && !m.deletedAt && inChat.has(String(item.conversation));
+    return {
+      _id: item._id,
+      messageId: m?._id || null,
+      conversation: item.conversation,
+      folder: item.folder ? String(item.folder) : null,
+      savedAt: item.createdAt,
+      available: Boolean(available),
+      message: available
+        ? {
+            _id: m._id,
+            sender: m.sender,
+            text: m.text,
+            priority: m.priority,
+            createdAt: m.createdAt,
+            attachment: m.attachment ? { kind: m.attachment.kind, name: m.attachment.name, removedAt: m.attachment.removedAt } : undefined,
+          }
+        : null,
+    };
+  });
+  sendSuccess(res, { data, meta: { folders } });
+}
+
+// POST /api/chat/saved { messageId, folderId? }  (saving again just moves it to that folder)
+export async function saveMessage(req, res) {
+  const me = req.user._id;
+  const message = await Message.findById(req.body.messageId).select('conversation type deletedAt');
+  if (!message || message.type === 'system' || message.deletedAt || !(await Conversation.exists({ _id: message.conversation, 'members.user': me }))) {
+    throw ApiError.notFound('Message not found');
+  }
+  const folder = await savedFolderOrNull(me, req.body.folderId);
+  await SavedMessage.updateOne(
+    { user: me, message: message._id },
+    { $set: { folder: folder?._id || null }, $setOnInsert: { conversation: message.conversation } },
+    { upsert: true }
+  );
+  await pushSaved(me, { messageId: String(message._id), saved: true });
+  sendSuccess(res, { data: { saved: true, folder: folder ? String(folder._id) : null }, message: folder ? `Saved to "${folder.name}"` : 'Message saved' });
+}
+
+// DELETE /api/chat/saved/:messageId
+export async function unsaveMessage(req, res) {
+  await SavedMessage.deleteOne({ user: req.user._id, message: req.params.messageId });
+  await pushSaved(req.user._id, { messageId: String(req.params.messageId), saved: false });
+  sendSuccess(res, { data: { saved: false }, message: 'Removed from saved' });
+}
+
+// POST /api/chat/saved-folders { name }
+export async function createSavedFolder(req, res) {
+  const me = req.user._id;
+  if ((await SavedFolder.countDocuments({ user: me })) >= CHAT_MAX_SAVED_FOLDERS) throw ApiError.badRequest(`You can have up to ${CHAT_MAX_SAVED_FOLDERS} folders`);
+  await assertFolderNameFree(SavedFolder, me, req.body.name);
+  const last = await SavedFolder.findOne({ user: me }).sort({ order: -1 }).select('order');
+  const folder = await SavedFolder.create({ user: me, name: req.body.name, order: (last?.order ?? -1) + 1 });
+  await pushSaved(me);
+  sendSuccess(res, { data: folder, message: `Folder "${folder.name}" created`, status: 201 });
+}
+
+// PATCH /api/chat/saved-folders/:folderId { name }
+export async function renameSavedFolder(req, res) {
+  const me = req.user._id;
+  const folder = await SavedFolder.findOne({ _id: req.params.folderId, user: me });
+  if (!folder) throw ApiError.notFound('Folder not found');
+  await assertFolderNameFree(SavedFolder, me, req.body.name, folder._id);
+  folder.name = req.body.name;
+  await folder.save();
+  await pushSaved(me);
+  sendSuccess(res, { data: folder, message: 'Folder renamed' });
+}
+
+// DELETE /api/chat/saved-folders/:folderId -> its messages stay saved, without a folder
+export async function deleteSavedFolder(req, res) {
+  const me = req.user._id;
+  const folder = await SavedFolder.findOne({ _id: req.params.folderId, user: me });
+  if (!folder) throw ApiError.notFound('Folder not found');
+  await SavedMessage.updateMany({ user: me, folder: folder._id }, { $set: { folder: null } });
+  await folder.deleteOne();
+  await pushSaved(me);
+  sendSuccess(res, { message: `Folder "${folder.name}" deleted, its messages are still saved` });
 }
 
 // Checks shared by text and file messages: the other person is still here, the quoted message exists
@@ -414,7 +595,7 @@ export async function deleteMessage(req, res) {
   const fileId = message.attachment?.fileId;
   message.set({ text: '', replyTo: undefined, reactions: [], attachment: undefined, deletedAt: new Date() });
   await message.save();
-  await deleteFile(fileId);
+  await Promise.all([deleteFile(fileId), SavedMessage.deleteMany({ message: message._id })]); // nobody keeps a deleted message
   if (isLastMessage(conversation, message)) {
     conversation.lastMessage.text = 'This message was deleted';
     await conversation.save();
@@ -462,8 +643,9 @@ async function loadFolder(req) {
   return folder;
 }
 
-async function assertFolderNameFree(userId, name, exceptId) {
-  const taken = await ChatFolder.exists({
+// Folder names are unique per user, ignoring case (chat folders and saved-message folders)
+async function assertFolderNameFree(Model, userId, name, exceptId) {
+  const taken = await Model.exists({
     user: userId,
     name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
     ...(exceptId ? { _id: { $ne: exceptId } } : {}),
@@ -481,7 +663,7 @@ export async function createFolder(req, res) {
   if ((await ChatFolder.countDocuments({ user: req.user._id })) >= CHAT_MAX_FOLDERS) {
     throw ApiError.badRequest(`You can have up to ${CHAT_MAX_FOLDERS} folders`);
   }
-  await assertFolderNameFree(req.user._id, req.body.name);
+  await assertFolderNameFree(ChatFolder, req.user._id, req.body.name);
   const last = await ChatFolder.findOne({ user: req.user._id }).sort({ order: -1 }).select('order');
   const folder = await ChatFolder.create({ user: req.user._id, name: req.body.name, order: (last?.order ?? -1) + 1 });
   await pushFolders(req.user._id);
@@ -491,7 +673,7 @@ export async function createFolder(req, res) {
 // PATCH /api/chat/folders/:folderId { name }
 export async function renameFolder(req, res) {
   const folder = await loadFolder(req);
-  await assertFolderNameFree(req.user._id, req.body.name, folder._id);
+  await assertFolderNameFree(ChatFolder, req.user._id, req.body.name, folder._id);
   folder.name = req.body.name;
   await folder.save();
   await pushFolders(req.user._id);
