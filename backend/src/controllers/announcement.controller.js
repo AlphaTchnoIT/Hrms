@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { buildMeta, getPagination } from '../utils/pagination.js';
 import { pick } from '../utils/helpers.js';
+import { clearSharedDashboard } from './dashboard.controller.js';
 
 const FIELDS = ['title', 'content', 'category', 'isPinned', 'expiresAt'];
 
@@ -30,6 +31,7 @@ export async function createAnnouncement(req, res) {
   if (!body.expiresAt) body.expiresAt = null;
 
   const announcement = await Announcement.create({ ...body, createdBy: req.user._id });
+  clearSharedDashboard(); // shows on everyone's dashboard straight away
   sendSuccess(res, { data: announcement, message: 'Announcement published', status: 201 });
 }
 
@@ -39,11 +41,13 @@ export async function updateAnnouncement(req, res) {
 
   const announcement = await Announcement.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
   if (!announcement) throw ApiError.notFound('Announcement not found');
+  clearSharedDashboard();
   sendSuccess(res, { data: announcement, message: 'Announcement updated' });
 }
 
 export async function deleteAnnouncement(req, res) {
   const announcement = await Announcement.findByIdAndDelete(req.params.id);
   if (!announcement) throw ApiError.notFound('Announcement not found');
+  clearSharedDashboard();
   sendSuccess(res, { message: 'Announcement deleted' });
 }

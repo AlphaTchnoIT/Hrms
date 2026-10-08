@@ -137,10 +137,25 @@ const settingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-settingsSchema.statics.getSettings = async function getSettings() {
-  let settings = await this.findOne();
-  if (!settings) settings = await this.create({});
-  return settings;
+/*
+ * Almost every request reads the settings (often several times), so they are kept in memory
+ * for a few seconds and shared. Saving them clears the cache straight away.
+ * Callers must treat the returned document as read-only unless they save it.
+ */
+const CACHE_MS = 5000;
+let cached = null; // { promise, at }
+
+settingsSchema.statics.getSettings = function getSettings() {
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.promise;
+  const promise = (async () => (await this.findOne()) || this.create({}))();
+  cached = { promise, at: Date.now() };
+  promise.catch(() => (cached = null)); // never keep a failed read
+  return promise;
 };
+
+// Any change to the settings is visible on the next read
+settingsSchema.statics.clearCache = () => (cached = null);
+settingsSchema.post('save', () => (cached = null));
+settingsSchema.post(['updateOne', 'findOneAndUpdate', 'deleteOne', 'deleteMany', 'updateMany'], () => (cached = null));
 
 export const Settings = mongoose.model('Settings', settingsSchema);

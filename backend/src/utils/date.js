@@ -4,17 +4,30 @@
  * This keeps day-based logic simple and avoids timezone surprises.
  */
 
+// Creating an Intl.DateTimeFormat is slow (it dominated the dashboard / report CPU time),
+// so one formatter per timezone is made once and reused
+const formatters = new Map();
+function zonedFormatter(timeZone) {
+  const key = timeZone || '';
+  if (!formatters.has(key)) {
+    formatters.set(
+      key,
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+    );
+  }
+  return formatters.get(key);
+}
+
 function getZonedParts(date, timeZone) {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(zonedFormatter(timeZone).formatToParts(date).map((p) => [p.type, p.value]));
   return {
     year: Number(parts.year),
     month: Number(parts.month),

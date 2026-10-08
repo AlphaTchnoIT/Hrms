@@ -57,7 +57,7 @@ export function currentRange(settings, days = 30) {
 export async function getPerformanceSummaries(users, { from, to, settings }) {
   const userIds = users.map((u) => u._id);
   const [records, workforce] = await Promise.all([
-    KpiRecord.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }).sort('date'),
+    KpiRecord.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }).sort('date').lean(),
     getWorkforce(users, from, to, settings),
   ]);
 
@@ -139,7 +139,7 @@ export async function getPerformanceSummaries(users, { from, to, settings }) {
 export async function getKpiTrend(userIds, settings, weeks = 13) {
   const today = todayInTz(settings.timezone);
   const firstWeek = addDays(weekStart(today), -7 * (weeks - 1));
-  const records = await KpiRecord.find({ user: { $in: userIds }, date: { $gte: firstWeek, $lte: today } });
+  const records = await KpiRecord.find({ user: { $in: userIds }, date: { $gte: firstWeek, $lte: today } }).select('date metric score').lean();
 
   const buckets = {};
   records.forEach((r) => {

@@ -45,7 +45,7 @@ Attendance is captured through **web check-in / check-out** (with optional brows
 | **UK reports** | Bradford Factor (sickness), gender pay gap (mean, median, quartiles), UK compliance (right to work, minimum wage, pension, probation, notice) |
 | **Accounts & security** | One-time passwords for new accounts with a forced change at first login, forgot / reset password by email, sessions ended when a password changes, login and reset rate limits |
 | **UK GDPR** | "Download my data" for everyone, full data export per employee for HR (subject access requests), anonymising leavers after the retention period, privacy notice link, switch off Payroll, Live Work Status or Chat per company |
-| **Chat** | Its own full-screen app at `/chat` with the same login as HRMS: pick HRMS or Chat on the login page, switch with [HRMS | Chat] at the top (each opens in its own tab, so both can run side by side; logging out in one tab logs out the other). Live 1-to-1 and group chat (Socket.IO on the API port): online / on leave status, typing indicator, unread badges, "Seen" receipts, reply with quote, edit / delete own messages, emoji reactions, clickable links, "New messages" line, mute a chat, desktop notifications and a sound (browser built-ins, no outside service), emoji picker, photos and documents (max 5 MB, stored in MongoDB GridFS, removed after 90 days, 200 MB in total; paste or drag & drop), group admins add / remove people. Chats are private to their members (HR / admin cannot read them), messages are deleted after 1 year, leavers are disconnected at once. Can be switched off in Settings -> Modules |
+| **Chat** | Its own full-screen app at `/chat` with the same login as HRMS: pick HRMS or Chat on the login page, switch with [HRMS | Chat] at the top (each opens in its own tab, so both can run side by side; logging out in one tab logs out the other). Live 1-to-1 and group chat (Socket.IO on the API port): online / on leave status, typing indicator, unread badges, "Seen" receipts, reply with quote, edit / delete own messages, emoji reactions, clickable links, "New messages" line, mute a chat, desktop notifications and a sound (browser built-ins, no outside service), Standard / Important / Urgent messages, @mentions in groups (get through even when muted), pin chats, list sections Favourites / Important / Chats, "Seen by" list per message, emoji picker, photos and documents (max 5 MB, stored in MongoDB GridFS, removed after 90 days, 200 MB in total; paste or drag & drop), group admins add / remove people. Chats are private to their members (HR / admin cannot read them), messages are deleted after 1 year, leavers are disconnected at once. Can be switched off in Settings -> Modules |
 | **IT helpdesk** | Tickets with categories/priority, conversation, internal notes, assignment, resolve / reopen |
 | **Grievances & ideas** | Confidential (optionally anonymous) grievances visible only to HR; feedback & suggestions with management response |
 | **Leave summary** | Leave taken per type summed per quarter |
@@ -163,6 +163,23 @@ Examples: UK phone (`07700 900123` or `+44 …`), National Insurance number `QQ 
 - **Rating**: weighted achievement (score ÷ target) of quality, efficiency, classification → ≥105% = 5, ≥100% = 4, ≥95% = 3, ≥85% = 2, else 1. Manager rating uses the team's average achievement.
 - **Warning stage**: next stage = highest active (not expired / withdrawn) stage in the same category + 1. Managers cannot skip stages; only HR can.
 - **Email**: set `SMTP_*` in `backend/.env` to also send emails (interview invites, document requests, status changes, warnings). Without it, in-app notifications only.
+
+## Load testing
+
+`backend/loadtest/run.js` (autocannon) logs in once per demo user and hammers the main pages, including chat. Run it against a **local copy**, never the live database (it slows the app down and the chat scenario writes messages):
+
+```bash
+# a separate local database with demo data
+MONGO_URI=mongodb://127.0.0.1:27017/hrms_loadtest npm run seed
+PORT=5050 NODE_ENV=test MONGO_URI=mongodb://127.0.0.1:27017/hrms_loadtest npm start --prefix backend
+# in another terminal
+npm run loadtest --prefix backend -- --url http://localhost:5050 --connections 50 --duration 10
+npm run loadtest --prefix backend -- --url http://localhost:5050 --only chat   # just the chat endpoints
+```
+
+It prints req/s and p50 / p90 / p99 latency per endpoint and fails if any p99 is over 1 s or more than 1% of requests fail. Only 20 logins per 15 minutes are allowed per IP, so restart the API between many runs.
+
+Performance notes: company settings are cached for 5 s (cleared on save), the management dashboard for 60 s, and dashboard widgets that are the same for everyone for 30 s (announcements refresh immediately).
 
 ## API overview
 

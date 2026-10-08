@@ -34,13 +34,14 @@ export function leaveStatus(leaveType) {
  */
 export async function getWorkforce(users, from, to, settings) {
   const userIds = users.map((u) => u._id);
+  // lean(): plain objects are much cheaper than Mongoose documents for read-only reports
+  // (schema defaults are applied in buildDay instead)
   const [rosters, records, leaves, holidays] = await Promise.all([
-    Roster.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }),
-    Attendance.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }),
-    LeaveRequest.find({ user: { $in: userIds }, status: 'approved', fromDate: { $lte: to }, toDate: { $gte: from } }).populate(
-      'leaveType',
-      'name code color'
-    ),
+    Roster.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }).lean(),
+    Attendance.find({ user: { $in: userIds }, date: { $gte: from, $lte: to } }).lean(),
+    LeaveRequest.find({ user: { $in: userIds }, status: 'approved', fromDate: { $lte: to }, toDate: { $gte: from } })
+      .populate('leaveType', 'name code color')
+      .lean(),
     findHolidays(from, to),
   ]);
 
@@ -78,8 +79,15 @@ export async function getWorkforce(users, from, to, settings) {
 }
 
 function buildDay({ date, today, settings, roster, record, leave, holiday }) {
+  // Same defaults as the Roster schema (records are lean)
   const shift = roster
-    ? { shiftName: roster.shiftName, startTime: roster.startTime, endTime: roster.endTime, isWeeklyOff: roster.isWeeklyOff, isDefault: false }
+    ? {
+        shiftName: roster.shiftName ?? 'General',
+        startTime: roster.startTime ?? '09:00',
+        endTime: roster.endTime ?? '17:30',
+        isWeeklyOff: Boolean(roster.isWeeklyOff),
+        isDefault: false,
+      }
     : defaultShift(date, settings);
   const scheduledMinutes = shift.isWeeklyOff ? 0 : shiftMinutes(shift.startTime, shift.endTime);
 
@@ -112,7 +120,7 @@ function buildDay({ date, today, settings, roster, record, leave, holiday }) {
     }
     // A day still in progress cannot be short yet
     const finished = record.checkOut?.time || date < today;
-    if (finished && scheduledMinutes && record.workMinutes < (scheduledMinutes * settings.shortLoginPercent) / 100) {
+    if (finished && scheduledMinutes && (record.workMinutes || 0) < (scheduledMinutes * settings.shortLoginPercent) / 100) {
       day.isShort = true;
     }
     if (leave?.isHalfDay) day.status = leaveStatus(leave.leaveType);

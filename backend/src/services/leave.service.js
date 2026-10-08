@@ -60,8 +60,13 @@ export async function getOrCreateBalance(userId, leaveTypeId, year) {
 
 // All active leave types with the user's balance for that year
 export async function getBalancesForUser(userId, year) {
-  const leaveTypes = await LeaveType.find({ isActive: true }).sort('name');
-  const balances = await Promise.all(leaveTypes.map((type) => getOrCreateBalance(userId, type._id, year)));
+  const [leaveTypes, existing] = await Promise.all([
+    LeaveType.find({ isActive: true }).sort('name'),
+    LeaveBalance.find({ user: userId, year }), // one query for all types (was one per type)
+  ]);
+  const byType = new Map(existing.map((b) => [String(b.leaveType), b]));
+  // Only a missing balance needs the slower create path
+  const balances = await Promise.all(leaveTypes.map((type) => byType.get(String(type._id)) || getOrCreateBalance(userId, type._id, year)));
 
   return leaveTypes.map((type, index) => {
     const balance = balances[index];

@@ -344,9 +344,25 @@ export async function runReport(req, res) {
 
 /*
  * GET /api/reports/management - organisation level trends (HR / admin)
+ *
+ * The same for every HR user and heavy to build, so one copy is shared for a minute:
+ * many people opening it at once (or refreshing) cost one calculation, not one each.
  */
+const MANAGEMENT_CACHE_MS = 60 * 1000;
+let managementCache = null; // { promise, at }
+
 export async function getManagementDashboard(req, res) {
   if (!isHR(req.user)) throw ApiError.forbidden();
+  const fresh = managementCache && Date.now() - managementCache.at < MANAGEMENT_CACHE_MS;
+  if (!fresh || req.query.refresh) {
+    const promise = buildManagementDashboard();
+    managementCache = { promise, at: Date.now() };
+    promise.catch(() => (managementCache = null)); // never keep a failed build
+  }
+  sendSuccess(res, { data: await managementCache.promise });
+}
+
+async function buildManagementDashboard() {
   const settings = await Settings.getSettings();
   const today = todayInTz(settings.timezone);
   const yearAgo = new Date(`${addDays(today, -365)}T00:00:00Z`);
@@ -402,37 +418,36 @@ export async function getManagementDashboard(req, res) {
     }
   });
 
-  sendSuccess(res, {
-    data: {
-      today,
-      headcount: active.length,
-      joinersLastYear,
-      exitsLastYear: exitsLastYear.length,
-      attritionRate: active.length ? Math.round((exitsLastYear.length / (active.length + exitsLastYear.length / 2)) * 1000) / 10 : 0,
-      attritionTrend,
-      attendanceTrend: adherence.all,
-      kpiTrend,
-      kpiAchievementPercent: withData.length ? Math.round((statusCounts['meeting-target'] / withData.length) * 1000) / 10 : null,
-      statusCounts,
-      averages: { quality: avg('quality'), efficiency: avg('efficiency'), classification: avg('classification'), adherence: avg('adherence') },
-      targets: settings.toObject().kpiTargets,
-      teams: managerRatings,
-      teamsRequiringAttention: managerRatings.filter((t) => t.needsAttention || (t.rating !== null && t.rating <= 2)),
-      departments: Object.values(departments).map((d) => ({
-        name: d.name,
-        headcount: d.headcount,
-        critical: d.critical,
-        attention: d.attention,
-        composite: d.compositeCount ? Math.round((d.compositeSum / d.compositeCount) * 10) / 10 : null,
-      })),
-      open: {
-        escalations: counts[0],
-        activeWarnings: counts[1],
-        tickets: counts[2],
-        grievances: counts[3],
-        jobs: counts[4],
-        actionPlans: counts[5],
-      },
+  return {
+    generatedAt: new Date().toISOString(),
+    today,
+    headcount: active.length,
+    joinersLastYear,
+    exitsLastYear: exitsLastYear.length,
+    attritionRate: active.length ? Math.round((exitsLastYear.length / (active.length + exitsLastYear.length / 2)) * 1000) / 10 : 0,
+    attritionTrend,
+    attendanceTrend: adherence.all,
+    kpiTrend,
+    kpiAchievementPercent: withData.length ? Math.round((statusCounts['meeting-target'] / withData.length) * 1000) / 10 : null,
+    statusCounts,
+    averages: { quality: avg('quality'), efficiency: avg('efficiency'), classification: avg('classification'), adherence: avg('adherence') },
+    targets: settings.toObject().kpiTargets,
+    teams: managerRatings,
+    teamsRequiringAttention: managerRatings.filter((t) => t.needsAttention || (t.rating !== null && t.rating <= 2)),
+    departments: Object.values(departments).map((d) => ({
+      name: d.name,
+      headcount: d.headcount,
+      critical: d.critical,
+      attention: d.attention,
+      composite: d.compositeCount ? Math.round((d.compositeSum / d.compositeCount) * 10) / 10 : null,
+    })),
+    open: {
+      escalations: counts[0],
+      activeWarnings: counts[1],
+      tickets: counts[2],
+      grievances: counts[3],
+      jobs: counts[4],
+      actionPlans: counts[5],
     },
-  });
+  };
 }

@@ -14,7 +14,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="font-sans">
+      {/* Browser extensions (e.g. Grammarly) add attributes to <body>; this only silences that one tag's mismatch */}
+      <body className="font-sans" suppressHydrationWarning>
         <AuthProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
           <Toaster

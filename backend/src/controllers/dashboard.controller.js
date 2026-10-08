@@ -22,7 +22,7 @@ import { currentRange, getPerformanceSummaries } from '../services/performance.s
 
 // Birthdays & work anniversaries in the next `days` days
 async function getUpcomingCelebrations(today, days = 30) {
-  const employees = await User.find({ status: 'active' }).select('firstName lastName avatar dateOfBirth dateOfJoining');
+  const employees = await User.find({ status: 'active' }).select('firstName lastName avatar dateOfBirth dateOfJoining').lean();
   const todayDate = new Date(`${today}T00:00:00Z`);
   const year = todayDate.getUTCFullYear();
 
@@ -35,7 +35,7 @@ async function getUpcomingCelebrations(today, days = 30) {
 
   const items = [];
   employees.forEach((e) => {
-    const person = { _id: e._id, name: e.fullName, avatar: e.avatar };
+    const person = { _id: e._id, name: `${e.firstName} ${e.lastName || ''}`.trim(), avatar: e.avatar };
     if (e.dateOfBirth) {
       const { inDays, date } = daysUntil(e.dateOfBirth);
       if (inDays <= days) items.push({ ...person, type: 'birthday', date, inDays });
@@ -64,26 +64,64 @@ async function getAttendanceTrend(today, userFilter) {
   return dates.map((date) => ({ date, present: map[date]?.present || 0, late: map[date]?.late || 0 }));
 }
 
+/*
+ * Widgets that are the same for everyone (holidays per region, announcements, birthdays, who is out)
+ * are shared for a short time, so a busy morning doesn't run the same queries for every login.
+ */
+const SHARED_MS = 30 * 1000;
+const shared = new Map(); // key -> { promise, at }
+function sharedFor(key, load) {
+  const hit = shared.get(key);
+  if (hit && Date.now() - hit.at < SHARED_MS) return hit.promise;
+  // A real Promise: a Mongoose query is only "thenable" and would run again on every .then / .catch
+  const promise = Promise.resolve().then(load);
+  shared.set(key, { promise, at: Date.now() });
+  promise.catch(() => shared.delete(key)); // never keep a failed load
+  return promise;
+}
+// New / edited / deleted announcements show up straight away
+export const clearSharedDashboard = () => shared.clear();
+
 // GET /api/dashboard
 export async function getDashboard(req, res) {
   const settings = await Settings.getSettings();
   const today = todayInTz(settings.timezone);
   const user = req.user;
+  const region = user.holidayRegion || 'england-wales';
+
+  // "My workspace" doesn't depend on the cards below, so both sets of queries run at the same time
+  const myWorkPromise = Promise.all([
+    getWorkforce([user], today, addDays(today, 2), settings),
+    getPerformanceSummaries([user], { ...currentRange(settings), settings }),
+    QaFeedback.countDocuments({ user: user._id, acknowledgedAt: null }),
+    Warning.countDocuments({ employee: user._id, status: 'issued' }),
+    ActionPlan.countDocuments({ user: user._id, employeeAcknowledgedAt: null, status: { $in: ['open', 'in-progress'] } }),
+    TrainingAssignment.countDocuments({ user: user._id, status: { $ne: 'completed' }, dueDate: { $lte: addDays(today, 7) } }),
+  ]);
+  myWorkPromise.catch(() => {}); // awaited below; avoids an unhandled rejection if the cards fail first
 
   const [todayAttendance, leaveBalances, upcomingHolidays, announcements, celebrations, whoIsOut, myPending] =
     await Promise.all([
       Attendance.findOne({ user: user._id, date: today }),
       getBalancesForUser(user._id, leaveYearOf(today, getPolicies(settings).leaveYearStartMonth)),
-      Holiday.find({ date: { $gte: today }, $or: [{ regions: { $size: 0 } }, { regions: user.holidayRegion || 'england-wales' }] }).sort('date').limit(5),
-      Announcement.find({ $or: [{ expiresAt: null }, { expiresAt: { $gte: new Date() } }] })
-        .populate('createdBy', 'firstName lastName')
-        .sort({ isPinned: -1, createdAt: -1 })
-        .limit(5),
-      getUpcomingCelebrations(today),
-      LeaveRequest.find({ status: 'approved', fromDate: { $lte: today }, toDate: { $gte: today } })
-        .populate('user', 'firstName lastName avatar')
-        .populate('leaveType', 'name color')
-        .limit(10),
+      sharedFor(`holidays:${today}:${region}`, () =>
+        Holiday.find({ date: { $gte: today }, $or: [{ regions: { $size: 0 } }, { regions: region }] }).sort('date').limit(5).lean()
+      ),
+      sharedFor('announcements', () =>
+        Announcement.find({ $or: [{ expiresAt: null }, { expiresAt: { $gte: new Date() } }] })
+          .populate('createdBy', 'firstName lastName')
+          .sort({ isPinned: -1, createdAt: -1 })
+          .limit(5)
+          .lean()
+      ),
+      sharedFor(`celebrations:${today}`, () => getUpcomingCelebrations(today)),
+      sharedFor(`whoIsOut:${today}`, () =>
+        LeaveRequest.find({ status: 'approved', fromDate: { $lte: today }, toDate: { $gte: today } })
+          .populate('user', 'firstName lastName avatar')
+          .populate('leaveType', 'name color')
+          .limit(10)
+          .lean()
+      ),
       Promise.all([
         LeaveRequest.countDocuments({ user: user._id, status: 'pending' }),
         Expense.countDocuments({ user: user._id, status: 'pending' }),
@@ -105,14 +143,7 @@ export async function getDashboard(req, res) {
   };
 
   // My workspace: next shifts, performance status and items waiting for me
-  const [workforce, summaries, qaToAck, warningsToAck, plansToAck, trainingsDue] = await Promise.all([
-    getWorkforce([user], today, addDays(today, 2), settings),
-    getPerformanceSummaries([user], { ...currentRange(settings), settings }),
-    QaFeedback.countDocuments({ user: user._id, acknowledgedAt: null }),
-    Warning.countDocuments({ employee: user._id, status: 'issued' }),
-    ActionPlan.countDocuments({ user: user._id, employeeAcknowledgedAt: null, status: { $in: ['open', 'in-progress'] } }),
-    TrainingAssignment.countDocuments({ user: user._id, status: { $ne: 'completed' }, dueDate: { $lte: addDays(today, 7) } }),
-  ]);
+  const [workforce, summaries, qaToAck, warningsToAck, plansToAck, trainingsDue] = await myWorkPromise;
   const mySummary = summaries[String(user._id)];
   data.myWork = {
     shifts: workforce[String(user._id)]?.days || [],
@@ -166,7 +197,7 @@ export async function getDashboard(req, res) {
         { $group: { _id: '$department', count: { $sum: 1 } } },
         { $lookup: { from: 'departments', localField: '_id', foreignField: '_id', as: 'department' } },
         { $project: { _id: 0, count: 1, name: { $ifNull: [{ $arrayElemAt: ['$department.name', 0] }, 'Unassigned'] } } },
-        { $sort: { count: -1 } },
+        { $sort: { count: -1, name: 1 } }, // name breaks ties so the order is stable
       ]);
     }
   }
