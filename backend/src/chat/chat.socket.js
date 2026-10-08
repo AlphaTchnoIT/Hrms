@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { Settings } from '../models/index.js';
 import { userFromToken } from '../middlewares/auth.middleware.js';
 import { Conversation } from './chat.model.js';
+import { handleCallEvents, initCalls } from './chat.calls.js';
 
 /*
  * Real-time part of chat (Socket.IO on the same port as the API).
@@ -11,6 +12,7 @@ import { Conversation } from './chat.model.js';
  *   conversation:prefs ({ muted } / { pinned } / { folder }, only to that user), chat:folders, chat:saved (only to that user),
  *   message:urgent (repeat notification of an unread Urgent message),
  *   typing, presence
+ *   call:* (1-to-1 audio calls, see chat.calls.js)
  * Every user joins the room "user:<id>", so pushing to someone reaches all their open tabs.
  *
  * Presence is kept in memory, which is fine while the API runs as one server.
@@ -24,6 +26,7 @@ const roomOf = (userId) => `user:${userId}`;
 
 export function initChatSocket(httpServer) {
   io = new Server(httpServer, { cors: { origin: env.clientOrigins, credentials: true } });
+  initCalls({ io, roomOf, emitToUsers, isOnline: (userId) => connections.has(String(userId)) });
 
   // Same login rules as the REST API, plus the company must have chat switched on
   io.use(async (socket, next) => {
@@ -58,6 +61,8 @@ export function initChatSocket(httpServer) {
         /* bad id, ignore */
       }
     });
+
+    handleCallEvents(socket);
 
     socket.on('disconnect', () => {
       const left = (connections.get(userId) || 1) - 1;

@@ -3,9 +3,10 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { ArrowDown, ArrowLeft, Bell, BellOff, CircleAlert, CornerUpLeft, Info, Paperclip, Pencil, Pin, PinOff, SendHorizontal, Siren, Smile, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, Bell, BellOff, CircleAlert, CornerUpLeft, Info, Paperclip, Pencil, Phone, Pin, PinOff, SendHorizontal, Siren, Smile, X } from 'lucide-react';
 import api from '@/lib/api';
 import { getFullName } from '@/lib/format';
+import { useCall } from '@/context/CallContext';
 import { useChat } from '@/context/ChatContext';
 import { Button, Spinner, useConfirm } from '@/components/ui';
 import { GroupAvatar, PresenceAvatar } from './PresenceAvatar';
@@ -50,6 +51,7 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
   const chat = useChat();
   const { on, sendTyping, setActiveConversation } = chat;
   const confirm = useConfirm();
+  const { call, startCall } = useCall();
   const id = conversation._id;
 
   const [messages, setMessages] = useState([]);
@@ -622,6 +624,17 @@ export default function ChatWindow({ conversation, meId, focus, onBack, onOpenIn
             {!isGroup && (otherLeft ? 'No longer with the company' : [PRESENCE_LABEL[status], other.designation?.title].filter(Boolean).join(' · '))}
           </p>
         </div>
+        {!isGroup && !otherLeft && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Phone}
+            label={status === 'offline' ? `Audio call (${other.firstName} is offline)` : 'Audio call'}
+            onClick={() => startCall(id, other)}
+            disabled={Boolean(call)}
+            className="text-emerald-600 hover:text-emerald-700"
+          />
+        )}
         <Button
           variant="ghost"
           size="sm"

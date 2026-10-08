@@ -18,6 +18,8 @@ function toOrigins(value) {
     });
 }
 
+const list = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
+
 export const env = {
   port: Number(process.env.PORT) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -35,4 +37,11 @@ export const env = {
   },
   // Background reminders (tests, training, follow-ups). Set to "false" to disable.
   remindersEnabled: process.env.REMINDERS_ENABLED !== 'false',
+  // Chat audio calls (WebRTC). Without these, calls connect on the same network only.
+  // Run your own coturn server and set TURN_SECRET to its static-auth-secret (see .env.example).
+  calls: {
+    stunUrls: list(process.env.STUN_URLS),
+    turnUrls: list(process.env.TURN_URLS),
+    turnSecret: process.env.TURN_SECRET || '',
+  },
 };

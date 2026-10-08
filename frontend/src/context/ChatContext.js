@@ -18,7 +18,7 @@ import { useAuth } from './AuthContext';
 const ChatContext = createContext(null);
 
 // Events the server pushes (see backend/src/chat/chat.socket.js)
-const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'chat:saved', 'typing'];
+const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'chat:saved', 'typing', 'call:incoming', 'call:accepted', 'call:signal', 'call:ended'];
 
 const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -213,6 +213,14 @@ export function ChatProvider({ children }) {
     socketRef.current?.emit('typing', { conversationId, isTyping });
   }, []);
 
+  // Send an event to the server; with { ack: true } waits for its reply (rejects if offline or no reply in 10s)
+  const emit = useCallback((event, payload, { ack = false } = {}) => {
+    const socket = socketRef.current;
+    if (!ack) return socket?.emit(event, payload);
+    if (!socket?.connected) return Promise.reject(new Error('Not connected, please check your internet'));
+    return socket.timeout(10000).emitWithAck(event, payload);
+  }, []);
+
   const setActiveConversation = useCallback((id) => {
     activeConversationId.current = id;
   }, []);
@@ -238,11 +246,12 @@ export function ChatProvider({ children }) {
       refreshUnread,
       on,
       sendTyping,
+      emit,
       setActiveConversation,
       setMuted,
       enableNotifications,
     }),
-    [enabled, connected, online, onLeave, unreadTotal, notificationPermission, refreshUnread, on, sendTyping, setActiveConversation, setMuted, enableNotifications]
+    [enabled, connected, online, onLeave, unreadTotal, notificationPermission, refreshUnread, on, sendTyping, emit, setActiveConversation, setMuted, enableNotifications]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

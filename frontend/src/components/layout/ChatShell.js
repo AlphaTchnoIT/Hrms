@@ -5,6 +5,7 @@ import { LogOut, MessageSquare } from 'lucide-react';
 import SessionGate from '@/components/auth/SessionGate';
 import { Avatar } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
+import { CallProvider } from '@/context/CallContext';
 import { ChatProvider, useChat } from '@/context/ChatContext';
 import { claimTab } from '@/lib/apps';
 import AppSwitcher from './AppSwitcher';
@@ -54,10 +55,12 @@ export default function ChatShell({ children }) {
   return (
     <SessionGate loadingText="Loading your chats…">
       <ChatProvider>
-        <div className="flex h-[100dvh] flex-col bg-surface">
-          <ChatHeader />
-          <main className="min-h-0 flex-1 sm:p-4">{children}</main>
-        </div>
+        <CallProvider>
+          <div className="flex h-[100dvh] flex-col bg-surface">
+            <ChatHeader />
+            <main className="min-h-0 flex-1 sm:p-4">{children}</main>
+          </div>
+        </CallProvider>
       </ChatProvider>
     </SessionGate>
   );
