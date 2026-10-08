@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { CHAT_RETENTION_DAYS } from '../constants/index.js';
+import { CHAT_PRIORITIES, CHAT_RETENTION_DAYS } from '../constants/index.js';
 
 /*
  * Chat between employees: 1-to-1 ("direct") or group conversations.
@@ -12,6 +12,10 @@ const memberSchema = new mongoose.Schema(
     unread: { type: Number, default: 0 },
     lastReadAt: Date,
     muted: { type: Boolean, default: false }, // no pop-ups / sounds for this chat (unread still counts)
+    pinned: { type: Boolean, default: false }, // shown under "Favourites" at the top of my list
+    importantUnread: { type: Number, default: 0 }, // unread Important / Urgent messages -> "Important" section
+    mentionUnread: { type: Number, default: 0 }, // unread messages that @mention me
+    folder: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatFolder', default: null }, // my own folder for this chat
     joinedAt: { type: Date, default: Date.now },
   },
   { _id: false }
@@ -45,6 +49,8 @@ const messageSchema = new mongoose.Schema(
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // empty for system messages
     type: { type: String, enum: ['text', 'system'], default: 'text' },
     text: { type: String, default: '' },
+    priority: { type: String, enum: CHAT_PRIORITIES, default: 'standard' },
+    mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // @tagged members
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' }, // quoted message
     // A photo or document (file bytes live in GridFS, see chat.storage.js)
     attachment: {
@@ -76,7 +82,22 @@ messageSchema.index({ 'attachment.expiresAt': 1 }, { sparse: true });
 // Retention: MongoDB deletes messages automatically once they are older than CHAT_RETENTION_DAYS
 messageSchema.index({ createdAt: 1 }, { expireAfterSeconds: CHAT_RETENTION_DAYS * 24 * 60 * 60 });
 
+/*
+ * A user's own folder in the chat list ("Sales", "Clients"…). Only its owner sees it.
+ * Which folder a chat is in is stored on the member (members.folder), one folder per chat.
+ */
+const chatFolderSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    name: { type: String, required: true, trim: true },
+    order: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+chatFolderSchema.index({ user: 1, order: 1 });
+
 export const directKeyFor = (a, b) => [String(a), String(b)].sort().join(':');
 
 export const Conversation = mongoose.model('Conversation', conversationSchema);
 export const Message = mongoose.model('Message', messageSchema);
+export const ChatFolder = mongoose.model('ChatFolder', chatFolderSchema);

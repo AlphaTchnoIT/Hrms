@@ -1,13 +1,31 @@
 'use client';
 
 import clsx from 'clsx';
-import { CornerUpLeft, Pencil, Trash2 } from 'lucide-react';
+import { CheckCheck, CircleAlert, CornerUpLeft, Pencil, Siren, Trash2 } from 'lucide-react';
 import { formatTime, getFullName } from '@/lib/format';
 import { Avatar } from '@/components/ui';
 import Attachment from './Attachment';
-import { CHAT_REACTIONS, groupReactions, messagePreview, sameId, splitLinks } from './chatUtils';
+import { CHAT_REACTIONS, fullNameOf, groupReactions, messagePreview, sameId, splitLinks } from './chatUtils';
 
-function MessageText({ text, mine }) {
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Plain text with "@Full Name" of the tagged people highlighted (never rendered as HTML)
+function WithMentions({ text, names, mine, meName }) {
+  if (!names.length) return text;
+  const pattern = new RegExp(`(@(?:${names.map(escapeRegex).join('|')}))`, 'g');
+  return text.split(pattern).map((part, i) => {
+    if (i % 2 === 0) return part;
+    const isMe = part.slice(1) === meName;
+    return (
+      // eslint-disable-next-line react/no-array-index-key
+      <span key={i} className={clsx('rounded px-0.5 font-semibold', mine ? 'bg-white/20' : isMe ? 'bg-amber-100 text-amber-800' : 'text-brand-700')}>
+        {part}
+      </span>
+    );
+  });
+}
+
+function MessageText({ text, mine, mentionNames = [], meName }) {
   return splitLinks(text).map((part, i) =>
     part.isLink ? (
       <a
@@ -22,16 +40,23 @@ function MessageText({ text, mine }) {
       </a>
     ) : (
       // eslint-disable-next-line react/no-array-index-key
-      <span key={i}>{part.text}</span>
+      <span key={i}>
+        <WithMentions text={part.text} names={mentionNames} mine={mine} meName={meName} />
+      </span>
     )
   );
 }
+
+const PRIORITY_STYLE = {
+  important: { label: 'IMPORTANT!', icon: CircleAlert, className: 'text-red-600', ring: 'ring-2 ring-red-300' },
+  urgent: { label: 'URGENT!', icon: Siren, className: 'text-red-600', ring: 'ring-2 ring-red-500' },
+};
 
 /*
  * Reactions + reply / edit / delete. Shown on hover, when the message or a button in the bar has
  * keyboard focus (Tab), or after tapping the message (mobile). It floats on the message's top corner.
  */
-function ActionBar({ mine, onReact, onReply, onEdit, onDelete }) {
+function ActionBar({ mine, onReact, onReply, onEdit, onDelete, onSeenBy }) {
   const iconButton = 'rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400';
   return (
     <div
@@ -53,6 +78,11 @@ function ActionBar({ mine, onReact, onReply, onEdit, onDelete }) {
       <button onClick={onReply} aria-label="Reply" title="Reply" className={iconButton}>
         <CornerUpLeft className="h-4 w-4" />
       </button>
+      {onSeenBy && (
+        <button onClick={onSeenBy} aria-label="Seen by" title="Seen by" className={iconButton}>
+          <CheckCheck className="h-4 w-4" />
+        </button>
+      )}
       {mine && (
         <>
           <button onClick={onEdit} aria-label="Edit" title="Edit" className={iconButton}>
@@ -87,11 +117,16 @@ export default function MessageItem({
   onEdit,
   onDelete,
   onJumpTo,
+  onSeenBy,
 }) {
   const mine = sameId(message.sender, meId);
   const deleted = Boolean(message.deletedAt);
   const reactions = groupReactions(message.reactions, meId, members);
   const quote = message.replyTo;
+  const priority = !deleted && PRIORITY_STYLE[message.priority];
+  const mentionNames = (message.mentions || []).map((id) => fullNameOf(members.find((m) => sameId(m, id)))).filter(Boolean);
+  const meName = fullNameOf(members.find((m) => sameId(m, meId)));
+  const mentionsMe = !mine && (message.mentions || []).some((id) => sameId(id, meId));
 
   return (
     <div id={`msg-${message._id}`} className={clsx('flex items-end gap-2', mine ? 'justify-end' : 'justify-start', continued ? 'mt-0.5' : 'mt-3')}>
@@ -116,9 +151,16 @@ export default function MessageItem({
               'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2',
               deleted && 'border border-dashed border-slate-300 bg-transparent italic text-slate-400',
               !deleted && (mine ? 'bg-brand-600 text-white' : 'bg-white text-slate-800 shadow-card'),
+              priority?.ring,
+              mentionsMe && !priority && 'ring-2 ring-amber-300',
               highlighted && 'ring-4 ring-amber-300'
             )}
           >
+            {priority && (
+              <span className={clsx('mb-1 flex items-center gap-1 text-[11px] font-bold tracking-wide', mine ? 'text-white' : priority.className)}>
+                <priority.icon className="h-3.5 w-3.5" /> {priority.label}
+              </span>
+            )}
             {quote && !deleted && (
               <button
                 onClick={(e) => {
@@ -139,12 +181,12 @@ export default function MessageItem({
                 <Attachment attachment={message.attachment} mine={mine} />
               </div>
             )}
-            {deleted ? 'This message was deleted' : <MessageText text={message.text} mine={mine} />}
+            {deleted ? 'This message was deleted' : <MessageText text={message.text} mine={mine} mentionNames={mentionNames} meName={meName} />}
           </div>
           {/* After the message in the page order, so Tab goes message -> its actions */}
           {!deleted && (
             <div className={clsx(showActions ? 'block' : 'hidden', 'group-focus-within/msg:block group-hover/msg:block')}>
-              <ActionBar mine={mine} onReact={onReact} onReply={onReply} onEdit={onEdit} onDelete={onDelete} />
+              <ActionBar mine={mine} onReact={onReact} onReply={onReply} onEdit={onEdit} onDelete={onDelete} onSeenBy={mine && isGroup ? onSeenBy : null} />
             </div>
           )}
         </div>
@@ -171,7 +213,17 @@ export default function MessageItem({
         <span className="mt-0.5 px-1 text-[10px] text-slate-400">
           {formatTime(message.createdAt)}
           {message.editedAt && !deleted && ' · edited'}
-          {seenLabel && ` · ${seenLabel}`}
+          {seenLabel &&
+            (isGroup ? (
+              <>
+                {' · '}
+                <button onClick={onSeenBy} className="underline-offset-2 hover:text-slate-600 hover:underline">
+                  {seenLabel}
+                </button>
+              </>
+            ) : (
+              ` · ${seenLabel}`
+            ))}
         </span>
       </div>
     </div>

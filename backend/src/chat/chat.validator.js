@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CHAT_GROUP_MAX_MEMBERS, CHAT_MESSAGE_MAX_LENGTH, CHAT_REACTIONS } from '../constants/index.js';
+import { CHAT_GROUP_MAX_MEMBERS, CHAT_MESSAGE_MAX_LENGTH, CHAT_PRIORITIES, CHAT_REACTIONS } from '../constants/index.js';
 import { objectId, optionalObjectId, optionalText, requiredText } from '../validators/common.js';
 
 const userIds = z
@@ -20,7 +20,14 @@ export const addMembersSchema = z.object({ userIds });
 
 const messageText = requiredText('Message', { max: CHAT_MESSAGE_MAX_LENGTH });
 
-export const messageSchema = z.object({ text: messageText, replyTo: optionalObjectId('message') });
+const priority = z.enum(CHAT_PRIORITIES, { errorMap: () => ({ message: 'Pick Standard, Important or Urgent' }) }).default('standard');
+
+export const messageSchema = z.object({
+  text: messageText,
+  replyTo: optionalObjectId('message'),
+  priority,
+  mentions: z.array(objectId('person')).max(CHAT_GROUP_MAX_MEMBERS).default([]),
+});
 
 export const editMessageSchema = z.object({ text: messageText });
 
@@ -28,8 +35,18 @@ export const editMessageSchema = z.object({ text: messageText });
 export const attachmentMessageSchema = z.object({
   text: optionalText('Message', CHAT_MESSAGE_MAX_LENGTH),
   replyTo: optionalObjectId('message'),
+  priority,
 });
 
 export const reactionSchema = z.object({ emoji: z.enum(CHAT_REACTIONS, { errorMap: () => ({ message: 'Pick one of the reactions' }) }) });
 
 export const muteSchema = z.object({ muted: z.boolean({ required_error: 'muted is required' }) });
+
+export const pinSchema = z.object({ pinned: z.boolean({ required_error: 'pinned is required' }) });
+
+export const folderSchema = z.object({ name: requiredText('Folder name', { max: 40 }) });
+
+export const folderOrderSchema = z.object({ folderIds: z.array(objectId('folder')).max(100) });
+
+// null / "" takes the chat out of its folder
+export const moveToFolderSchema = z.object({ folderId: optionalObjectId('folder') });

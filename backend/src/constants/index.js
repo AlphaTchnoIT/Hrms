@@ -58,6 +58,10 @@ export const CHAT_RETENTION_DAYS = 365;
 export const CHAT_MESSAGE_MAX_LENGTH = 4000;
 export const CHAT_GROUP_MAX_MEMBERS = 100;
 export const CHAT_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+// Message priority (like Teams): important / urgent put the chat in the "Important" section
+export const CHAT_PRIORITIES = ['standard', 'important', 'urgent'];
+export const CHAT_MAX_PINNED = 15;
+export const CHAT_MAX_FOLDERS = 20;
 
 // Chat files are stored in MongoDB (GridFS) for now, so they are kept small and short-lived
 export const CHAT_FILE_MAX_BYTES = 5 * 1024 * 1024; // per file

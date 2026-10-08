@@ -3,7 +3,9 @@ import { requireFeature } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import {
   addMembers,
+  createFolder,
   createGroup,
+  deleteFolder,
   deleteMessage,
   downloadFile,
   editMessage,
@@ -11,14 +13,19 @@ import {
   getPresence,
   getUnreadTotal,
   listConversations,
+  listFolders,
   listMessages,
   markRead,
+  moveToFolder,
   openDirectChat,
   removeMember,
+  renameFolder,
   renameGroup,
+  reorderFolders,
   sendAttachment,
   sendMessage,
   setMuted,
+  setPinned,
   toggleReaction,
 } from './chat.controller.js';
 import {
@@ -26,9 +33,13 @@ import {
   attachmentMessageSchema,
   directChatSchema,
   editMessageSchema,
+  folderOrderSchema,
+  folderSchema,
   groupChatSchema,
   messageSchema,
+  moveToFolderSchema,
   muteSchema,
+  pinSchema,
   reactionSchema,
   renameGroupSchema,
 } from './chat.validator.js';
@@ -51,6 +62,13 @@ router.post('/conversations/:id/attachments', receiveFile, validate(attachmentMe
 router.get('/files/:fileId', downloadFile);
 router.post('/conversations/:id/read', markRead);
 router.patch('/conversations/:id/mute', validate(muteSchema), setMuted);
+router.patch('/conversations/:id/pin', validate(pinSchema), setPinned);
+router.patch('/conversations/:id/folder', validate(moveToFolderSchema), moveToFolder);
+router.get('/folders', listFolders);
+router.post('/folders', validate(folderSchema), createFolder);
+router.put('/folders/order', validate(folderOrderSchema), reorderFolders);
+router.patch('/folders/:folderId', validate(folderSchema), renameFolder);
+router.delete('/folders/:folderId', deleteFolder);
 router.patch('/messages/:id', validate(editMessageSchema), editMessage);
 router.post('/messages/:id/reactions', validate(reactionSchema), toggleReaction);
 router.delete('/messages/:id', deleteMessage);

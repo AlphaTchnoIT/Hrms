@@ -86,3 +86,34 @@ export function messagePreview(message) {
   if (message?.attachment) return message.attachment.kind === 'image' ? '📷 Photo' : `📎 ${message.attachment.name}`;
   return '';
 }
+
+// Message priority, same as the server (backend CHAT_PRIORITIES)
+export const CHAT_PRIORITIES = {
+  standard: { label: 'Standard', hint: 'Message will be sent as usual' },
+  important: { label: 'Important', hint: 'Message will be marked as important' },
+  urgent: { label: 'Urgent', hint: 'Marked urgent so it stands out' },
+};
+
+/*
+ * List sections: pinned -> Favourites, unread Important / Urgent -> Important (until read),
+ * then the user's own folders ("folder:<id>"), the rest -> Chats
+ */
+export function sectionOf(conversation, folderIds = new Set()) {
+  if (conversation.pinned) return 'favourites';
+  if (conversation.importantUnread > 0) return 'important';
+  if (conversation.folder && folderIds.has(conversation.folder)) return `folder:${conversation.folder}`;
+  return 'chats';
+}
+
+export const fullNameOf = (user) => `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+
+/*
+ * The "@name" being typed just before the cursor, e.g. "Thanks @tho" -> { query: 'tho', start: 7 }.
+ * null when the cursor is not right after an @mention in progress.
+ */
+export function mentionAt(text, cursor) {
+  const before = text.slice(0, cursor);
+  const match = before.match(/(^|\s)@([^\s@]*)$/);
+  if (!match) return null;
+  return { query: match[2].toLowerCase(), start: cursor - match[2].length - 1 };
+}

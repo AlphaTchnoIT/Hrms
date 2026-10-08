@@ -8,7 +8,8 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useQueryValue } from '@/hooks/useTabParam';
-import { Button, EmptyState } from '@/components/ui';
+import { Button, EmptyState, useConfirm } from '@/components/ui';
+import FolderNameModal from '@/components/chat/FolderNameModal';
 import ConversationList from '@/components/chat/ConversationList';
 import ChatWindow from '@/components/chat/ChatWindow';
 import NewChatModal from '@/components/chat/NewChatModal';
@@ -27,6 +28,10 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState(null);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [folders, setFolders] = useState([]); // my own chat folders, in my order
+  // { folder } to rename, { conversation } to move into the new folder, {} for a plain new folder
+  const [folderModal, setFolderModal] = useState(null);
+  const confirm = useConfirm();
   const activeRef = useRef(null);
   activeRef.current = activeId;
   const listRef = useRef(conversations);
@@ -46,12 +51,84 @@ export default function ChatPage() {
     [upsert]
   );
 
-  const onMutedChange = useCallback((id, muted) => setConversations((previous) => previous.map((c) => (c._id === id ? { ...c, muted } : c))), []);
+  // My own settings for a chat changed (here or in another tab): { muted } / { pinned }
+  const onPrefsChange = useCallback((id, prefs) => setConversations((previous) => previous.map((c) => (c._id === id ? { ...c, ...prefs } : c))), []);
+
+  const togglePin = async (conversation) => {
+    const pinned = !conversation.pinned;
+    try {
+      const res = await api.patch(`/chat/conversations/${conversation._id}/pin`, { pinned });
+      onPrefsChange(conversation._id, { pinned });
+      toast.success(res.message);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  /* ------------------------------- folders ------------------------------- */
+
+  const moveToFolder = async (conversation, folderId) => {
+    try {
+      const res = await api.patch(`/chat/conversations/${conversation._id}/folder`, { folderId });
+      onPrefsChange(conversation._id, { folder: folderId });
+      toast.success(res.message);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // Create (and optionally move a chat into it) or rename; errors are shown in the modal
+  const saveFolder = async (name) => {
+    if (folderModal?.folder) {
+      await api.patch(`/chat/folders/${folderModal.folder._id}`, { name });
+      setFolders((previous) => previous.map((f) => (f._id === folderModal.folder._id ? { ...f, name } : f)));
+      toast.success('Folder renamed');
+      return;
+    }
+    const res = await api.post('/chat/folders', { name });
+    setFolders((previous) => (previous.some((f) => f._id === res.data._id) ? previous : [...previous, res.data]));
+    toast.success(res.message);
+    if (folderModal?.conversation) await moveToFolder(folderModal.conversation, res.data._id);
+  };
+
+  const deleteFolder = async (folder) => {
+    const ok = await confirm({
+      title: `Delete folder "${folder.name}"?`,
+      message: 'Its chats go back to Chats. No chat or message is deleted.',
+      confirmText: 'Delete folder',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await api.delete(`/chat/folders/${folder._id}`);
+      setFolders((previous) => previous.filter((f) => f._id !== folder._id));
+      setConversations((previous) => previous.map((c) => (c.folder === folder._id ? { ...c, folder: null } : c)));
+      toast.success(res.message);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // Move a folder one place up (-1) or down (+1)
+  const moveFolder = async (folder, step) => {
+    const index = folders.findIndex((f) => f._id === folder._id);
+    const target = index + step;
+    if (index < 0 || target < 0 || target >= folders.length) return;
+    const next = [...folders];
+    [next[index], next[target]] = [next[target], next[index]];
+    setFolders(next);
+    try {
+      await api.put('/chat/folders/order', { folderIds: next.map((f) => f._id) });
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   const loadAll = useCallback(async () => {
     try {
-      const res = await api.get('/chat/conversations');
+      const [res, folderRes] = await Promise.all([api.get('/chat/conversations'), api.get('/chat/folders')]);
       setConversations(res.data);
+      setFolders(folderRes.data);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -78,7 +155,9 @@ export default function ChatPage() {
   useEffect(() => {
     const offs = [
       on('conversation:updated', upsert),
-      on('conversation:muted', ({ conversationId, muted }) => onMutedChange(conversationId, muted)),
+      on('conversation:prefs', ({ conversationId, ...prefs }) => onPrefsChange(conversationId, prefs)),
+      // Folders created / renamed / reordered / deleted in another tab or device
+      on('chat:folders', ({ folders: list }) => setFolders(list)),
       // A notification for another chat was clicked
       on('ui:open', setActiveId),
       on('conversation:removed', ({ conversationId }) => {
@@ -95,11 +174,15 @@ export default function ChatPage() {
           const current = previous.find((c) => c._id === conversationId);
           if (!current) return previous;
           const counts = message.type !== 'system' && !sameId(message.sender, meId) && activeRef.current !== conversationId;
+          const important = counts && message.priority && message.priority !== 'standard';
+          const mentioned = counts && (message.mentions || []).some((id) => sameId(id, meId));
           const updated = {
             ...current,
             lastMessage: { text: messagePreview(message), sender: message.sender?._id || null, at: message.createdAt },
             lastMessageAt: message.createdAt,
             unread: counts ? current.unread + 1 : current.unread,
+            importantUnread: (current.importantUnread || 0) + (important ? 1 : 0),
+            mentionUnread: (current.mentionUnread || 0) + (mentioned ? 1 : 0),
           };
           return [updated, ...previous.filter((c) => c._id !== conversationId)];
         });
@@ -122,7 +205,7 @@ export default function ChatPage() {
               ? c
               : {
                   ...c,
-                  unread: userId === meId ? 0 : c.unread,
+                  ...(userId === meId ? { unread: 0, importantUnread: 0, mentionUnread: 0 } : {}),
                   members: c.members.map((m) => (sameId(m, userId) ? { ...m, lastReadAt: at } : m)),
                 }
           )
@@ -130,9 +213,12 @@ export default function ChatPage() {
       ),
     ];
     return () => offs.forEach((off) => off());
-  }, [on, upsert, refreshOne, meId, onMutedChange]);
+  }, [on, upsert, refreshOne, meId, onPrefsChange]);
 
-  const onRead = useCallback((id) => setConversations((previous) => previous.map((c) => (c._id === id ? { ...c, unread: 0 } : c))), []);
+  const onRead = useCallback(
+    (id) => setConversations((previous) => previous.map((c) => (c._id === id ? { ...c, unread: 0, importantUnread: 0, mentionUnread: 0 } : c))),
+    []
+  );
 
   const onOpened = (conversation) => {
     upsert(conversation);
@@ -170,6 +256,13 @@ export default function ChatPage() {
             meId={meId}
             onSelect={setActiveId}
             onNewChat={() => setNewChatOpen(true)}
+            onTogglePin={togglePin}
+            folders={folders}
+            onMoveToFolder={moveToFolder}
+            onNewFolder={(conversation) => setFolderModal(conversation ? { conversation } : {})}
+            onRenameFolder={(folder) => setFolderModal({ folder })}
+            onDeleteFolder={deleteFolder}
+            onMoveFolder={moveFolder}
           />
         </aside>
         <section className={clsx('min-w-0 flex-1', active ? 'flex' : 'hidden md:flex')}>
@@ -181,7 +274,8 @@ export default function ChatPage() {
               onBack={() => setActiveId(null)}
               onOpenInfo={() => setInfoOpen(true)}
               onRead={onRead}
-              onMutedChange={onMutedChange}
+              onPrefsChange={onPrefsChange}
+              onTogglePin={() => togglePin(active)}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -197,6 +291,7 @@ export default function ChatPage() {
       </div>
 
       <NewChatModal open={newChatOpen} onClose={() => setNewChatOpen(false)} onOpened={onOpened} meId={meId} />
+      <FolderNameModal open={Boolean(folderModal)} initialName={folderModal?.folder?.name || ''} onClose={() => setFolderModal(null)} onSave={saveFolder} />
       <GroupInfoModal open={infoOpen} onClose={() => setInfoOpen(false)} conversation={active?.type === 'group' ? active : null} meId={meId} onLeft={onLeft} />
     </>
   );

@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Bell, BellOff, CornerUpLeft, Info, Paperclip, Pencil, SendHorizontal, Smile, X } from 'lucide-react';
+import { ArrowLeft, Bell, BellOff, CircleAlert, CornerUpLeft, Info, Paperclip, Pencil, Pin, PinOff, SendHorizontal, Siren, Smile, X } from 'lucide-react';
 import api from '@/lib/api';
 import { getFullName } from '@/lib/format';
 import { useChat } from '@/context/ChatContext';
@@ -10,14 +11,19 @@ import { Button, Spinner, useConfirm } from '@/components/ui';
 import { GroupAvatar, PresenceAvatar } from './PresenceAvatar';
 import EmojiPicker from './EmojiPicker';
 import MessageItem from './MessageItem';
+import PriorityMenu from './PriorityMenu';
+import SeenByModal from './SeenByModal';
 import {
   CHAT_FILE_ACCEPT,
+  CHAT_PRIORITIES,
   PRESENCE_LABEL,
   conversationTitle,
   dayLabel,
   fileProblem,
   fileSize,
+  fullNameOf,
   isImageName,
+  mentionAt,
   messagePreview,
   otherMember,
   presenceOf,
@@ -40,7 +46,7 @@ function Divider({ children, tone = 'slate' }) {
   );
 }
 
-export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onRead, onMutedChange }) {
+export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onRead, onPrefsChange, onTogglePin }) {
   const chat = useChat();
   const { on, sendTyping, setActiveConversation } = chat;
   const confirm = useConfirm();
@@ -61,6 +67,13 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
   const [uploadProgress, setUploadProgress] = useState(null); // 0-100 while uploading
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [priority, setPriority] = useState('standard'); // of the next message
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [seenByMessage, setSeenByMessage] = useState(null);
+  const [mention, setMention] = useState(null); // { query, start } while typing "@name"
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionIds = useRef(new Map()); // "Full Name" -> user id, for people picked from the @ list
+  const closePriority = useCallback(() => setPriorityOpen(false), []);
   const fileInputRef = useRef(null);
   const closeEmoji = useCallback(() => setEmojiOpen(false), []);
 
@@ -236,6 +249,10 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
   const onType = (value) => {
     setText(value);
     resizeInput();
+    // "@na…" just before the cursor (groups only) opens the people list
+    const found = isGroup && !editing ? mentionAt(value, inputRef.current?.selectionStart ?? value.length) : null;
+    setMention(found);
+    if (found) setMentionIndex(0);
     if (editing || !value.trim()) return stopTyping();
     if (Date.now() - lastTypingSent.current > TYPING_SEND_EVERY) {
       sendTyping(id, true);
@@ -295,6 +312,7 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     form.append('file', pending.file);
     if (caption) form.append('text', caption);
     if (quoting) form.append('replyTo', quoting._id);
+    form.append('priority', priority);
     setUploadProgress(0);
     try {
       const res = await api.post(`/chat/conversations/${id}/attachments`, form, {
@@ -304,6 +322,7 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
       clearPending();
       setText('');
       setReplyTo(null);
+      setPriority('standard');
       setTimeout(resizeInput, 0);
       stickToBottom.current = true;
       addMessage(res.data);
@@ -326,9 +345,13 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     if (!body) return;
     const quoting = replyTo;
     const editingMessage = editing;
+    const sendPriority = priority;
+    // Only people whose "@Full Name" is still in the text count as mentioned
+    const mentions = [...mentionIds.current].filter(([name]) => body.includes(`@${name}`)).map(([, userId]) => userId);
     setText('');
     setReplyTo(null);
     setEditing(null);
+    setMention(null);
     setTimeout(resizeInput, 0);
     stopTyping();
     try {
@@ -339,8 +362,10 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
         return;
       }
       stickToBottom.current = true;
-      const res = await api.post(`/chat/conversations/${id}/messages`, { text: body, replyTo: quoting?._id });
+      const res = await api.post(`/chat/conversations/${id}/messages`, { text: body, replyTo: quoting?._id, priority: sendPriority, mentions });
       addMessage(res.data);
+      setPriority('standard');
+      mentionIds.current.clear();
     } catch (err) {
       // keep what they wrote so they can try again
       setText(body);
@@ -348,6 +373,30 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
       setEditing(editingMessage);
       toast.error(err.message);
     }
+  };
+
+  // People offered while typing "@…" (not me), best matches first
+  const mentionOptions = mention
+    ? conversation.members
+        .filter((m) => !sameId(m, meId) && fullNameOf(m).toLowerCase().includes(mention.query))
+        .sort((a, b) => Number(!fullNameOf(a).toLowerCase().startsWith(mention.query)) - Number(!fullNameOf(b).toLowerCase().startsWith(mention.query)))
+        .slice(0, 6)
+    : [];
+
+  // Replaces the "@na" being typed with "@Full Name "
+  const pickMention = (member) => {
+    const name = fullNameOf(member);
+    const cursor = inputRef.current?.selectionStart ?? text.length;
+    const next = `${text.slice(0, mention.start)}@${name} ${text.slice(cursor)}`;
+    mentionIds.current.set(name, member._id);
+    setText(next);
+    setMention(null);
+    const caret = mention.start + name.length + 2;
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(caret, caret);
+      resizeInput();
+    }, 0);
   };
 
   // Puts an emoji where the cursor is
@@ -379,6 +428,25 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
   };
 
   const onKeyDown = (e) => {
+    // The @ list takes the arrow keys, Enter / Tab and Escape while it is open
+    if (mentionOptions.length) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const step = e.key === 'ArrowDown' ? 1 : -1;
+        setMentionIndex((i) => (i + step + mentionOptions.length) % mentionOptions.length);
+        return;
+      }
+      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+        e.preventDefault();
+        pickMention(mentionOptions[mentionIndex] || mentionOptions[0]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMention(null);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       send();
@@ -432,7 +500,7 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
     try {
       await api.patch(`/chat/conversations/${id}/mute`, { muted });
       chat.setMuted(id, muted);
-      onMutedChange(id, muted);
+      onPrefsChange(id, { muted });
       toast.success(muted ? 'Muted: no pop-ups or sounds for this chat' : 'Unmuted');
     } catch (err) {
       toast.error(err.message);
@@ -491,6 +559,14 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
           label={conversation.muted ? 'Unmute chat' : 'Mute chat'}
           onClick={toggleMute}
           className={conversation.muted ? 'text-amber-600' : undefined}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={conversation.pinned ? PinOff : Pin}
+          label={conversation.pinned ? 'Remove from Favourites' : 'Add to Favourites'}
+          onClick={onTogglePin}
+          className={conversation.pinned ? 'text-brand-600' : undefined}
         />
         {isGroup && <Button variant="ghost" size="sm" icon={Info} label="Group info" onClick={onOpenInfo} />}
       </div>
@@ -556,6 +632,10 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
                 onEdit={() => startEdit(message)}
                 onDelete={() => remove(message)}
                 onJumpTo={jumpTo}
+                onSeenBy={() => {
+                  setActionsFor(null);
+                  setSeenByMessage(message);
+                }}
               />
             </Fragment>
           );
@@ -614,11 +694,58 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
                 )}
               </div>
             )}
+            {priority !== 'standard' && !editing && (
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-red-600">
+                {priority === 'urgent' ? <Siren className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}
+                This message will be sent as {CHAT_PRIORITIES[priority].label}
+                <button onClick={() => setPriority('standard')} aria-label="Back to standard" className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <div className="relative flex items-end gap-1.5">
               {emojiOpen && <EmojiPicker onPick={insertEmoji} onClose={closeEmoji} />}
+              {priorityOpen && (
+                <PriorityMenu
+                  value={priority}
+                  onPick={(value) => {
+                    setPriority(value);
+                    setPriorityOpen(false);
+                    focusInput();
+                  }}
+                  onClose={closePriority}
+                />
+              )}
+              {mentionOptions.length > 0 && (
+                <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-24 z-20 mb-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-pop">
+                  {mentionOptions.map((member, i) => (
+                    <li key={member._id} role="option" aria-selected={i === mentionIndex}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()} // keep the cursor in the message box
+                        onClick={() => pickMention(member)}
+                        className={clsx('flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm', i === mentionIndex ? 'bg-brand-50' : 'hover:bg-slate-50')}
+                      >
+                        <PresenceAvatar user={member} size="sm" />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-800">{fullNameOf(member)}</span>
+                          <span className="block truncate text-[11px] text-slate-500">{member.designation?.title || member.email}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <Button variant="ghost" icon={Smile} label="Emoji" onClick={() => setEmojiOpen((v) => !v)} />
               {!editing && (
                 <>
+                  <Button
+                    variant="ghost"
+                    icon={priority === 'urgent' ? Siren : CircleAlert}
+                    label="Set delivery options (Standard, Important, Urgent)"
+                    onClick={() => setPriorityOpen((v) => !v)}
+                    className={priority !== 'standard' ? 'text-red-600' : undefined}
+                  />
                   <Button variant="ghost" icon={Paperclip} label="Attach a photo or file (max 5 MB)" onClick={() => fileInputRef.current?.click()} />
                   <input
                     ref={fileInputRef}
@@ -660,6 +787,8 @@ export default function ChatWindow({ conversation, meId, onBack, onOpenInfo, onR
           <p className="mt-1.5 text-xs text-amber-600">Reconnecting… new messages will appear once you are back online.</p>
         )}
       </div>
+
+      {seenByMessage && <SeenByModal message={seenByMessage} members={conversation.members} meId={meId} onClose={() => setSeenByMessage(null)} />}
     </div>
   );
 }

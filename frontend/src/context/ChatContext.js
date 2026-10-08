@@ -18,7 +18,7 @@ import { useAuth } from './AuthContext';
 const ChatContext = createContext(null);
 
 // Events the server pushes (see backend/src/chat/chat.socket.js)
-const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:muted', 'typing'];
+const EVENTS = ['message:new', 'message:updated', 'message:deleted', 'message:file-removed', 'conversation:updated', 'conversation:removed', 'conversation:read', 'conversation:prefs', 'chat:folders', 'typing'];
 
 const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -120,13 +120,16 @@ export function ChatProvider({ children }) {
       const hidden = document.visibilityState !== 'visible';
       if (activeConversationId.current === conversationId && !hidden) return;
       setUnreadTotal((n) => n + 1);
-      if (mutedRef.current.has(conversationId)) return;
+      // Being @mentioned gets through even in a muted chat
+      const mentioned = (message.mentions || []).some((id) => String(id) === String(userId));
+      if (mutedRef.current.has(conversationId) && !mentioned) return;
 
       playPing();
-      const name = getFullName(message.sender);
+      const flag = { important: 'Important: ', urgent: 'URGENT: ' }[message.priority] || '';
+      const name = `${flag}${getFullName(message.sender)}${mentioned ? ' mentioned you' : ''}`;
       if (hidden && notificationsSupported() && Notification.permission === 'granted') {
         // tag: a new message from the same chat replaces the previous notification
-        const notification = new Notification(name, { body: messagePreview(message), tag: conversationId });
+        const notification = new Notification(name, { body: messagePreview(message), tag: conversationId, requireInteraction: message.priority === 'urgent' });
         notification.onclick = () => {
           window.focus();
           openChat(conversationId);
@@ -146,17 +149,17 @@ export function ChatProvider({ children }) {
               <span className="line-clamp-2 text-sm text-slate-600">{messagePreview(message)}</span>
             </button>
           ),
-          { icon: '💬', duration: 5000 }
+          { icon: flag ? '❗' : '💬', duration: message.priority === 'urgent' ? 15000 : 5000 }
         );
       }
     });
 
     socket.on('conversation:read', ({ userId: readerId }) => readerId === userId && refreshUnread());
     socket.on('conversation:removed', refreshUnread);
-    // Muted / unmuted in another tab or device
-    socket.on('conversation:muted', ({ conversationId, muted }) => {
-      if (muted) mutedRef.current.add(conversationId);
-      else mutedRef.current.delete(conversationId);
+    // Muted / unmuted (here, in another tab or on another device)
+    socket.on('conversation:prefs', ({ conversationId, muted }) => {
+      if (muted === true) mutedRef.current.add(conversationId);
+      if (muted === false) mutedRef.current.delete(conversationId);
     });
 
     return () => {

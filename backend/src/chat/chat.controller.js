@@ -2,8 +2,8 @@ import { LeaveRequest, Settings, User } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { todayInTz } from '../utils/date.js';
-import { CHAT_FILE_RETENTION_DAYS, CHAT_FILES_TOTAL_BYTES } from '../constants/index.js';
-import { Conversation, Message, directKeyFor } from './chat.model.js';
+import { CHAT_FILE_RETENTION_DAYS, CHAT_FILES_TOTAL_BYTES, CHAT_MAX_FOLDERS, CHAT_MAX_PINNED } from '../constants/index.js';
+import { ChatFolder, Conversation, Message, directKeyFor } from './chat.model.js';
 import { emitToUsers, onlineUserIds } from './chat.socket.js';
 import { deleteFile, openFile, saveFile, totalStoredBytes } from './chat.storage.js';
 import { checkFile } from './chat.upload.js';
@@ -40,6 +40,10 @@ function conversationView(conversation, userId) {
     ...data,
     unread: me?.unread || 0,
     muted: Boolean(me?.muted),
+    pinned: Boolean(me?.pinned),
+    importantUnread: me?.importantUnread || 0,
+    mentionUnread: me?.mentionUnread || 0,
+    folder: me?.folder ? String(me.folder) : null,
     members: data.members.filter((m) => m.user).map((m) => ({ ...m.user, lastReadAt: m.lastReadAt || null })),
   };
 }
@@ -267,7 +271,15 @@ async function assertCanPost(conversation, me, replyTo) {
 async function postMessage(conversation, me, fields, previewText) {
   const message = await Message.create({ conversation: conversation._id, sender: me, ...fields });
 
-  // One update: last message, +1 unread for everyone else, and the sender has read up to now
+  // One update: last message, +1 unread for everyone else (and their Important / @mention counters),
+  // and the sender has read up to now
+  const inc = { 'members.$[other].unread': 1 };
+  const arrayFilters = [{ 'mine.user': me }, { 'other.user': { $ne: me } }];
+  if (message.priority !== 'standard') inc['members.$[other].importantUnread'] = 1;
+  if (message.mentions?.length) {
+    inc['members.$[tagged].mentionUnread'] = 1;
+    arrayFilters.push({ 'tagged.user': { $in: message.mentions } });
+  }
   await Conversation.updateOne(
     { _id: conversation._id },
     {
@@ -277,9 +289,9 @@ async function postMessage(conversation, me, fields, previewText) {
         'members.$[mine].unread': 0,
         'members.$[mine].lastReadAt': message.createdAt,
       },
-      $inc: { 'members.$[other].unread': 1 },
+      $inc: inc,
     },
-    { arrayFilters: [{ 'mine.user': me }, { 'other.user': { $ne: me } }] }
+    { arrayFilters }
   );
 
   await message.populate(MESSAGE_POPULATE);
@@ -288,11 +300,21 @@ async function postMessage(conversation, me, fields, previewText) {
   return data;
 }
 
-// POST /api/chat/conversations/:id/messages { text, replyTo }
+// POST /api/chat/conversations/:id/messages { text, replyTo, priority, mentions }
 export async function sendMessage(req, res) {
   const conversation = await loadConversation(req);
   await assertCanPost(conversation, req.user._id, req.body.replyTo);
-  const data = await postMessage(conversation, req.user._id, { text: req.body.text, replyTo: req.body.replyTo || undefined }, req.body.text);
+  // @mentions only in groups, only of people in the group, never yourself
+  const members = new Set(memberIds(conversation));
+  const mentions = conversation.type === 'group'
+    ? [...new Set(req.body.mentions.map(String))].filter((id) => members.has(id) && id !== String(req.user._id))
+    : [];
+  const data = await postMessage(
+    conversation,
+    req.user._id,
+    { text: req.body.text, replyTo: req.body.replyTo || undefined, priority: req.body.priority, mentions },
+    req.body.text
+  );
   sendSuccess(res, { data, status: 201 });
 }
 
@@ -318,7 +340,7 @@ export async function sendAttachment(req, res) {
     const data = await postMessage(
       conversation,
       req.user._id,
-      { text: caption, replyTo: req.body.replyTo || undefined, attachment },
+      { text: caption, replyTo: req.body.replyTo || undefined, priority: req.body.priority, attachment },
       caption || (kind === 'image' ? '📷 Photo' : `📎 ${name}`)
     );
     sendSuccess(res, { data, status: 201 });
@@ -401,13 +423,114 @@ export async function deleteMessage(req, res) {
   return sendSuccess(res, { message: 'Message deleted' });
 }
 
+// My own settings for a chat (muted / pinned); every open tab / device of mine follows
+async function setMyPreference(req, field, value) {
+  const conversation = await loadConversation(req);
+  await Conversation.updateOne({ _id: conversation._id, 'members.user': req.user._id }, { $set: { [`members.$.${field}`]: value } });
+  emitToUsers([req.user._id], 'conversation:prefs', { conversationId: String(conversation._id), [field]: value });
+}
+
 // PATCH /api/chat/conversations/:id/mute { muted } -> no pop-ups or sounds for this chat (only for me)
 export async function setMuted(req, res) {
-  const conversation = await loadConversation(req);
-  await Conversation.updateOne({ _id: conversation._id, 'members.user': req.user._id }, { $set: { 'members.$.muted': req.body.muted } });
-  // Every open tab / device of mine follows (no pop-ups there either)
-  emitToUsers([req.user._id], 'conversation:muted', { conversationId: String(conversation._id), muted: req.body.muted });
+  await setMyPreference(req, 'muted', req.body.muted);
   sendSuccess(res, { data: { muted: req.body.muted }, message: req.body.muted ? 'Chat muted' : 'Chat unmuted' });
+}
+
+// PATCH /api/chat/conversations/:id/pin { pinned } -> shown under "Favourites" (only for me)
+export async function setPinned(req, res) {
+  if (req.body.pinned) {
+    const pinnedCount = await Conversation.countDocuments({ members: { $elemMatch: { user: req.user._id, pinned: true } } });
+    if (pinnedCount >= CHAT_MAX_PINNED) throw ApiError.badRequest(`You can pin up to ${CHAT_MAX_PINNED} chats`);
+  }
+  await setMyPreference(req, 'pinned', req.body.pinned);
+  sendSuccess(res, { data: { pinned: req.body.pinned }, message: req.body.pinned ? 'Added to Favourites' : 'Removed from Favourites' });
+}
+
+/* --------------------------------- folders --------------------------------- */
+// Each user's own folders in the chat list. One folder per chat (members.folder).
+
+const myFolders = (userId) => ChatFolder.find({ user: userId }).sort({ order: 1, createdAt: 1 }).select('name order');
+
+// Every open tab / device of mine gets the new folder list
+async function pushFolders(userId) {
+  emitToUsers([userId], 'chat:folders', { folders: await myFolders(userId) });
+}
+
+async function loadFolder(req) {
+  const folder = await ChatFolder.findOne({ _id: req.params.folderId, user: req.user._id });
+  if (!folder) throw ApiError.notFound('Folder not found');
+  return folder;
+}
+
+async function assertFolderNameFree(userId, name, exceptId) {
+  const taken = await ChatFolder.exists({
+    user: userId,
+    name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  });
+  if (taken) throw ApiError.field('name', 'You already have a folder with this name');
+}
+
+// GET /api/chat/folders
+export async function listFolders(req, res) {
+  sendSuccess(res, { data: await myFolders(req.user._id) });
+}
+
+// POST /api/chat/folders { name }
+export async function createFolder(req, res) {
+  if ((await ChatFolder.countDocuments({ user: req.user._id })) >= CHAT_MAX_FOLDERS) {
+    throw ApiError.badRequest(`You can have up to ${CHAT_MAX_FOLDERS} folders`);
+  }
+  await assertFolderNameFree(req.user._id, req.body.name);
+  const last = await ChatFolder.findOne({ user: req.user._id }).sort({ order: -1 }).select('order');
+  const folder = await ChatFolder.create({ user: req.user._id, name: req.body.name, order: (last?.order ?? -1) + 1 });
+  await pushFolders(req.user._id);
+  sendSuccess(res, { data: folder, message: `Folder "${folder.name}" created`, status: 201 });
+}
+
+// PATCH /api/chat/folders/:folderId { name }
+export async function renameFolder(req, res) {
+  const folder = await loadFolder(req);
+  await assertFolderNameFree(req.user._id, req.body.name, folder._id);
+  folder.name = req.body.name;
+  await folder.save();
+  await pushFolders(req.user._id);
+  sendSuccess(res, { data: folder, message: 'Folder renamed' });
+}
+
+// PUT /api/chat/folders/order { folderIds } -> folders in this order
+export async function reorderFolders(req, res) {
+  const owned = new Set((await ChatFolder.find({ user: req.user._id }).distinct('_id')).map(String));
+  const ids = req.body.folderIds.filter((id) => owned.has(id));
+  await Promise.all(ids.map((id, order) => ChatFolder.updateOne({ _id: id }, { $set: { order } })));
+  await pushFolders(req.user._id);
+  sendSuccess(res, { data: await myFolders(req.user._id) });
+}
+
+// DELETE /api/chat/folders/:folderId -> its chats go back to "Chats" (no chat is deleted)
+export async function deleteFolder(req, res) {
+  const folder = await loadFolder(req);
+  const me = req.user._id;
+  await Conversation.updateMany(
+    { members: { $elemMatch: { user: me, folder: folder._id } } },
+    { $set: { 'members.$[mine].folder': null } },
+    { arrayFilters: [{ 'mine.user': me, 'mine.folder': folder._id }] }
+  );
+  await folder.deleteOne();
+  await pushFolders(me);
+  sendSuccess(res, { message: `Folder "${folder.name}" deleted, its chats are back in Chats` });
+}
+
+// PATCH /api/chat/conversations/:id/folder { folderId | null }
+export async function moveToFolder(req, res) {
+  const folderId = req.body.folderId || null;
+  let folder = null;
+  if (folderId) {
+    folder = await ChatFolder.findOne({ _id: folderId, user: req.user._id }).select('name');
+    if (!folder) throw ApiError.field('folderId', 'Folder not found');
+  }
+  await setMyPreference(req, 'folder', folder ? String(folder._id) : null);
+  sendSuccess(res, { data: { folder: folder ? String(folder._id) : null }, message: folder ? `Moved to "${folder.name}"` : 'Moved back to Chats' });
 }
 
 // POST /api/chat/conversations/:id/read -> clears my unread count, others see "Seen"
@@ -416,7 +539,7 @@ export async function markRead(req, res) {
   const at = new Date();
   await Conversation.updateOne(
     { _id: conversation._id, 'members.user': req.user._id },
-    { $set: { 'members.$.unread': 0, 'members.$.lastReadAt': at } }
+    { $set: { 'members.$.unread': 0, 'members.$.importantUnread': 0, 'members.$.mentionUnread': 0, 'members.$.lastReadAt': at } }
   );
   emitToUsers(memberIds(conversation), 'conversation:read', { conversationId: String(conversation._id), userId: String(req.user._id), at });
   sendSuccess(res, { data: { at } });
