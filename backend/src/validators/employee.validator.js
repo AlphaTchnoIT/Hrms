@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS } from '../constants/index.js';
+import { EMPLOYEE_STATUS, EMPLOYMENT_TYPES, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS, PAY_TYPES, DEDUCTION_MODES } from '../constants/index.js';
 import {
   dateStr,
   email,
@@ -61,7 +61,10 @@ const bankDetailsSchema = z.object({
 export const TAX_CODE_REGEX = /^[SC]?(?:\d{1,4}[LMNT]|K\d{1,4}|BR|D0|D1|0T|NT)(?: ?(?:W1|M1|X))?$/;
 
 const salarySchema = z.object({
+  payType: z.enum(PAY_TYPES, { errorMap: () => ({ message: 'Select salaried or hourly' }) }).optional(),
   annualSalary: money('Annual salary', { max: 10000000 }),
+  hourlyRate: money('Hourly rate', { max: 10000 }),
+  deductionMode: z.enum(DEDUCTION_MODES, { errorMap: () => ({ message: 'Select how deductions are handled' }) }).optional(),
   monthlyAllowance: money('Monthly allowance'),
   taxCode: optional(z.string().trim().toUpperCase().regex(TAX_CODE_REGEX, 'Enter a valid tax code (e.g. 1257L)')),
   niCategory: z.enum(NI_CATEGORIES, { errorMap: () => ({ message: 'Select an NI category' }) }).optional(),

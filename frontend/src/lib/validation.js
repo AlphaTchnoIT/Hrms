@@ -161,7 +161,10 @@ const employeeBase = z.object({
     sortCode: optional(z.string().trim().refine((v) => /^\d{6}$/.test(v.replace(/[\s-]/g, '')), 'Sort code must be 6 digits (e.g. 12-34-56)')),
   }),
   salary: z.object({
+    payType: z.string().optional(),
     annualSalary: number('Annual salary'),
+    hourlyRate: number('Hourly rate'),
+    deductionMode: z.string().optional(),
     monthlyAllowance: number('Monthly allowance'),
     taxCode: optional(z.string().trim().toUpperCase().regex(/^[SC]?(?:\d{1,4}[LMNT]|K\d{1,4}|BR|D0|D1|0T|NT)(?: ?(?:W1|M1|X))?$/, 'Enter a valid tax code (e.g. 1257L)')),
     niCategory: z.string().optional(),
@@ -176,7 +179,10 @@ export const employeeSchema = employeeBase.superRefine((d, ctx) => {
   if (d.dateOfBirth && d.dateOfJoining && yearsBetween(d.dateOfBirth, d.dateOfJoining) < 18) {
     ctx.addIssue({ code: 'custom', path: ['dateOfJoining'], message: 'Employee must be at least 18 on the joining date' });
   }
-  if (d.salary.monthlyAllowance > 0 && d.salary.annualSalary === 0) {
+  if (d.salary.payType === 'hourly' && !d.salary.hourlyRate) {
+    ctx.addIssue({ code: 'custom', path: ['salary.hourlyRate'], message: 'Hourly rate is required for hourly pay' });
+  }
+  if (d.salary.payType !== 'hourly' && d.salary.monthlyAllowance > 0 && d.salary.annualSalary === 0) {
     ctx.addIssue({ code: 'custom', path: ['salary.annualSalary'], message: 'Annual salary is required when an allowance is set' });
   }
 });

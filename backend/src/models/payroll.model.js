@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DEDUCTION_MODES, PAY_TYPES } from '../constants/index.js';
 
 // One payroll run per month. "processed" runs can be re-run, "paid" runs are locked.
 const payrollRunSchema = new mongoose.Schema(
@@ -6,6 +7,7 @@ const payrollRunSchema = new mongoose.Schema(
     month: { type: Number, required: true, min: 1, max: 12 },
     year: { type: Number, required: true },
     status: { type: String, enum: ['processed', 'paid'], default: 'processed' },
+    needsRerun: { type: Boolean, default: false }, // AT hours changed after processing: re-run before paying
     employeeCount: { type: Number, default: 0 },
     totalGross: { type: Number, default: 0 },
     totalDeductions: { type: Number, default: 0 },
@@ -22,7 +24,8 @@ const payrollRunSchema = new mongoose.Schema(
 
 payrollRunSchema.index({ month: 1, year: 1 }, { unique: true });
 
-const lineItemSchema = new mongoose.Schema({ name: String, amount: Number }, { _id: false });
+// manual = added by hand by the legal / payroll team (kept when payroll is re-run)
+const lineItemSchema = new mongoose.Schema({ name: String, amount: Number, manual: Boolean }, { _id: false });
 
 const payslipSchema = new mongoose.Schema(
   {
@@ -49,6 +52,11 @@ const payslipSchema = new mongoose.Schema(
     totalDays: Number,
     paidDays: Number,
     lopDays: Number,
+    payType: { type: String, enum: PAY_TYPES, default: 'salaried' },
+    hourlyRate: Number, // hourly workers only
+    hoursWorked: Number, // AT (productive) hours of the month, hourly workers only
+    hoursSource: { type: String, enum: ['monthly', 'daily'] }, // monthly entry by the manager, or the sum of daily AT hours
+    deductionMode: { type: String, enum: DEDUCTION_MODES, default: 'auto' },
     earnings: [lineItemSchema],
     deductions: [lineItemSchema],
     grossEarnings: Number,

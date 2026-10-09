@@ -23,6 +23,16 @@ export const NI_CATEGORIES = [
   { value: 'C', label: 'C – Over State Pension age' },
   { value: 'X', label: 'X – Not liable' },
 ];
+export const PAY_TYPES = [
+  { value: 'salaried', label: 'Salaried (annual salary)' },
+  { value: 'hourly', label: 'Hourly (paid on AT hours)' },
+];
+
+export const DEDUCTION_MODES = [
+  { value: 'auto', label: 'Automatic (PAYE, NI, pension)' },
+  { value: 'manual', label: 'Manual (legal / payroll team)' },
+];
+
 export const STUDENT_LOAN_PLANS = [
   { value: 'none', label: 'None' },
   { value: 'plan1', label: 'Plan 1' },

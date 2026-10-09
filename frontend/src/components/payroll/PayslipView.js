@@ -47,6 +47,22 @@ export default function PayslipView({ payslip, company }) {
         </div>
       </div>
 
+      {payslip.payType === 'hourly' ? (
+        <div className="grid grid-cols-3 gap-4 border-b border-slate-200 py-4 text-center">
+          <div>
+            <p className="text-xs text-slate-500">Hours worked (AT)</p>
+            <p className="font-semibold">{payslip.hoursWorked ?? 0}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Hourly rate</p>
+            <p className="font-semibold">{formatCurrency(payslip.hourlyRate)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Hourly pay</p>
+            <p className="font-semibold">{formatCurrency((payslip.hourlyRate || 0) * (payslip.hoursWorked || 0))}</p>
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-3 gap-4 border-b border-slate-200 py-4 text-center">
         <div>
           <p className="text-xs text-slate-500">Working days</p>
@@ -61,6 +77,7 @@ export default function PayslipView({ payslip, company }) {
           <p className="font-semibold text-red-600">{payslip.lopDays}</p>
         </div>
       </div>
+      )}
 
       <table className="mt-5 w-full text-sm">
         <thead>
@@ -74,9 +91,15 @@ export default function PayslipView({ payslip, company }) {
         <tbody>
           {Array.from({ length: rows }).map((_, i) => (
             <tr key={i} className="border-b border-slate-100">
-              <td className="px-3 py-2">{payslip.earnings[i]?.name}</td>
+              <td className="px-3 py-2">
+                {payslip.earnings[i]?.name}
+                {payslip.earnings[i]?.manual && <span className="ml-1 text-[10px] uppercase text-slate-400">manual</span>}
+              </td>
               <td className="px-3 py-2 text-right">{payslip.earnings[i] && formatCurrency(payslip.earnings[i].amount)}</td>
-              <td className="px-3 py-2">{payslip.deductions[i]?.name}</td>
+              <td className="px-3 py-2">
+                {payslip.deductions[i]?.name}
+                {payslip.deductions[i]?.manual && <span className="ml-1 text-[10px] uppercase text-slate-400">manual</span>}
+              </td>
               <td className="px-3 py-2 text-right">{payslip.deductions[i] && formatCurrency(payslip.deductions[i].amount)}</td>
             </tr>
           ))}
@@ -88,6 +111,9 @@ export default function PayslipView({ payslip, company }) {
           </tr>
         </tbody>
       </table>
+      {payslip.deductionMode === 'manual' && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Deductions (tax, NI, pension) are entered manually by the payroll / legal team.</p>
+      )}
 
       <div className="mt-6 rounded-lg bg-brand-50 p-4">
         <div className="flex items-center justify-between">
