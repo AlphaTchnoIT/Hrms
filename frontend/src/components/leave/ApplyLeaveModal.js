@@ -36,9 +36,15 @@ export default function ApplyLeaveModal({ open, onClose, balances = [], onApplie
   const days = values.isHalfDay ? (values.fromDate ? 0.5 : 0) : countWeekdays(values.fromDate, values.toDate);
   const exceedsBalance = selected?.leaveType.isPaid && days > selected.available;
 
+  // Statutory leave is not paid from salary but through payroll as SSP / SMP / SPP, so it is not "unpaid"
+  const unpaidLabel = ({ name, statutoryPay }) => {
+    if (!statutoryPay || statutoryPay === 'none') return `${name} (unpaid)`;
+    const code = statutoryPay.toUpperCase();
+    return name.includes(code) ? name : `${name} (paid as ${code})`;
+  };
   const options = balances.map((b) => ({
     value: b.leaveType._id,
-    label: b.leaveType.isPaid ? `${b.leaveType.name} — ${b.available} day(s) left` : `${b.leaveType.name} (unpaid)`,
+    label: b.leaveType.isPaid ? `${b.leaveType.name} — ${b.available} day(s) left` : unpaidLabel(b.leaveType),
   }));
 
   const onSubmit = form.handleSubmit(async (data) => {

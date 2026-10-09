@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CalendarRange, ClipboardCheck, Gauge, GraduationCap } from 'lucide-react';
 import { formatDay } from '@/lib/format';
+import { METRIC_LABELS } from '@/lib/constants';
 import { Badge } from '@/components/ui';
 import { PerformanceStatus, RatingStars } from '@/components/performance/KpiWidgets';
 
@@ -41,6 +42,11 @@ export default function MyWorkspace({ work }) {
       </Tile>
       <Tile href="/performance" icon={Gauge} title="My performance (30 days)">
         <PerformanceStatus status={work.performance.status} />
+        {work.performance.below?.length > 0 && (
+          <p className="text-xs text-slate-500">
+            {work.performance.below.map((b) => `${METRIC_LABELS[b.metric] || b.metric} ${b.score}% (target ${b.target}%)`).join(' · ')}
+          </p>
+        )}
         <div className="flex items-center gap-2">
           <RatingStars value={work.performance.rating} />
           {work.performance.compositeScore !== null && <span className="text-xs text-slate-500">score {work.performance.compositeScore}</span>}

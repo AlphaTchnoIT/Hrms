@@ -38,6 +38,7 @@ export default function CheckInCard({ onChange }) {
   const { data, loading, refetch } = useFetch('/attendance/today');
   const [now, setNow] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   // Live clock (started after mount to avoid hydration mismatch)
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function CheckInCard({ onChange }) {
 
     setBusy(true);
     try {
-      const location = await getBrowserLocation();
+      setLocating(true);
+      const location = await getBrowserLocation().finally(() => setLocating(false));
       const res = await api.post(`/attendance/${type}`, location);
       toast.success(res.message);
       await refetch();
@@ -132,6 +134,11 @@ export default function CheckInCard({ onChange }) {
           <Button className="w-full" size="lg" variant="danger" icon={LogOut} loading={busy} onClick={() => punch('check-out')}>
             Web Check-out
           </Button>
+        )}
+        {locating && (
+          <p className="mt-2 flex items-center justify-center gap-1 text-xs text-slate-500">
+            <MapPin className="h-3 w-3" /> Getting your location. If the browser asks, allow or block it.
+          </p>
         )}
         {checkedOut && (
           <div className="flex items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
