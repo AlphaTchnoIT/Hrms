@@ -8,8 +8,8 @@ import { personalInfoSchema } from '../validators/employee.validator.js';
 
 const router = Router();
 
-// Max 20 login attempts per 15 minutes per IP
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, message: { success: false, message: 'Too many login attempts, try again later' } });
+// Max 20 failed login attempts per 15 minutes per IP (successful logins are not counted: an office shares one IP)
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, skipSuccessfulRequests: true, message: { success: false, message: 'Too many login attempts, try again later' } });
 
 // Max 5 reset emails per 15 minutes per IP
 const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, message: { success: false, message: 'Too many requests, try again later' } });

@@ -147,7 +147,15 @@ export async function getDashboard(req, res) {
   const mySummary = summaries[String(user._id)];
   data.myWork = {
     shifts: workforce[String(user._id)]?.days || [],
-    performance: { status: mySummary.status, rating: mySummary.rating, compositeScore: mySummary.compositeScore },
+    performance: {
+      status: mySummary.status,
+      rating: mySummary.rating,
+      compositeScore: mySummary.compositeScore,
+      // The status is the worst metric (adherence included), so say which metrics set it
+      below: Object.entries(mySummary.metrics)
+        .filter(([, m]) => m.status && m.status !== 'meeting-target' && m.status === mySummary.status)
+        .map(([metric, m]) => ({ metric, score: m.score, target: m.target })),
+    },
     toAcknowledge: { qaFeedback: qaToAck, warnings: warningsToAck, actionPlans: plansToAck },
     trainingsDue,
   };

@@ -295,6 +295,14 @@ export async function runPayroll({ month, year, processedBy }) {
         if (missing) warnings.push({ user: employee._id, name: employee.fullName, message: `Hourly pay: no monthly AT hours, and daily AT hours missing for ${missing} day(s) with a login (paid 0 hours)` });
       }
       if (!employee.salary?.hourlyRate) warnings.push({ user: employee._id, name: employee.fullName, message: 'Hourly pay: no hourly rate set' });
+    } else if (!employee.salary?.annualSalary) {
+      warnings.push({ user: employee._id, name: employee.fullName, message: 'No salary set: this payslip pays only allowances and statutory pay' });
+    }
+    if (!employee.bankDetails?.accountNumber || !employee.bankDetails?.sortCode) {
+      warnings.push({ user: employee._id, name: employee.fullName, message: 'Bank details missing: this person will be blank on the bank sheet' });
+    }
+    if (!employee.niNumber) {
+      warnings.push({ user: employee._id, name: employee.fullName, message: 'No National Insurance number: HMRC needs it on the RTI submission' });
     }
     if (employee.status === 'active') {
       const wage = minimumWageCheck(employee, rates);

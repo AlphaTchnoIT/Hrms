@@ -51,7 +51,7 @@ const EMPLOYEE_FIELDS = [
 ];
 
 const REF_FIELDS = ['department', 'designation', 'reportingManager'];
-const SENSITIVE_FIELDS = ['salary', 'bankDetails', 'niNumber'];
+const SENSITIVE_FIELDS = ['salary', 'monthlyGross', 'bankDetails', 'niNumber'];
 
 function buildEmployeeFilter(query) {
   const filter = {};
