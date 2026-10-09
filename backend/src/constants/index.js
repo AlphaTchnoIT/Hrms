@@ -89,6 +89,8 @@ export const CHAT_FILE_TYPES = {
 };
 
 export const STUDENT_LOAN_PLANS = ['none', 'plan1', 'plan2', 'plan4', 'plan5'];
+export const PAY_TYPES = ['salaried', 'hourly'];
+export const DEDUCTION_MODES = ['auto', 'manual'];
 
 // Leave that is paid through payroll as statutory pay instead of salary
 export const STATUTORY_PAY_TYPES = ['none', 'ssp', 'smp', 'spp'];

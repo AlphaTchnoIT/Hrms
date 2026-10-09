@@ -7,11 +7,12 @@ import {
   getRun,
   listRuns,
   markRunPaid,
+  updateManualItems,
 } from '../controllers/payroll.controller.js';
 import { authorize, requireFeature } from '../middlewares/auth.middleware.js';
 import { HR_ROLES } from '../constants/index.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { payrollRunSchema } from '../validators/workflow.validator.js';
+import { payrollRunSchema, payslipManualItemsSchema } from '../validators/workflow.validator.js';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use(requireFeature('payroll'));
 
 router.get('/my-payslips', getMyPayslips);
 router.get('/payslips/:id', getPayslip);
+router.put('/payslips/:id/manual-items', authorize(HR_ROLES), validate(payslipManualItemsSchema), updateManualItems);
 
 router.get('/runs', authorize(HR_ROLES), listRuns);
 router.post('/runs', authorize(HR_ROLES), validate(payrollRunSchema), createRun);

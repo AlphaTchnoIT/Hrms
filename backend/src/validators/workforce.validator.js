@@ -31,3 +31,12 @@ export const loginHoursSchema = z.object({
   productiveMinutes: intRange('Productive minutes', 0, 1440),
   idleMinutes: intRange('Idle minutes', 0, 1440),
 });
+
+// Monthly AT hours: hours = null clears the entry (payroll then uses the daily AT hours)
+export const monthlyHoursSchema = z.object({
+  user: objectId('employee'),
+  month: intRange('Month', 1, 12),
+  year: intRange('Year', 2000, 2100),
+  hours: z.coerce.number({ invalid_type_error: 'Hours must be a number' }).min(0, 'Hours cannot be negative').max(744, 'A month has at most 744 hours').nullable(),
+  note: optionalText('Note', 200),
+});

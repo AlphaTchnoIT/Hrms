@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS } from '../constants/index.js';
+import { ROLES, EMPLOYMENT_TYPES, EMPLOYEE_STATUS, HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS, PAY_TYPES, DEDUCTION_MODES } from '../constants/index.js';
+import { annualPay } from '../utils/pay.js';
 
 /*
  * User = Employee.
@@ -31,11 +32,16 @@ const bankDetailsSchema = new mongoose.Schema(
 
 /*
  * Pay details for UK payroll (PAYE). Amounts are in the company currency.
- * Monthly gross = annual salary / 12 + monthly allowance.
+ * Salaried: monthly gross = annual salary / 12 + monthly allowance.
+ * Hourly: monthly gross = hourly rate x AT (productive) hours of the month + monthly allowance.
  */
 const salarySchema = new mongoose.Schema(
   {
+    payType: { type: String, enum: PAY_TYPES, default: 'salaried' },
     annualSalary: { type: Number, default: 0, min: 0 },
+    hourlyRate: { type: Number, default: 0, min: 0 },
+    // auto: PAYE tax, NI, pension and student loans are worked out; manual: the legal / payroll team adds them outside the app
+    deductionMode: { type: String, enum: DEDUCTION_MODES, default: 'auto' },
     monthlyAllowance: { type: Number, default: 0, min: 0 }, // e.g. London weighting, car allowance
     taxCode: { type: String, default: '1257L', uppercase: true, trim: true },
     niCategory: { type: String, enum: NI_CATEGORIES, default: 'A' },
@@ -133,10 +139,10 @@ userSchema.virtual('fullName').get(function fullName() {
   return `${this.firstName || ''} ${this.lastName || ''}`.trim();
 });
 
+// Hourly workers: an estimate on contracted hours (actual pay depends on hours worked)
 userSchema.virtual('monthlyGross').get(function monthlyGross() {
   if (!this.salary) return 0;
-  const { annualSalary = 0, monthlyAllowance = 0 } = this.salary;
-  return Math.round((annualSalary / 12 + monthlyAllowance) * 100) / 100;
+  return Math.round((annualPay(this.salary, this.contractedHoursPerWeek) / 12) * 100) / 100;
 });
 
 userSchema.pre('save', async function hashPassword() {

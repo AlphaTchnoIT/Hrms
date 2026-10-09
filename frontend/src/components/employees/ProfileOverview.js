@@ -1,13 +1,15 @@
 import { Card } from '@/components/ui';
 import DetailItem from '@/components/shared/DetailItem';
 import { formatCurrency, formatDate, getFullName, titleCase } from '@/lib/format';
-import { HOLIDAY_REGIONS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { DEDUCTION_MODES, HOLIDAY_REGIONS, NI_CATEGORIES, PAY_TYPES, RIGHT_TO_WORK_STATUS, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { annualPay } from '@/lib/ukRules';
 
 // Read-only view of an employee's details (used on My Profile and Employee detail)
 export default function ProfileOverview({ employee, showSensitive = false }) {
   const address = employee.address || {};
   const salary = employee.salary;
-  const monthlyGross = salary ? (salary.annualSalary || 0) / 12 + (salary.monthlyAllowance || 0) : 0;
+  const hourly = salary?.payType === 'hourly';
+  const monthlyGross = salary ? annualPay(salary, employee.contractedHoursPerWeek) / 12 : 0;
   const labelOf = (list, value) => list.find((o) => o.value === value)?.label || value;
 
   return (
@@ -83,7 +85,13 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
           {salary && (
             <Card title="Pay & tax">
               <dl className="grid grid-cols-2 gap-4">
-                <DetailItem label="Annual salary" value={formatCurrency(salary.annualSalary)} />
+                <DetailItem label="Pay type" value={labelOf(PAY_TYPES, salary.payType || 'salaried')} />
+                {hourly ? (
+                  <DetailItem label="Hourly rate" value={`${formatCurrency(salary.hourlyRate)} / hr`} />
+                ) : (
+                  <DetailItem label="Annual salary" value={formatCurrency(salary.annualSalary)} />
+                )}
+                <DetailItem label="Deductions" value={labelOf(DEDUCTION_MODES, salary.deductionMode || 'auto')} />
                 <DetailItem label="Monthly allowance" value={formatCurrency(salary.monthlyAllowance)} />
                 <DetailItem label="Tax code" value={salary.taxCode} />
                 <DetailItem label="NI category" value={labelOf(NI_CATEGORIES, salary.niCategory)} />
@@ -92,7 +100,7 @@ export default function ProfileOverview({ employee, showSensitive = false }) {
                   value={salary.pensionEnrolled === false || salary.pensionOptedOutOn ? `Not enrolled${salary.pensionOptedOutOn ? ` (opted out ${formatDate(salary.pensionOptedOutOn)})` : ''}` : 'Enrolled'}
                 />
                 <DetailItem label="Student loan" value={`${labelOf(STUDENT_LOAN_PLANS, salary.studentLoanPlan || 'none')}${salary.postgraduateLoan ? ' + Postgraduate' : ''}`} />
-                <DetailItem label="Gross / month" value={<strong>{formatCurrency(monthlyGross)}</strong>} />
+                <DetailItem label={hourly ? 'Estimated gross / month' : 'Gross / month'} value={<strong>{formatCurrency(monthlyGross)}</strong>} />
               </dl>
             </Card>
           )}

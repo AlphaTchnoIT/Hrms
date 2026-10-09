@@ -1,6 +1,6 @@
 import { Attendance, LeaveRequest, Roster } from '../models/index.js';
 import { buildHolidayLookup, findHolidays } from './calendar.service.js';
-import { addDays, dayOfWeek, eachDate, minutesOfDayInTz, monthRange, timeToMinutes, toDateStr, todayInTz } from '../utils/date.js';
+import { addDays, dayOfWeek, eachDate, minutesOfDayInTz, monthRange, timeToMinutes, toDateStr, todayInTz, zonedTimeToDate } from '../utils/date.js';
 
 // Length of a shift in minutes. Night shifts end the next day (end < start).
 export function shiftMinutes(startTime, endTime) {
@@ -78,6 +78,21 @@ export async function getWorkforce(users, from, to, settings) {
   return result;
 }
 
+/*
+ * Schedule adherence: minutes of the shift the employee was logged in (check-in to check-out inside the shift window).
+ * Without a check-out, a login still in progress (today, or a night shift that has not ended yet) counts up to now;
+ * a finished day without a check-out counts 0.
+ */
+export function adherentMinutes({ date, shift, scheduledMinutes, record, timeZone, today, now = new Date() }) {
+  if (!scheduledMinutes || !record?.checkIn?.time) return 0;
+  const start = zonedTimeToDate(date, shift.startTime, timeZone).getTime();
+  const end = start + scheduledMinutes * 60000;
+  const loginStart = new Date(record.checkIn.time).getTime();
+  const inProgress = date === (today ?? todayInTz(timeZone, now)) || now.getTime() < end;
+  const loginEnd = record.checkOut?.time ? new Date(record.checkOut.time).getTime() : inProgress ? now.getTime() : loginStart;
+  return Math.max(0, Math.round((Math.min(end, loginEnd) - Math.max(start, loginStart)) / 60000));
+}
+
 function buildDay({ date, today, settings, roster, record, leave, holiday }) {
   // Same defaults as the Roster schema (records are lean)
   const shift = roster
@@ -96,6 +111,7 @@ function buildDay({ date, today, settings, roster, record, leave, holiday }) {
     shift,
     scheduledMinutes,
     loginMinutes: record?.workMinutes || 0,
+    adherentMinutes: adherentMinutes({ date, shift, scheduledMinutes, record, timeZone: settings.timezone, today }),
     productiveMinutes: record?.productiveMinutes ?? null,
     idleMinutes: record?.idleMinutes ?? null,
     checkIn: record?.checkIn?.time || null,
@@ -154,6 +170,7 @@ function summarize(days, settings) {
     compliantDays: 0,
     loginMinutes: 0,
     scheduledMinutes: 0,
+    adherentMinutes: 0, // minutes logged in inside the scheduled shift
     productiveMinutes: 0,
     idleMinutes: 0,
   };
@@ -176,6 +193,7 @@ function summarize(days, settings) {
     if (ATTENDED.includes(d.status)) {
       s.present += 1;
       s.loginMinutes += d.loginMinutes;
+      s.adherentMinutes += d.adherentMinutes;
       s.productiveMinutes += d.productiveMinutes || 0;
       s.idleMinutes += d.idleMinutes || 0;
       if (!d.isLate && !d.isShort) s.compliantDays += 1;
@@ -186,6 +204,7 @@ function summarize(days, settings) {
   s.attendancePercent = pct(s.present, s.scheduledDays);
   s.adherencePercent = pct(s.compliantDays, s.scheduledDays);
   s.loginHoursPercent = pct(s.loginMinutes, s.scheduledMinutes);
+  s.scheduleAdherencePercent = pct(s.adherentMinutes, s.scheduledMinutes);
   s.meetsAdherenceTarget = s.adherencePercent === null ? null : s.adherencePercent >= settings.kpiTargets.adherence;
   return s;
 }

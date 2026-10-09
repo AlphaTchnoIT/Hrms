@@ -16,6 +16,7 @@ export { Goal } from './goal.model.js';
 export { Asset } from './asset.model.js';
 export { Notification } from './notification.model.js';
 export { Roster } from './roster.model.js';
+export { MonthlyHours } from './monthlyHours.model.js';
 export { KpiRecord, ActionPlan, RatingReview } from './performance.model.js';
 export { Interaction, QaFeedback, Calibration } from './quality.model.js';
 export { Escalation, Warning, WarningTrigger } from './relations.model.js';

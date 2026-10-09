@@ -3,6 +3,10 @@
  * Figures come from Settings -> UK payroll rates (defaults: GOV.UK 2026/27).
  */
 
+import { annualPay } from '../utils/pay.js';
+
+export { annualPay };
+
 const DAY = 86400000;
 
 // Age in whole years on a date
@@ -31,8 +35,8 @@ export function statePensionAge(dateOfBirth) {
  * - non-eligible: can opt in (employer must contribute) - age 16-74 earning over the lower limit, or 16-21 / SPA-74 over the trigger
  * - entitled: can ask to join (no employer contribution required)
  */
-export function autoEnrolmentStatus(user, rates, on = new Date()) {
-  const annual = (user.salary?.annualSalary || 0) + (user.salary?.monthlyAllowance || 0) * 12;
+// `annual`: actual earnings x 12 when known (hourly workers in payroll), otherwise the expected yearly pay
+export function autoEnrolmentStatus(user, rates, on = new Date(), annual = annualPay(user.salary, user.contractedHoursPerWeek)) {
   const age = ageOn(user.dateOfBirth, on);
   if (age === null) return annual > rates.autoEnrolmentTrigger ? 'eligible' : 'entitled';
   const spa = statePensionAge(user.dateOfBirth);
@@ -47,9 +51,16 @@ export function autoEnrolmentStatus(user, rates, on = new Date()) {
  */
 export function minimumWageCheck(user, rates, on = new Date()) {
   const hours = user.contractedHoursPerWeek || 0;
-  const annual = (user.salary?.annualSalary || 0) + (user.salary?.monthlyAllowance || 0) * 12;
-  if (!hours || !annual) return null;
-  const hourly = Math.round((annual / 52 / hours) * 100) / 100;
+  let hourly;
+  if (user.salary?.payType === 'hourly') {
+    // The rate is known, so zero-hours workers are checked too
+    hourly = user.salary.hourlyRate || 0;
+    if (!hourly) return null;
+  } else {
+    const annual = annualPay(user.salary, hours);
+    if (!hours || !annual) return null;
+    hourly = Math.round((annual / 52 / hours) * 100) / 100;
+  }
   const age = ageOn(user.dateOfBirth, on);
   const firstYear = user.dateOfJoining && new Date(on) - new Date(user.dateOfJoining) < 365 * DAY;
   const w = rates.minimumWage;
@@ -70,8 +81,8 @@ export function statutoryNoticeWeeks(dateOfJoining, on = new Date()) {
 }
 
 // Average weekly earnings used for statutory pay (contractual pay x 12 / 52)
-export function averageWeeklyEarnings(salary = {}) {
-  return (((salary.annualSalary || 0) / 12 + (salary.monthlyAllowance || 0)) * 12) / 52;
+export function averageWeeklyEarnings(salary = {}, contractedHoursPerWeek = 0) {
+  return annualPay(salary, contractedHoursPerWeek) / 52;
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -84,8 +95,9 @@ const dateDiffDays = (a, b) => Math.round((new Date(`${a}T00:00:00Z`) - new Date
  * - SPP: lower of the flat rate or 90% of AWE, up to 2 weeks; paid per calendar day
  * `sickDays` = working days on SSP leave this month (from the attendance calendar).
  */
-export function calculateStatutoryPay({ salary, workingDaysPerWeek = 5, leaves = [], sickDays = 0, sspSickDays, monthStart, monthEnd, rates, policies = {} }) {
-  const awe = averageWeeklyEarnings(salary);
+// `awe`: average weekly earnings from actual pay when known (hourly workers: recent payslips), otherwise from the contract
+export function calculateStatutoryPay({ salary, contractedHoursPerWeek, awe: actualAwe, workingDaysPerWeek = 5, leaves = [], sickDays = 0, sspSickDays, monthStart, monthEnd, rates, policies = {} }) {
+  const awe = actualAwe ?? averageWeeklyEarnings(salary, contractedHoursPerWeek);
   const pct = (rates.statutoryPercent ?? 90) / 100;
   const items = [];
 
@@ -99,7 +111,7 @@ export function calculateStatutoryPay({ salary, workingDaysPerWeek = 5, leaves =
   let smp = 0;
   let spp = 0;
   let enhanced = 0;
-  const dailyPay = ((salary?.annualSalary || 0) + (salary?.monthlyAllowance || 0) * 12) / 365;
+  const dailyPay = actualAwe !== undefined ? (actualAwe * 52) / 365 : annualPay(salary, contractedHoursPerWeek) / 365;
   leaves.forEach((leave) => {
     const kind = leave.leaveType?.statutoryPay;
     if (!['smp', 'spp'].includes(kind)) return;

@@ -82,3 +82,16 @@ export const payrollRunSchema = z.object({
   month: intRange('Month', 1, 12),
   year: intRange('Year', 2000, 2100),
 });
+
+// Items the legal / payroll team adds by hand to a payslip (tax, NI, pension, holiday pay, bonus...)
+export const payslipManualItemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        type: z.enum(['earning', 'deduction', 'employer'], { errorMap: () => ({ message: 'Select earning, deduction or employer contribution' }) }),
+        name: requiredText('Item name', { max: 80 }),
+        amount: z.coerce.number({ invalid_type_error: 'Amount must be a number' }).min(0, 'Amount cannot be negative').max(10000000, 'Amount is too large'),
+      })
+    )
+    .max(30, 'At most 30 manual items'),
+});

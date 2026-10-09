@@ -1,8 +1,8 @@
-import { PayrollRun, Payslip, Settings } from '../models/index.js';
+import { PayrollRun, Payslip, Settings, User } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 import { isHR } from '../services/access.service.js';
-import { runPayroll } from '../services/payroll.service.js';
+import { applyManualItems, isStatutoryItem, payrollRates, runPayroll, setRunTotals } from '../services/payroll.service.js';
 import { notify } from '../services/notification.service.js';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -46,6 +46,7 @@ export async function markRunPaid(req, res) {
   const run = await PayrollRun.findById(req.params.id);
   if (!run) throw ApiError.notFound('Payroll run not found');
   if (run.status === 'paid') throw ApiError.badRequest('Payroll is already marked as paid');
+  if (run.needsRerun) throw ApiError.badRequest('AT hours changed after this payroll was processed. Re-run it before marking it as paid');
 
   run.status = 'paid';
   run.paidAt = new Date();
@@ -104,4 +105,27 @@ export async function getPayslip(req, res) {
       },
     },
   });
+}
+
+// PUT /api/payroll/payslips/:id/manual-items  { items: [{ type, name, amount }] }  (HR)
+// The legal / payroll team's own entries (tax, NI, pension, holiday pay, bonus...). Replaces the previous manual items.
+export async function updateManualItems(req, res) {
+  const payslip = await Payslip.findById(req.params.id);
+  if (!payslip) throw ApiError.notFound('Payslip not found');
+  if (payslip.status === 'paid') throw ApiError.badRequest('This payslip is paid and locked');
+  if (payslip.deductionMode !== 'manual') {
+    const statutory = req.body.items.find(isStatutoryItem);
+    if (statutory) throw ApiError.badRequest(`"${statutory.name}" is worked out automatically for this employee. Set their deductions to manual to enter it by hand`);
+  }
+
+  // Automatic deductions are worked out again on the new gross, with the employee's current tax details
+  const employee = await User.findById(payslip.user).select('salary');
+  applyManualItems(payslip, req.body.items, employee?.salary?.toObject?.() || {}, payrollRates(await Settings.getSettings()));
+  await payslip.save();
+
+  const run = await PayrollRun.findById(payslip.payrollRun);
+  setRunTotals(run, await Payslip.find({ payrollRun: run._id }).select('grossEarnings totalDeductions netPay employerContributions'));
+  await run.save();
+
+  sendSuccess(res, { data: payslip, message: 'Payslip updated' });
 }

@@ -25,7 +25,7 @@ import { activeWarningFilter } from '../services/relations.service.js';
 import { leaveStatus } from '../services/workforce.service.js';
 import { payrollRates } from '../services/payroll.service.js';
 import { getPolicies } from '../services/policy.service.js';
-import { autoEnrolmentStatus, bradfordFactor, genderPayGap, minimumWageCheck, statutoryNoticeWeeks } from '../services/ukCompliance.service.js';
+import { annualPay, autoEnrolmentStatus, bradfordFactor, genderPayGap, minimumWageCheck, statutoryNoticeWeeks } from '../services/ukCompliance.service.js';
 
 const name = (u) => (u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : '');
 const hours = (minutes) => Math.round(((minutes || 0) / 60) * 10) / 10;
@@ -318,7 +318,7 @@ export async function runReport(req, res) {
       const result = genderPayGap(
         people.map((p) => ({
           gender: p.gender,
-          hourly: p.contractedHoursPerWeek ? ((p.salary?.annualSalary || 0) + (p.salary?.monthlyAllowance || 0) * 12) / 52 / p.contractedHoursPerWeek : 0,
+          hourly: p.salary?.payType === 'hourly' ? p.salary.hourlyRate || 0 : p.contractedHoursPerWeek ? annualPay(p.salary, p.contractedHoursPerWeek) / 52 / p.contractedHoursPerWeek : 0,
         }))
       );
       columns = [col('measure', 'Measure'), col('value', 'Value')];

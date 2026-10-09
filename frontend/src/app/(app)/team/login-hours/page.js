@@ -81,6 +81,8 @@ export default function LoginHoursPage() {
     { key: 'short', header: 'Short', render: (r) => r.summary.shortLogins || '—' },
     { key: 'absent', header: 'Absent', render: (r) => r.summary.absent || '—' },
     { key: 'adherence', header: 'Adherence', render: (r) => <span className={clsx('font-semibold', pctTone(r.summary.adherencePercent))}>{r.summary.adherencePercent ?? '—'}%</span> },
+    // Minutes logged in inside the scheduled shift / scheduled minutes
+    { key: 'scheduleAdherence', header: 'Schedule adh.', render: (r) => <span className={clsx('font-semibold', pctTone(r.summary.scheduleAdherencePercent))}>{r.summary.scheduleAdherencePercent ?? '—'}%</span> },
     { key: 'view', header: '', render: (r) => <Button size="xs" variant="secondary" onClick={() => setSelected(r)}>Days</Button> },
   ];
 
@@ -99,6 +101,8 @@ export default function LoginHoursPage() {
         { header: 'Short logins', value: (r) => r.summary.shortLogins },
         { header: 'Absent', value: (r) => r.summary.absent },
         { header: 'Adherence %', value: (r) => r.summary.adherencePercent ?? '' },
+        { header: 'In-shift hrs', value: (r) => (r.summary.adherentMinutes / 60).toFixed(1) },
+        { header: 'Schedule adherence %', value: (r) => r.summary.scheduleAdherencePercent ?? '' },
       ],
       rows
     );
@@ -139,6 +143,7 @@ export default function LoginHoursPage() {
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">In / out</th>
                   <th className="py-2 pr-3">Login</th>
+                  <th className="py-2 pr-3">In shift</th>
                   <th className="py-2 pr-3">AT</th>
                   <th className="py-2 pr-3">Idle</th>
                   <th className="py-2" />
@@ -154,6 +159,7 @@ export default function LoginHoursPage() {
                     </td>
                     <td className="whitespace-nowrap py-2 pr-3">{d.checkIn ? `${formatTime(d.checkIn)} – ${d.checkOut ? formatTime(d.checkOut) : '…'}` : '—'}</td>
                     <td className="py-2 pr-3">{d.loginMinutes ? minutesToHours(d.loginMinutes) : '—'}</td>
+                    <td className="py-2 pr-3">{d.adherentMinutes ? minutesToHours(d.adherentMinutes) : '—'}</td>
                     <td className="py-2 pr-3">{d.productiveMinutes !== null ? minutesToHours(d.productiveMinutes) : '—'}</td>
                     <td className={clsx('py-2 pr-3', d.isIdle && 'font-semibold text-rose-600')}>{d.idleMinutes !== null ? minutesToHours(d.idleMinutes) : '—'}</td>
                     <td className="py-2">

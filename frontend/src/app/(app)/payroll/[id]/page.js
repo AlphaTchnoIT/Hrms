@@ -84,6 +84,8 @@ export default function PayrollRunPage() {
         { header: 'Account', value: (p) => p.employeeSnapshot.accountNumber },
         { header: 'Paid days', value: (p) => p.paidDays },
         { header: 'Unpaid days', value: (p) => p.lopDays },
+        { header: 'Hours (hourly)', value: (p) => (p.payType === 'hourly' ? p.hoursWorked ?? 0 : '') },
+        { header: 'Hourly rate', value: (p) => (p.payType === 'hourly' ? p.hourlyRate : '') },
         { header: 'Gross', value: (p) => p.grossEarnings },
         ...['Income Tax', 'National Insurance', 'Pension', 'Student Loan', 'Postgraduate Loan'].map((name) => ({
           header: name,
@@ -110,7 +112,7 @@ export default function PayrollRunPage() {
         </div>
       ),
     },
-    { key: 'paidDays', header: 'Paid days', render: (p) => `${p.paidDays} / ${p.totalDays}` },
+    { key: 'paidDays', header: 'Paid days', render: (p) => (p.payType === 'hourly' ? `${p.hoursWorked ?? 0} hrs` : `${p.paidDays} / ${p.totalDays}`) },
     { key: 'lop', header: 'Unpaid days', render: (p) => (p.lopDays ? <span className="text-red-600">{p.lopDays}</span> : 0) },
     { key: 'gross', header: 'Gross', render: (p) => formatCurrency(p.grossEarnings) },
     { key: 'deductions', header: 'Deductions', render: (p) => formatCurrency(p.totalDeductions) },
@@ -155,6 +157,14 @@ export default function PayrollRunPage() {
         <StatCard label="Total deductions" value={formatCurrency(run.totalDeductions)} icon={CurrencyIcon} tone="red" />
         <StatCard label="Net payout" value={formatCurrency(run.totalNet)} icon={CurrencyIcon} tone="green" />
       </div>
+
+      {run.needsRerun && !isPaid && (
+        <Card className="mb-6 border-amber-300 bg-amber-50">
+          <p className="text-sm text-amber-900">
+            <strong>AT hours changed after this payroll was processed.</strong> Re-run it so hourly pay uses the latest hours; it cannot be marked as paid until then.
+          </p>
+        </Card>
+      )}
 
       {run.warnings?.length > 0 && (
         <Card className="mb-6 border-amber-200 bg-amber-50" title={`${run.warnings.length} thing${run.warnings.length > 1 ? 's' : ''} to check before paying`}>

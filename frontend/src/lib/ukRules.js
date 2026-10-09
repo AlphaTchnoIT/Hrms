@@ -11,13 +11,24 @@ export function ageOn(dateOfBirth, on = new Date()) {
   return age;
 }
 
-const annualPay = (salary = {}) => (Number(salary.annualSalary) || 0) + (Number(salary.monthlyAllowance) || 0) * 12;
+// Hourly workers: hourly rate x contracted hours x 52 (an estimate, actual pay depends on AT hours worked)
+export const annualPay = (salary = {}, contractedHoursPerWeek = 0) =>
+  (salary.payType === 'hourly' ? (Number(salary.hourlyRate) || 0) * (Number(contractedHoursPerWeek) || 0) * 52 : Number(salary.annualSalary) || 0) +
+  (Number(salary.monthlyAllowance) || 0) * 12;
 
 export function minimumWageCheck({ dateOfBirth, dateOfJoining, employmentType, contractedHoursPerWeek, salary }, rates) {
   const hours = Number(contractedHoursPerWeek) || 0;
-  const annual = annualPay(salary);
-  if (!hours || !annual || !rates?.minimumWage) return null;
-  const hourly = Math.round((annual / 52 / hours) * 100) / 100;
+  if (!rates?.minimumWage) return null;
+  let hourly;
+  if (salary?.payType === 'hourly') {
+    // The rate is known, so zero-hours workers are checked too
+    hourly = Number(salary.hourlyRate) || 0;
+    if (!hourly) return null;
+  } else {
+    const annual = annualPay(salary, hours);
+    if (!hours || !annual) return null;
+    hourly = Math.round((annual / 52 / hours) * 100) / 100;
+  }
   const age = ageOn(dateOfBirth);
   const firstYear = dateOfJoining && Date.now() - new Date(dateOfJoining) < 365 * 86400000;
   let band = 'age21';
@@ -27,9 +38,9 @@ export function minimumWageCheck({ dateOfBirth, dateOfJoining, employmentType, c
   return { hourly, required: rates.minimumWage[band], ok: hourly >= rates.minimumWage[band] };
 }
 
-export function autoEnrolmentStatus({ dateOfBirth, salary }, rates) {
+export function autoEnrolmentStatus({ dateOfBirth, salary, contractedHoursPerWeek }, rates) {
   if (!rates) return null;
-  const annual = annualPay(salary);
+  const annual = annualPay(salary, contractedHoursPerWeek);
   const age = ageOn(dateOfBirth);
   const spa = dateOfBirth && new Date(dateOfBirth) >= new Date('1961-03-06') ? 67 : 66;
   if (age === null) return annual > rates.autoEnrolmentTrigger ? 'eligible' : 'entitled';

@@ -2,11 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_UK_PAYROLL } from '../constants/index.js';
 import {
+  applyManualItems,
   calculateIncomeTax,
   calculateNationalInsurance,
   calculatePayslip,
   calculatePension,
   calculateStudentLoans,
+  isStatutoryItem,
+  manualItemsOf,
   parseTaxCode,
 } from '../services/payroll.service.js';
 
@@ -94,4 +97,66 @@ test('Scottish starter rate band ends at £3,967 above the allowance', () => {
 
 test('2026/27 student loan thresholds', () => {
   assert.deepEqual(rates.studentLoanThresholds, { plan1: 26900, plan2: 29385, plan4: 33795, plan5: 25000, postgrad: 21000 });
+});
+
+test('hourly pay: rate x AT hours, overtime at the same rate', () => {
+  // 5/hr x 25 hrs = 125, below every threshold so no tax / NI / pension
+  const p = calculatePayslip({ employee: { salary: { payType: 'hourly', hourlyRate: 5 } }, settings, totalDays: 22, lopDays: 0, hoursWorked: 25 });
+  assert.equal(p.grossEarnings, 125);
+  assert.equal(p.earnings[0].name, 'Hourly Pay (25 hrs @ 5/hr)');
+  assert.equal(p.hoursWorked, 25);
+  assert.equal(p.netPay, 125);
+  const big = calculatePayslip({ employee: { salary: { payType: 'hourly', hourlyRate: 20, taxCode: '1257L' } }, settings, totalDays: 22, lopDays: 0, hoursWorked: 200 });
+  assert.equal(big.grossEarnings, 4000);
+  assert.ok(big.deductions.some((d) => d.name.startsWith('Income Tax')));
+});
+
+test('manual deductions: no tax / NI / pension, net = gross', () => {
+  const p = payslip({ annualSalary: 30000, deductionMode: 'manual' });
+  assert.equal(p.grossEarnings, 2500);
+  assert.deepEqual(p.deductions, []);
+  assert.deepEqual(p.employerContributions, []);
+  assert.equal(p.netPay, 2500);
+  assert.equal(p.deductionMode, 'manual');
+});
+
+test('manual items, manual deductions: added to totals, replaced on edit', () => {
+  const p = payslip({ annualSalary: 30000, deductionMode: 'manual' }); // gross 2,500, no deductions
+  const salary = { annualSalary: 30000, deductionMode: 'manual' };
+  applyManualItems(p, [
+    { type: 'deduction', name: 'Income Tax', amount: 270.7 },
+    { type: 'deduction', name: 'National Insurance', amount: 116.16 },
+    { type: 'earning', name: 'Holiday pay', amount: 100 },
+    { type: 'employer', name: 'Employer pension', amount: 59.4 },
+  ], salary, rates);
+  assert.equal(p.grossEarnings, 2600);
+  assert.equal(p.taxablePay, 2600);
+  assert.equal(p.totalDeductions, 386.86);
+  assert.equal(p.netPay, 2213.14);
+  assert.equal(manualItemsOf(p).length, 4);
+  // Editing replaces the old manual items, the automatic ones stay
+  applyManualItems(p, [{ type: 'deduction', name: 'Income Tax', amount: 200 }], salary, rates);
+  assert.equal(p.grossEarnings, 2500);
+  assert.equal(p.netPay, 2300);
+  assert.deepEqual(p.employerContributions, []);
+  assert.equal(p.earnings[0].name, 'Basic Pay');
+});
+
+test('manual earning with automatic deductions: tax and NI are worked out on the new gross', () => {
+  const salary = { annualSalary: 30000, taxCode: '1257L', niCategory: 'A', pensionEnrolled: true };
+  const withBonus = calculatePayslip({ employee: { salary }, settings, totalDays: 30, lopDays: 0, manualItems: [{ type: 'earning', name: 'Bonus', amount: 500 }] });
+  const plain = calculatePayslip({ employee: { salary: { ...salary, annualSalary: 36000 } }, settings, totalDays: 30, lopDays: 0 }); // also 3,000 gross
+  assert.equal(withBonus.grossEarnings, 3000);
+  assert.deepEqual(withBonus.deductions, plain.deductions);
+  assert.equal(withBonus.netPay, plain.netPay);
+  // Removing the bonus brings the tax back down
+  applyManualItems(withBonus, [], salary, rates);
+  assert.equal(withBonus.netPay, payslip(salary).netPay);
+});
+
+test('statutory manual items are recognised (charged twice with automatic deductions)', () => {
+  assert.equal(isStatutoryItem({ type: 'deduction', name: 'Income Tax' }), true);
+  assert.equal(isStatutoryItem({ type: 'employer', name: 'Employer NI' }), true);
+  assert.equal(isStatutoryItem({ type: 'deduction', name: 'Salary advance' }), false);
+  assert.equal(isStatutoryItem({ type: 'earning', name: 'Pension refund' }), false);
 });

@@ -4,9 +4,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
 import { useForm } from '@/hooks/useForm';
 import { employeeSchema } from '@/lib/validation';
-import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, HOLIDAY_REGIONS, MARITAL_STATUS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS } from '@/lib/constants';
+import { BLOOD_GROUPS, EMPLOYEE_STATUS, EMPLOYMENT_TYPES, GENDERS, HOLIDAY_REGIONS, MARITAL_STATUS, NI_CATEGORIES, RIGHT_TO_WORK_STATUS, ROLES, STUDENT_LOAN_PLANS, PAY_TYPES, DEDUCTION_MODES } from '@/lib/constants';
 import { formatCurrency, getFullName, toInputDate, getCurrencySymbol } from '@/lib/format';
-import { autoEnrolmentStatus, minimumWageCheck, PENSION_STATUS_TEXT, statutoryNoticeWeeks } from '@/lib/ukRules';
+import { annualPay, autoEnrolmentStatus, minimumWageCheck, PENSION_STATUS_TEXT, statutoryNoticeWeeks } from '@/lib/ukRules';
 import { Button, Card, Checkbox, FormSection, Input, Select } from '@/components/ui';
 
 // Convert an employee from the API into flat form values
@@ -51,7 +51,10 @@ export function toFormValues(employee = {}) {
       sortCode: employee.bankDetails?.sortCode || '',
     },
     salary: {
+      payType: salary.payType || 'salaried',
       annualSalary: salary.annualSalary ?? '',
+      hourlyRate: salary.hourlyRate ?? '',
+      deductionMode: salary.deductionMode || 'auto',
       monthlyAllowance: salary.monthlyAllowance ?? '',
       taxCode: salary.taxCode || '1257L',
       niCategory: salary.niCategory || 'A',
@@ -63,8 +66,6 @@ export function toFormValues(employee = {}) {
   };
 }
 
-// Gross pay per month = annual salary / 12 + monthly allowance
-const monthlyGross = (salary) => (Number(salary.annualSalary) || 0) / 12 + (Number(salary.monthlyAllowance) || 0);
 
 export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, onCancel, employeeId }) {
   const { isAdmin } = useAuth();
@@ -82,7 +83,9 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
     .filter((p) => p._id !== employeeId)
     .map((p) => ({ value: p._id, label: `${getFullName(p)} (${p.employeeCode})` }));
 
-  const gross = monthlyGross(values.salary);
+  // Gross pay per month; hourly workers: an estimate on contracted hours
+  const hourly = values.salary.payType === 'hourly';
+  const gross = annualPay(values.salary, values.contractedHoursPerWeek) / 12;
   // UK checks shown as hints while typing (rates from Settings -> UK payroll rates)
   const settings = useFetch('/settings');
   const rates = settings.data?.payroll;
@@ -171,8 +174,14 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
           <Input label="National Insurance number" placeholder="QQ 12 34 56 C" {...register('niNumber')} />
         </FormSection>
 
-        <FormSection title="Pay & tax (PAYE)" description="Payroll works out Income Tax, National Insurance, pension and student loan each month.">
-          <Input label="Annual salary" type="number" min="0" prefix={getCurrencySymbol()} hint="Gross per year, before tax" {...register('salary.annualSalary')} />
+        <FormSection title="Pay & tax (PAYE)" description="Payroll works out Income Tax, National Insurance, pension and student loan each month (unless deductions are manual).">
+          <Select label="Pay type" placeholder={false} options={PAY_TYPES} {...register('salary.payType')} />
+          {hourly ? (
+            <Input label="Hourly rate" type="number" min="0" step="0.01" required prefix={getCurrencySymbol()} hint="Paid on AT (productive) hours each month, overtime at the same rate" {...register('salary.hourlyRate')} />
+          ) : (
+            <Input label="Annual salary" type="number" min="0" prefix={getCurrencySymbol()} hint="Gross per year, before tax" {...register('salary.annualSalary')} />
+          )}
+          <Select label="Deductions" placeholder={false} options={DEDUCTION_MODES} hint="Manual: tax, NI and pension are not worked out by payroll" {...register('salary.deductionMode')} />
           <Input label="Monthly allowance" type="number" min="0" prefix={getCurrencySymbol()} hint="e.g. London weighting, car allowance" {...register('salary.monthlyAllowance')} />
           <Input label="Tax code" placeholder="1257L" hint="From HMRC / the P45. S… = Scottish, C… = Welsh" {...register('salary.taxCode')} />
           <Select label="NI category" placeholder={false} options={NI_CATEGORIES} {...register('salary.niCategory')} />
@@ -187,7 +196,7 @@ export default function EmployeeForm({ initialValues, isEdit = false, onSubmit, 
             <Checkbox label="Postgraduate loan" description="Deduct postgraduate loan repayments" {...register('salary.postgraduateLoan', { type: 'checkbox' })} />
           </div>
           <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-xs text-slate-500">Gross per month</p>
+            <p className="text-xs text-slate-500">{hourly ? 'Estimated gross per month (on contracted hours)' : 'Gross per month'}</p>
             <p className="text-lg font-semibold text-slate-900">{formatCurrency(gross)}</p>
             <p className="text-xs text-slate-500">{formatCurrency(gross * 12)} per year</p>
           </div>

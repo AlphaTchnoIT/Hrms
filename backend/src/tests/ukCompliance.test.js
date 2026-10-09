@@ -114,3 +114,15 @@ test('SSP stops after 28 weeks of a spell', async () => {
   ];
   assert.equal(sspPayableDays(days, 28), 1);
 });
+
+test('hourly workers: minimum wage checked on the rate, even on zero hours', () => {
+  const on = new Date('2026-10-01');
+  const low = minimumWageCheck({ dateOfBirth: '1990-01-01', contractedHoursPerWeek: 0, salary: { payType: 'hourly', hourlyRate: 5 } }, rates, on);
+  assert.equal(low.ok, false);
+  assert.equal(low.hourly, 5);
+  // Pension: assessed on actual earnings when given
+  assert.equal(autoEnrolmentStatus({ dateOfBirth: '1990-01-01', salary: { payType: 'hourly', hourlyRate: 20 } }, rates, on, 48000), 'eligible');
+  // SSP from actual average weekly earnings
+  const ssp = calculateStatutoryPay({ salary: { payType: 'hourly', hourlyRate: 20 }, awe: 460, sickDays: 5, monthStart: '2026-10-01', monthEnd: '2026-10-31', rates });
+  assert.ok(ssp[0].amount > 0);
+});
